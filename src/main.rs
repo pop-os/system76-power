@@ -1,50 +1,29 @@
+use std::fmt::Display;
 use std::fs::File;
 use std::io::{self, Read};
-use std::path::PathBuf;
+use std::path::Path;
+use std::str::FromStr;
 
-pub struct Backlight {
-    path: PathBuf,
-}
+use backlight::Backlight;
 
-impl Backlight {
-    pub fn new(name: &str) -> io::Result<Backlight> {
-        //TODO: Check for validity
-        let mut path = PathBuf::from("/sys/class/backlight");
-        path.push(name);
-        Ok(Backlight {
-            path: path
-        })
+mod backlight;
+
+pub fn parse_file<F: FromStr, P: AsRef<Path>>(path: P) -> io::Result<F>
+    where F::Err: Display
+{
+    let mut data = String::new();
+
+    {
+        let mut file = File::open(path.as_ref())?;
+        file.read_to_string(&mut data)?;
     }
 
-    fn read_u64(&self, name: &str) -> io::Result<u64> {
-        let mut data = String::new();
-
-        {
-            let mut path = self.path.clone();
-            path.push(name);
-            let mut file = File::open(path)?;
-            file.read_to_string(&mut data)?;
-        }
-
-        data.trim().parse().map_err(|e| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("{}", e)
-            )
-        })
-    }
-
-    pub fn actual_brightness(&self) -> io::Result<u64> {
-        self.read_u64("actual_brightness")
-    }
-
-    pub fn brightness(&self) -> io::Result<u64> {
-        self.read_u64("brightness")
-    }
-
-    pub fn max_brightness(&self) -> io::Result<u64> {
-        self.read_u64("max_brightness")
-    }
+    data.trim().parse().map_err(|e| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("{}", e)
+        )
+    })
 }
 
 fn power() -> io::Result<()> {
