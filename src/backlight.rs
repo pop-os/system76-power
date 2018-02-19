@@ -1,8 +1,7 @@
-use std::fs::File;
-use std::io::{self, Read};
+use std::io;
 use std::path::PathBuf;
 
-use super::parse_file;
+use util::parse_file;
 
 pub struct Backlight {
     path: PathBuf,
