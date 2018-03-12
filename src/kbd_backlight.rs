@@ -21,7 +21,7 @@ impl KeyboardBacklight {
         parse_file(self.path.join("brightness"))
     }
     
-    pub fn set_brightness(&self, value: u64) -> io::Result<()> {
+    pub fn set_brightness(&mut self, value: u64) -> io::Result<()> {
         write_file(self.path.join("brightness"), format!("{}", value))
     }
 
@@ -33,7 +33,7 @@ impl KeyboardBacklight {
         parse_file_radix(self.path.join("color_left"), 16)
     }
     
-    pub fn set_color_left(&self, color: u64) -> io::Result<()> {
+    pub fn set_color_left(&mut self, color: u64) -> io::Result<()> {
         write_file(self.path.join("color_left"), format!("{:06X}", color))
     }
     
@@ -41,7 +41,7 @@ impl KeyboardBacklight {
         parse_file_radix(self.path.join("color_center"), 16)
     }
     
-    pub fn set_color_center(&self, color: u64) -> io::Result<()> {
+    pub fn set_color_center(&mut self, color: u64) -> io::Result<()> {
         write_file(self.path.join("color_center"), format!("{:06X}", color))
     }
     
@@ -49,7 +49,7 @@ impl KeyboardBacklight {
         parse_file_radix(self.path.join("color_right"), 16)
     }
     
-    pub fn set_color_right(&self, color: u64) -> io::Result<()> {
+    pub fn set_color_right(&mut self, color: u64) -> io::Result<()> {
         write_file(self.path.join("color_right"), format!("{:06X}", color))
     }
     
@@ -57,7 +57,7 @@ impl KeyboardBacklight {
         parse_file_radix(self.path.join("color_extra"), 16)
     }
     
-    pub fn set_color_extra(&self, color: u64) -> io::Result<()> {
+    pub fn set_color_extra(&mut self, color: u64) -> io::Result<()> {
         write_file(self.path.join("color_extra"), format!("{:06X}", color))
     }
 }

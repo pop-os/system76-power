@@ -4,28 +4,28 @@ use backlight::Backlight;
 use kbd_backlight::KeyboardBacklight;
 use pstate::PState;
 
-mod backlight;
-mod kbd_backlight;
-mod pstate;
+pub mod backlight;
+pub mod kbd_backlight;
+pub mod pstate;
 mod util;
 
 fn performance() -> io::Result<()> {    
     {
-        let pstate = PState::new()?;
+        let mut pstate = PState::new()?;
         pstate.set_min_perf_pct(50)?;
         pstate.set_max_perf_pct(100)?;
         pstate.set_no_turbo(false)?;
     }
     
     {
-        let backlight = Backlight::new("intel_backlight")?;
+        let mut backlight = Backlight::new("intel_backlight")?;
         let max_brightness = backlight.max_brightness()?;
         backlight.set_brightness(max_brightness)?;
     }
     
     {
-        let backlight = KeyboardBacklight::new()?;
-        let brightness = backlight.set_brightness(255)?;
+        let mut backlight = KeyboardBacklight::new()?;
+        backlight.set_brightness(255)?;
     }
     
     Ok(())
@@ -33,20 +33,20 @@ fn performance() -> io::Result<()> {
 
 fn balanced() -> io::Result<()> {    
     {
-        let pstate = PState::new()?;
+        let mut pstate = PState::new()?;
         pstate.set_min_perf_pct(0)?;
         pstate.set_max_perf_pct(100)?;
         pstate.set_no_turbo(false)?;
     }
     
     {
-        let backlight = Backlight::new("intel_backlight")?;
+        let mut backlight = Backlight::new("intel_backlight")?;
         let max_brightness = backlight.max_brightness()?;
         backlight.set_brightness(max_brightness/2)?;
     }
     
     {
-        let backlight = KeyboardBacklight::new()?;
+        let mut backlight = KeyboardBacklight::new()?;
         backlight.set_brightness(72)?;
     }
     
@@ -55,21 +55,21 @@ fn balanced() -> io::Result<()> {
 
 fn battery() -> io::Result<()> {    
     {
-        let pstate = PState::new()?;
+        let mut pstate = PState::new()?;
         pstate.set_min_perf_pct(0)?;
         pstate.set_max_perf_pct(50)?;
         pstate.set_no_turbo(true)?;
     }
     
     {
-        let backlight = Backlight::new("intel_backlight")?;
+        let mut backlight = Backlight::new("intel_backlight")?;
         let max_brightness = backlight.max_brightness()?;
         backlight.set_brightness(max_brightness/8)?;
     }
     
     {
-        let backlight = KeyboardBacklight::new()?;
-        let brightness = backlight.set_brightness(0)?;
+        let mut backlight = KeyboardBacklight::new()?;
+        backlight.set_brightness(0)?;
     }
     
     Ok(())
@@ -86,7 +86,7 @@ fn power() -> io::Result<()> {
     
     {
         let backlight = Backlight::new("intel_backlight")?;
-        let brightness = backlight.brightness()?;
+        let brightness = backlight.actual_brightness()?;
         let max_brightness = backlight.max_brightness()?;
         let ratio = (brightness as f64)/(max_brightness as f64);
         let power = 0.7 + 3.0 * ratio;
@@ -133,7 +133,7 @@ fn main() {
                 process::exit(1);
             }
         }
+    } else {
+        power().unwrap();
     }
-    
-    power().unwrap();
 }

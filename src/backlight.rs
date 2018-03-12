@@ -29,7 +29,7 @@ impl Backlight {
         parse_file(self.path.join("brightness"))
     }
     
-    pub fn set_brightness(&self, value: u64) -> io::Result<()> {
+    pub fn set_brightness(&mut self, value: u64) -> io::Result<()> {
         write_file(self.path.join("brightness"), format!("{}", value))
     }
 

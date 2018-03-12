@@ -21,7 +21,7 @@ impl PState {
         parse_file(self.path.join("min_perf_pct"))
     }
 
-    pub fn set_min_perf_pct(&self, value: u64) -> io::Result<()> {
+    pub fn set_min_perf_pct(&mut self, value: u64) -> io::Result<()> {
         write_file(self.path.join("min_perf_pct"), format!("{}", value))
     }
     
@@ -29,7 +29,7 @@ impl PState {
         parse_file(self.path.join("max_perf_pct"))
     }
 
-    pub fn set_max_perf_pct(&self, value: u64) -> io::Result<()> {
+    pub fn set_max_perf_pct(&mut self, value: u64) -> io::Result<()> {
         write_file(self.path.join("max_perf_pct"), format!("{}", value))
     }
     
@@ -38,7 +38,7 @@ impl PState {
         Ok(value > 0)
     }
 
-    pub fn set_no_turbo(&self, value: bool) -> io::Result<()> {
+    pub fn set_no_turbo(&mut self, value: bool) -> io::Result<()> {
         write_file(self.path.join("no_turbo"), if value { "1" } else { "0" })
     }
 }
