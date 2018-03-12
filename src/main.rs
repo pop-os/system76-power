@@ -17,18 +17,6 @@ fn performance() -> io::Result<()> {
         pstate.set_no_turbo(false)?;
     }
     
-    {
-        let mut backlight = Backlight::new("intel_backlight")?;
-        let max_brightness = backlight.max_brightness()?;
-        //TODO: Decrease brightness only
-        backlight.set_brightness(max_brightness)?;
-    }
-    
-    {
-        let mut backlight = KeyboardBacklight::new()?;
-        backlight.set_brightness(255)?;
-    }
-    
     Ok(())
 }
 
@@ -43,14 +31,20 @@ fn balanced() -> io::Result<()> {
     {
         let mut backlight = Backlight::new("intel_backlight")?;
         let max_brightness = backlight.max_brightness()?;
-        //TODO: Decrease brightness only
-        let brightness = max_brightness * 40 / 100;
-        backlight.set_brightness(brightness)?;
+        let current = backlight.brightness()?;
+        let new = max_brightness * 40 / 100;
+        if new < current {
+            backlight.set_brightness(new)?;
+        }
     }
     
     {
         let mut backlight = KeyboardBacklight::new()?;
-        backlight.set_brightness(72)?;
+        let current = backlight.brightness()?;
+        let new = 72;
+        if new < current {
+            backlight.set_brightness(new)?;
+        }
     }
     
     Ok(())
@@ -67,9 +61,11 @@ fn battery() -> io::Result<()> {
     {
         let mut backlight = Backlight::new("intel_backlight")?;
         let max_brightness = backlight.max_brightness()?;
-        //TODO: Decrease brightness only
-        let brightness = max_brightness * 10 / 100;
-        backlight.set_brightness(brightness)?;
+        let current = backlight.brightness()?;
+        let new = max_brightness * 10 / 100;
+        if new < current {
+            backlight.set_brightness(new)?;
+        }
     }
     
     {
