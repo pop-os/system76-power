@@ -1,7 +1,7 @@
 use std::io;
 use std::path::PathBuf;
 
-use util::parse_file;
+use util::{parse_file, write_file};
 
 pub struct Backlight {
     path: PathBuf,
@@ -27,6 +27,10 @@ impl Backlight {
 
     pub fn brightness(&self) -> io::Result<u64> {
         parse_file(self.path.join("brightness"))
+    }
+    
+    pub fn set_brightness(&self, value: u64) -> io::Result<()> {
+        write_file(self.path.join("brightness"), format!("{}", value))
     }
 
     pub fn max_brightness(&self) -> io::Result<u64> {

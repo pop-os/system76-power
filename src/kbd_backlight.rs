@@ -20,6 +20,10 @@ impl KeyboardBacklight {
     pub fn brightness(&self) -> io::Result<u64> {
         parse_file(self.path.join("brightness"))
     }
+    
+    pub fn set_brightness(&self, value: u64) -> io::Result<()> {
+        write_file(self.path.join("brightness"), format!("{}", value))
+    }
 
     pub fn max_brightness(&self) -> io::Result<u64> {
         parse_file(self.path.join("max_brightness"))

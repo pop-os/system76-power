@@ -1,16 +1,92 @@
-use std::io;
+use std::{env, io, process};
 
 use backlight::Backlight;
 use kbd_backlight::KeyboardBacklight;
+use pstate::PState;
 
 mod backlight;
 mod kbd_backlight;
+mod pstate;
 mod util;
+
+fn performance() -> io::Result<()> {    
+    {
+        let pstate = PState::new()?;
+        pstate.set_min_perf_pct(50)?;
+        pstate.set_max_perf_pct(100)?;
+        pstate.set_no_turbo(false)?;
+    }
+    
+    {
+        let backlight = Backlight::new("intel_backlight")?;
+        let max_brightness = backlight.max_brightness()?;
+        backlight.set_brightness(max_brightness)?;
+    }
+    
+    {
+        let backlight = KeyboardBacklight::new()?;
+        let brightness = backlight.set_brightness(255)?;
+    }
+    
+    Ok(())
+}
+
+fn balanced() -> io::Result<()> {    
+    {
+        let pstate = PState::new()?;
+        pstate.set_min_perf_pct(0)?;
+        pstate.set_max_perf_pct(100)?;
+        pstate.set_no_turbo(false)?;
+    }
+    
+    {
+        let backlight = Backlight::new("intel_backlight")?;
+        let max_brightness = backlight.max_brightness()?;
+        backlight.set_brightness(max_brightness/2)?;
+    }
+    
+    {
+        let backlight = KeyboardBacklight::new()?;
+        backlight.set_brightness(72)?;
+    }
+    
+    Ok(())
+}
+
+fn battery() -> io::Result<()> {    
+    {
+        let pstate = PState::new()?;
+        pstate.set_min_perf_pct(0)?;
+        pstate.set_max_perf_pct(50)?;
+        pstate.set_no_turbo(true)?;
+    }
+    
+    {
+        let backlight = Backlight::new("intel_backlight")?;
+        let max_brightness = backlight.max_brightness()?;
+        backlight.set_brightness(max_brightness/8)?;
+    }
+    
+    {
+        let backlight = KeyboardBacklight::new()?;
+        let brightness = backlight.set_brightness(0)?;
+    }
+    
+    Ok(())
+}
 
 fn power() -> io::Result<()> {
     {
+        let pstate = PState::new()?;
+        let min = pstate.min_perf_pct()?;
+        let max = pstate.max_perf_pct()?;
+        let no_turbo = pstate.no_turbo()?;
+        println!("CPU: {}% - {}%, {}", min, max, if no_turbo { "No Turbo" } else { "Turbo" });
+    }
+    
+    {
         let backlight = Backlight::new("intel_backlight")?;
-        let brightness = backlight.actual_brightness()?;
+        let brightness = backlight.brightness()?;
         let max_brightness = backlight.max_brightness()?;
         let ratio = (brightness as f64)/(max_brightness as f64);
         let power = 0.7 + 3.0 * ratio;
@@ -36,5 +112,28 @@ fn power() -> io::Result<()> {
 }
 
 fn main() {
+    let mut args = env::args().skip(1);
+    
+    if let Some(arg) = args.next() {
+        match arg.as_str() {
+            "performance" => {
+                println!("setting performance mode");
+                performance().unwrap();
+            },
+            "balanced" => {
+                println!("setting balanced mode");
+                balanced().unwrap();
+            },
+            "battery" => {
+                println!("setting battery mode");
+                battery().unwrap();
+            },
+            _ => {
+                eprintln!("system76-power: unknown sub-command {}", arg);
+                process::exit(1);
+            }
+        }
+    }
+    
     power().unwrap();
 }
