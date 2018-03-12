@@ -42,7 +42,8 @@ fn balanced() -> io::Result<()> {
     {
         let mut backlight = Backlight::new("intel_backlight")?;
         let max_brightness = backlight.max_brightness()?;
-        backlight.set_brightness(max_brightness/2)?;
+        let brightness = max_brightness * 40 / 100;
+        backlight.set_brightness(brightness)?;
     }
     
     {
@@ -64,7 +65,8 @@ fn battery() -> io::Result<()> {
     {
         let mut backlight = Backlight::new("intel_backlight")?;
         let max_brightness = backlight.max_brightness()?;
-        backlight.set_brightness(max_brightness/8)?;
+        let brightness = max_brightness * 10 / 100;
+        backlight.set_brightness(brightness)?;
     }
     
     {
