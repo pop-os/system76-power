@@ -1,63 +1,54 @@
-use std::io;
+use std::{fs, io};
 use std::path::PathBuf;
 
-use util::{parse_file, parse_file_radix, write_file};
+use util::{parse_file, write_file};
 
 pub struct KeyboardBacklight {
+    name: String,
     path: PathBuf,
 }
 
 impl KeyboardBacklight {
-    pub fn new() -> io::Result<KeyboardBacklight> {
-        //TODO: Check for validity
+    pub fn all() -> io::Result<Vec<KeyboardBacklight>> {
+        let mut ret = Vec::new();
+
+        for entry_res in fs::read_dir("/sys/class/leds")? {
+            let entry = entry_res?;
+            if let Ok(name) = entry.file_name().into_string() {
+                if name.contains("kbd_backlight") {
+                    ret.push(KeyboardBacklight::new(&name)?);
+                }
+            }
+        }
+
+        Ok(ret)
+    }
+
+    pub fn new(name: &str) -> io::Result<KeyboardBacklight> {
+        let mut path = PathBuf::from("/sys/class/leds");
+        path.push(name);
+
+        fs::read_dir(&path)?;
+
         Ok(KeyboardBacklight {
-            path: PathBuf::from(
-                "/sys/devices/platform/system76/leds/system76::kbd_backlight"
-            )
+            name: name.to_string(),
+            path: path
         })
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
     }
 
     pub fn brightness(&self) -> io::Result<u64> {
         parse_file(self.path.join("brightness"))
     }
-    
+
     pub fn set_brightness(&mut self, value: u64) -> io::Result<()> {
         write_file(self.path.join("brightness"), format!("{}", value))
     }
 
     pub fn max_brightness(&self) -> io::Result<u64> {
         parse_file(self.path.join("max_brightness"))
-    }
-    
-    pub fn color_left(&self) -> io::Result<u64> {
-        parse_file_radix(self.path.join("color_left"), 16)
-    }
-    
-    pub fn set_color_left(&mut self, color: u64) -> io::Result<()> {
-        write_file(self.path.join("color_left"), format!("{:06X}", color))
-    }
-    
-    pub fn color_center(&self) -> io::Result<u64> {
-        parse_file_radix(self.path.join("color_center"), 16)
-    }
-    
-    pub fn set_color_center(&mut self, color: u64) -> io::Result<()> {
-        write_file(self.path.join("color_center"), format!("{:06X}", color))
-    }
-    
-    pub fn color_right(&self) -> io::Result<u64> {
-        parse_file_radix(self.path.join("color_right"), 16)
-    }
-    
-    pub fn set_color_right(&mut self, color: u64) -> io::Result<()> {
-        write_file(self.path.join("color_right"), format!("{:06X}", color))
-    }
-    
-    pub fn color_extra(&self) -> io::Result<u64> {
-        parse_file_radix(self.path.join("color_extra"), 16)
-    }
-    
-    pub fn set_color_extra(&mut self, color: u64) -> io::Result<()> {
-        write_file(self.path.join("color_extra"), format!("{:06X}", color))
     }
 }
