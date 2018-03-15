@@ -1,0 +1,7 @@
+Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: system76-power
+Source: https://github.com/pop-os/system76-power
+
+Files: *
+Copyright: Copyright 2018 System76
+License: LGPL-3
