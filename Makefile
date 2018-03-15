@@ -10,7 +10,7 @@ datadir = $(datarootdir)
 
 BIN=system76-power
 
-all: target/release/$(BIN) target/release/lib$(BIN).so target/include/$(BIN).h target/pkgconfig/$(BIN).pc
+all: target/release/$(BIN)
 
 clean:
 	cargo clean
