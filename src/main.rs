@@ -101,6 +101,21 @@ fn power() -> io::Result<()> {
     Ok(())
 }
 
+fn prime_select(arg: &str) -> io::Result<()> {
+    let status = process::Command::new("prime-select")
+        .arg(arg)
+        .status()?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        Err(io::Error::new(
+            io::ErrorKind::Other,
+            format!("prime-select exited with {}", status)
+        ))
+    }
+}
+
 fn main() {
     let mut args = env::args().skip(1);
 
@@ -117,6 +132,24 @@ fn main() {
             "battery" => {
                 println!("setting battery mode");
                 battery().unwrap();
+            },
+            "graphics" => if let Some(arg) = args.next() {
+                match arg.as_str() {
+                    "intel" => {
+                        println!("setting intel graphics");
+                        prime_select("intel").unwrap();
+                    },
+                    "nvidia" => {
+                        println!("setting nvidia graphics");
+                        prime_select("nvidia").unwrap();
+                    },
+                    _ => {
+                        eprintln!("system76-power: unknown graphics vendor {}", arg);
+                        process::exit(1);
+                    }
+                }
+            } else {
+                prime_select("query").unwrap();
             },
             _ => {
                 eprintln!("system76-power: unknown sub-command {}", arg);
