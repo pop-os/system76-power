@@ -1,1 +1,4 @@
-/target
+/.cargo/
+/debian/files
+/target/
+/vendor/
