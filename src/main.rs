@@ -139,9 +139,9 @@ fn set_graphics(vendor: &str) -> io::Result<()> {
             .open(path)?;
 
         if vendor == "nvidia" {
-            file.write_all(NVIDIA_BLACKLIST)?;
-        } else {
             file.write_all(EMPTY_BLACKLIST)?;
+        } else {
+            file.write_all(NVIDIA_BLACKLIST)?;
         }
 
         file.sync_all()?;
