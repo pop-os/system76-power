@@ -11,6 +11,7 @@ Homepage: https://github.com/pop-os/system76-power
 Package: system76-power
 Architecture: amd64
 Depends:
+  bbswitch-dkms,
   ${misc:Depends},
   ${shlib:Depends}
 Description: System76 Power Management

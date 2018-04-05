@@ -2,10 +2,12 @@ use std::{env, io, process};
 
 use backlight::Backlight;
 use kbd_backlight::KeyboardBacklight;
+use module::Module;
 use pstate::PState;
 
 pub mod backlight;
 pub mod kbd_backlight;
+mod module;
 pub mod pstate;
 mod util;
 
@@ -101,19 +103,21 @@ fn power() -> io::Result<()> {
     Ok(())
 }
 
-fn prime_select(arg: &str) -> io::Result<()> {
-    let status = process::Command::new("prime-select")
-        .arg(arg)
-        .status()?;
+fn get_graphics() -> io::Result<()> {
+    let modules = Module::all()?;
 
-    if status.success() {
-        Ok(())
+    if modules.iter().find(|module| module.name == "nvidia").is_some() {
+        println!("nvidia");
     } else {
-        Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!("prime-select exited with {}", status)
-        ))
+        println!("intel");
     }
+
+    Ok(())
+}
+
+fn set_graphics(vendor: &str) -> io::Result<()> {
+    println!("TODO {}", vendor);
+    Ok(())
 }
 
 fn main() {
@@ -137,11 +141,11 @@ fn main() {
                 match arg.as_str() {
                     "intel" => {
                         println!("setting intel graphics");
-                        prime_select("intel").unwrap();
+                        set_graphics("intel").unwrap();
                     },
                     "nvidia" => {
                         println!("setting nvidia graphics");
-                        prime_select("nvidia").unwrap();
+                        set_graphics("nvidia").unwrap();
                     },
                     _ => {
                         eprintln!("system76-power: unknown graphics vendor {}", arg);
@@ -149,7 +153,7 @@ fn main() {
                     }
                 }
             } else {
-                prime_select("query").unwrap();
+                get_graphics().unwrap();
             },
             _ => {
                 eprintln!("system76-power: unknown sub-command {}", arg);
