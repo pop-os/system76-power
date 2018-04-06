@@ -135,6 +135,18 @@ bbswitch
 "#;
 
 fn set_graphics(vendor: &str) -> io::Result<()> {
+    let modules = Module::all()?;
+
+    if modules.iter().find(|module| module.name == "bbswitch").is_none() {
+        let status = process::Command::new("modprobe").arg("bbswitch").status()?;
+        if ! status.success() {
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("modprobe bbswitch: failed with {}", status)
+            ));
+        }
+    }
+
     {
         let path = "/etc/modprobe.d/system76-power.conf";
         let mut file = fs::OpenOptions::new()

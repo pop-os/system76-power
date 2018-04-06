@@ -9,3 +9,7 @@ override_dh_auto_clean:
 
 override_dh_auto_install:
 	dh_auto_install -- prefix=/usr
+
+override_dh_fixperms:
+	dh_fixperms
+	chmod 04755 debian/system76-power/usr/bin/system76-power
