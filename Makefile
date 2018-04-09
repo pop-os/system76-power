@@ -1,4 +1,5 @@
-prefix ?= /usr/local
+prefix ?= /usr
+sysconfdir ?= /etc
 exec_prefix = $(prefix)
 bindir = $(exec_prefix)/bin
 libdir = $(exec_prefix)/lib
@@ -20,9 +21,11 @@ distclean: clean
 
 install: all
 	install -D -m 04755 "target/release/$(BIN)" "$(DESTDIR)$(bindir)/$(BIN)"
+	install -D -m 0644 "data/$(BIN).conf" "$(DESTDIR)$(sysconfdir)/dbus-1/system.d/$(BIN).conf"
 
 uninstall:
 	rm -f "$(DESTDIR)$(bindir)/$(BIN)"
+	rm -f "$(DESTDIR)$(sysconfdir)/dbus-1/system.d/$(BIN).conf"
 
 update:
 	cargo update
