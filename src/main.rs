@@ -188,11 +188,25 @@ fn set_graphics(vendor: &str) -> io::Result<()> {
     Ok(())
 }
 
+fn usage() {
+    eprintln!("system76-power [sub-command] [args...]");
+    eprintln!("  daemon - run in daemon mode");
+    eprintln!("  performance - set profile to performance");
+    eprintln!("  balanced - set profile to balanced");
+    eprintln!("  battery - set profile to battery");
+    eprintln!("  graphics - query graphics mode");
+    eprintln!("  graphics intel - set graphics mode to intel");
+    eprintln!("  graphics nvidia - set graphics mode to nvidia");
+}
+
 fn main() {
     let mut args = env::args().skip(1);
 
     if let Some(arg) = args.next() {
         match arg.as_str() {
+            "daemon" => {
+                println!("starting daemon");
+            },
             "performance" => {
                 println!("setting performance mode");
                 performance().unwrap();
@@ -217,6 +231,7 @@ fn main() {
                     },
                     _ => {
                         eprintln!("system76-power: unknown graphics vendor {}", arg);
+                        usage();
                         process::exit(1);
                     }
                 }
@@ -225,6 +240,7 @@ fn main() {
             },
             _ => {
                 eprintln!("system76-power: unknown sub-command {}", arg);
+                usage();
                 process::exit(1);
             }
         }
