@@ -1,0 +1,9 @@
+[Unit]
+Description=System76 Power Daemon
+
+[Service]
+ExecStart=/usr/bin/system76-power daemon
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

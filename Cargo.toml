@@ -4,3 +4,5 @@ version = "0.1.0"
 authors = ["Jeremy Soller <jackpot51@gmail.com>"]
 
 [dependencies]
+dbus = "0.6"
+libc = "0.2"
