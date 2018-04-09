@@ -4,7 +4,10 @@ Priority: optional
 Maintainer: Jeremy Soller <jeremy@system76.com>
 Build-Depends:
   debhelper (>=9),
-  cargo
+  cargo,
+  dh-systemd,
+  libdbus-1-dev,
+  pkg-config
 Standards-Version: 4.1.1
 Homepage: https://github.com/pop-os/system76-power
 
@@ -12,6 +15,8 @@ Package: system76-power
 Architecture: amd64
 Depends:
   bbswitch-dkms,
+  dbus,
+  systemd,
   ${misc:Depends},
   ${shlib:Depends}
 Description: System76 Power Management
