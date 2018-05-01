@@ -5,16 +5,22 @@ use dbus::{Connection, BusType, NameFlag};
 use dbus::tree::{Factory, MethodErr};
 use std::{env, fs, io, process};
 use std::io::Write;
+use std::thread;
+use std::time::Duration;
 
+use ac_events::ac_events;
 use backlight::Backlight;
 use kbd_backlight::KeyboardBacklight;
 use module::Module;
 use pstate::PState;
+use upower::UPower;
 
+pub mod ac_events;
 pub mod backlight;
 pub mod kbd_backlight;
 mod module;
 pub mod pstate;
+pub mod upower;
 mod util;
 
 // Helper function for errors
@@ -303,6 +309,10 @@ fn daemon() -> Result<(), String> {
     tree.set_registered(&c, true).map_err(err_str)?;
 
     c.add_handler(tree);
+
+    if let Ok(pstate) = PState::new() {
+        ac_events(pstate);
+    }
 
     loop {
         c.incoming(1000).next();
