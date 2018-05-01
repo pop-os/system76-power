@@ -203,6 +203,20 @@ fn set_graphics(vendor: &str) -> io::Result<()> {
         file.sync_all()?;
     }
 
+    if vendor == "nvidia" {
+        let status = process::Command::new("systemctl").arg("enable").arg("nvidia-fallback.service").status()?;
+        if ! status.success() {
+            // Error is ignored in case this service is removed
+            eprintln!("systemctl: failed with {}", status);
+        }
+    } else {
+        let status = process::Command::new("systemctl").arg("disable").arg("nvidia-fallback.service").status()?;
+        if ! status.success() {
+            // Error is ignored in case this service is removed
+            eprintln!("systemctl: failed with {}", status);
+        }
+    }
+
     let status = process::Command::new("update-initramfs").arg("-u").status()?;
     if ! status.success() {
         return Err(io::Error::new(
