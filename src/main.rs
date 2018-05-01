@@ -5,15 +5,11 @@ use dbus::{Connection, BusType, NameFlag};
 use dbus::tree::{Factory, MethodErr};
 use std::{env, fs, io, process};
 use std::io::Write;
-use std::thread;
-use std::time::Duration;
-
 use ac_events::ac_events;
 use backlight::Backlight;
 use kbd_backlight::KeyboardBacklight;
 use module::Module;
 use pstate::PState;
-use upower::UPower;
 
 pub mod ac_events;
 pub mod backlight;
