@@ -49,13 +49,16 @@ fn set_until<A: FnMut(), U: FnMut() -> bool>(
 ) {
     if let Ok((min, max, no_turbo)) = pstate.get_all_values() {
         action();
+        let new_values = pstate.get_all_values().unwrap();
 
         loop {
             thread::sleep(Duration::from_secs(1));
             if until() {
-                let _ = pstate.set_min_perf_pct(min);
-                let _ = pstate.set_max_perf_pct(max);
-                let _ = pstate.set_no_turbo(no_turbo);
+                if pstate.get_all_values().unwrap() == new_values {
+                    let _ = pstate.set_min_perf_pct(min);
+                    let _ = pstate.set_max_perf_pct(max);
+                    let _ = pstate.set_no_turbo(no_turbo);
+                }
                 break;
             }
         }
