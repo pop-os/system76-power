@@ -1,0 +1,18 @@
+#!/bin/sh
+
+set -e
+
+case "$1" in
+    remove)
+        rm -f /etc/modprobe.d/system76-power.conf
+        rm -f /etc/modules-load.d/system76-power.conf
+        systemctl enable nvidia-fallback.service || true
+        ;;
+
+    *)
+        ;;
+esac
+
+#DEBHELPER#
+
+exit 0
