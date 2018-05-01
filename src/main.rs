@@ -5,6 +5,7 @@ use dbus::{Connection, BusType, NameFlag};
 use dbus::tree::{Factory, MethodErr};
 use std::{env, fs, io, process};
 use std::io::Write;
+use std::sync::{Arc, Mutex};
 
 use backlight::Backlight;
 use kbd_backlight::KeyboardBacklight;
@@ -16,24 +17,54 @@ pub mod kbd_backlight;
 mod module;
 pub mod pstate;
 mod util;
+mod state;
+
+use state::{Profile, State};
 
 // Helper function for errors
 pub (crate) fn err_str<E: ::std::fmt::Display>(err: E) -> String {
     format!("{}", err)
 }
 
-fn performance() -> io::Result<()> {
+fn performance(state: Option<&Mutex<State>>) -> io::Result<()> {
     {
         let mut pstate = PState::new()?;
+
         pstate.set_min_perf_pct(50)?;
         pstate.set_max_perf_pct(100)?;
         pstate.set_no_turbo(false)?;
     }
 
+    let mut profile_unset = true;
+
+    if let Some(state) = state {
+        let mut state = state.lock().unwrap();
+
+        state.get_active_backlight_mut().store()?;
+        if state.performance_backlight.is_set() {
+            state.performance_backlight.restore()?;
+            profile_unset = false;
+        }
+
+        state.profile = Profile::HighPerformance;
+    }
+
+    if profile_unset {
+        for mut backlight in Backlight::all()? {
+            let new = backlight.max_brightness()?;
+            backlight.set_brightness(new)?;
+        }
+
+        for mut backlight in KeyboardBacklight::all()? {
+            let new = backlight.max_brightness()?;
+            backlight.set_brightness(new)?;
+        }
+    }
+
     Ok(())
 }
 
-fn balanced() -> io::Result<()> {
+fn balanced(state: Option<&Mutex<State>>) -> io::Result<()> {
     {
         let mut pstate = PState::new()?;
         pstate.set_min_perf_pct(0)?;
@@ -41,28 +72,44 @@ fn balanced() -> io::Result<()> {
         pstate.set_no_turbo(false)?;
     }
 
-    for mut backlight in Backlight::all()? {
-        let max_brightness = backlight.max_brightness()?;
-        let current = backlight.brightness()?;
-        let new = max_brightness * 40 / 100;
-        if new < current {
-            backlight.set_brightness(new)?;
+    let mut profile_unset = true;
+
+    if let Some(state) = state {
+        let mut state = state.lock().unwrap();
+
+        state.get_active_backlight_mut().store()?;
+        if state.balanced_backlight.is_set() {
+            state.balanced_backlight.restore()?;
+            profile_unset = false;
         }
+
+        state.profile = Profile::Balanced;
     }
 
-    for mut backlight in KeyboardBacklight::all()? {
-        let max_brightness = backlight.max_brightness()?;
-        let current = backlight.brightness()?;
-        let new = max_brightness/2;
-        if new < current {
-            backlight.set_brightness(new)?;
+    if profile_unset {
+        for mut backlight in Backlight::all()? {
+            let max_brightness = backlight.max_brightness()?;
+            let backlight_prev = backlight.brightness()?;
+            let new = max_brightness * 40 / 100;
+            if new < backlight_prev {
+                backlight.set_brightness(new)?;
+            }
+        }
+
+        for mut backlight in KeyboardBacklight::all()? {
+            let max_brightness = backlight.max_brightness()?;
+            let kbd_backlight_prev = backlight.brightness()?;
+            let new = max_brightness/2;
+            if new < kbd_backlight_prev {
+                backlight.set_brightness(new)?;
+            }
         }
     }
 
     Ok(())
 }
 
-fn battery() -> io::Result<()> {
+fn battery(state: Option<&Mutex<State>>) -> io::Result<()> {
     {
         let mut pstate = PState::new()?;
         pstate.set_min_perf_pct(0)?;
@@ -70,17 +117,33 @@ fn battery() -> io::Result<()> {
         pstate.set_no_turbo(true)?;
     }
 
-    for mut backlight in Backlight::all()? {
-        let max_brightness = backlight.max_brightness()?;
-        let current = backlight.brightness()?;
-        let new = max_brightness * 10 / 100;
-        if new < current {
-            backlight.set_brightness(new)?;
+    let mut profile_unset = true;
+
+    if let Some(state) = state {
+        let mut state = state.lock().unwrap();
+
+        state.get_active_backlight_mut().store()?;
+        if state.battery_backlight.is_set() {
+            state.battery_backlight.restore()?;
+            profile_unset = false;
         }
+
+        state.profile = Profile::Battery;
     }
 
-    for mut backlight in KeyboardBacklight::all()? {
-        backlight.set_brightness(0)?;
+    if profile_unset {
+        for mut backlight in Backlight::all()? {
+            let max_brightness = backlight.max_brightness()?;
+            let current = backlight.brightness()?;
+            let new = max_brightness * 10 / 100;
+            if new < current {
+                backlight.set_brightness(new)?;
+            }
+        }
+
+        for mut backlight in KeyboardBacklight::all()? {
+            backlight.set_brightness(0)?;
+        }
     }
 
     Ok(())
@@ -227,6 +290,9 @@ fn daemon() -> Result<(), String> {
         return Err(format!("must be run as root"));
     }
 
+    let state = Arc::new(Mutex::new(State::default()));
+    balanced(None).map_err(err_str)?;
+
     let c = Connection::get_private(BusType::System).map_err(err_str)?;
     c.register_name("com.system76.PowerDaemon", NameFlag::ReplaceExisting as u32).map_err(err_str)?;
 
@@ -234,10 +300,11 @@ fn daemon() -> Result<(), String> {
 
     let tree = f.tree(()).add(f.object_path("/com/system76/PowerDaemon", ()).introspectable().add(
         f.interface("com.system76.PowerDaemon", ())
-        .add_m(
+        .add_m({
+            let state = state.clone();
             f.method("Performance", (), move |m| {
                 eprintln!("Performance");
-                match performance() {
+                match performance(Some(&state)) {
                     Ok(()) => {
                         let mret = m.msg.method_return();
                         Ok(vec![mret])
@@ -248,11 +315,12 @@ fn daemon() -> Result<(), String> {
                     }
                 }
             })
-        )
-        .add_m(
+        })
+        .add_m({
+            let state = state.clone();
             f.method("Balanced", (), move |m| {
                 eprintln!("Balanced");
-                match balanced() {
+                match balanced(Some(&state)) {
                     Ok(()) => {
                         let mret = m.msg.method_return();
                         Ok(vec![mret])
@@ -263,11 +331,11 @@ fn daemon() -> Result<(), String> {
                     }
                 }
             })
-        )
+        })
         .add_m(
             f.method("Battery", (), move |m| {
                 eprintln!("Battery");
-                match battery() {
+                match battery(Some(&state)) {
                     Ok(()) => {
                         let mret = m.msg.method_return();
                         Ok(vec![mret])
@@ -345,15 +413,15 @@ fn main() {
             },
             "performance" => {
                 println!("setting performance mode");
-                performance().unwrap();
+                performance(None).unwrap();
             },
             "balanced" => {
                 println!("setting balanced mode");
-                balanced().unwrap();
+                balanced(None).unwrap();
             },
             "battery" => {
                 println!("setting battery mode");
-                battery().unwrap();
+                battery(None).unwrap();
             },
             "graphics" => if let Some(arg) = args.next() {
                 match arg.as_str() {
