@@ -9,12 +9,12 @@ pub struct PState {
 
 impl PState {
     pub fn new() -> io::Result<PState> {
-        //TODO: Check for validity
-        Ok(PState {
-            path: PathBuf::from(
-                "/sys/devices/system/cpu/intel_pstate"
-            )
-        })
+        let path = PathBuf::from("/sys/devices/system/cpu/intel_pstate");
+        if path.is_dir() {
+            Ok(PState { path })
+        } else {
+            Err(io::Error::new(io::ErrorKind::NotFound, "intel_pstate directory not found"))
+        }
     }
 
     pub fn min_perf_pct(&self) -> io::Result<u64> {
@@ -41,7 +41,7 @@ impl PState {
     pub fn set_no_turbo(&mut self, value: bool) -> io::Result<()> {
         write_file(self.path.join("no_turbo"), if value { "1" } else { "0" })
     }
-
+    
     pub fn get_all_values(&self) -> io::Result<(u64, u64, bool)> {
         self.min_perf_pct().and_then(|min| {
             self.max_perf_pct().and_then(|max| {
