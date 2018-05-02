@@ -13,6 +13,8 @@ Homepage: https://github.com/pop-os/system76-power
 
 Package: system76-power
 Architecture: amd64
+Conflicts:
+  nvidia-prime
 Depends:
   bbswitch-dkms,
   dbus,
