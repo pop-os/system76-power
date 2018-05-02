@@ -127,7 +127,7 @@ fn get_graphics() -> io::Result<&'static str> {
         }
     }
 
-    if modules.iter().find(|module| module.name == "nvidia").is_some() {
+    if modules.iter().find(|module| module.name == "nouveau" || module.name == "nvidia").is_some() {
         Ok("nvidia")
     } else {
         Ok("intel")
