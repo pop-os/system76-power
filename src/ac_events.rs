@@ -1,6 +1,6 @@
 use std::thread;
 use std::time::Duration;
-use upower::UPower;
+use upower_dbus::UPower;
 use pstate::PState;
 use super::{battery, performance};
 
@@ -15,25 +15,23 @@ pub fn ac_events(mut pstate: PState) {
         };
 
         loop {
-            if !upower.on_battery() {
+            if !upower.on_battery().unwrap_or(false) {
                 set_until(
                     &mut pstate,
                     || {
                         // TODO: Use dbus instead?
                         let _ = performance();
                     },
-                    || {
-                        upower.on_battery()
-                    }
+                    || upower.on_battery().unwrap_or(false)
                 );
-            } else if upower.get_percentage() < 25f64 {
+            } else if upower.get_percentage().unwrap_or(0f64) < 25f64 {
                 set_until(
                     &mut pstate,
                     || {
                         // TODO: Use dbus instead?
                         let _ = battery();
                     },
-                    || upower.get_percentage() > 50f64
+                    || upower.get_percentage().unwrap_or(0f64) > 50f64
                 );
             }
             thread::sleep(Duration::from_secs(1));

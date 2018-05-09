@@ -1,4 +1,5 @@
 extern crate dbus;
+extern crate upower_dbus;
 extern crate libc;
 
 use dbus::{Connection, BusType, NameFlag};
@@ -16,7 +17,6 @@ pub mod backlight;
 pub mod kbd_backlight;
 mod module;
 pub mod pstate;
-pub mod upower;
 mod util;
 
 // Helper function for errors
