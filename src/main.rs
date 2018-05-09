@@ -1,16 +1,18 @@
 extern crate dbus;
+extern crate upower_dbus;
 extern crate libc;
 
 use dbus::{Connection, BusType, NameFlag};
 use dbus::tree::{Factory, MethodErr};
 use std::{env, fs, io, process};
 use std::io::Write;
-
+use ac_events::ac_events;
 use backlight::Backlight;
 use kbd_backlight::KeyboardBacklight;
 use module::Module;
 use pstate::PState;
 
+pub mod ac_events;
 pub mod backlight;
 pub mod kbd_backlight;
 mod module;
@@ -317,6 +319,10 @@ fn daemon() -> Result<(), String> {
     tree.set_registered(&c, true).map_err(err_str)?;
 
     c.add_handler(tree);
+
+    if let Ok(pstate) = PState::new() {
+        ac_events(pstate);
+    }
 
     loop {
         c.incoming(1000).next();

@@ -41,4 +41,12 @@ impl PState {
     pub fn set_no_turbo(&mut self, value: bool) -> io::Result<()> {
         write_file(self.path.join("no_turbo"), if value { "1" } else { "0" })
     }
+    
+    pub fn get_all_values(&self) -> io::Result<(u64, u64, bool)> {
+        self.min_perf_pct().and_then(|min| {
+            self.max_perf_pct().and_then(|max| {
+                self.no_turbo().map(|no_turbo| (min, max, no_turbo))
+            })
+        })
+    }
 }
