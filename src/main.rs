@@ -267,6 +267,14 @@ fn set_graphics_power(power: bool) -> io::Result<()> {
     Ok(())
 }
 
+fn auto_graphics_power() -> io::Result<()> {
+    if get_graphics()? == "nvidia" {
+        set_graphics_power(true)
+    } else {
+        set_graphics_power(false)
+    }
+}
+
 fn daemon() -> Result<(), String> {
     if unsafe { libc::geteuid() } != 0 {
         return Err(format!("must be run as root"));
@@ -390,6 +398,21 @@ fn daemon() -> Result<(), String> {
             })
             .inarg::<bool,_>("power")
         )
+        .add_m(
+            f.method("AutoGraphicsPower", (), move |m| {
+                eprintln!("AutoGraphicsPower");
+                match auto_graphics_power() {
+                    Ok(()) => {
+                        let mret = m.msg.method_return();
+                        Ok(vec![mret])
+                    },
+                    Err(err) => {
+                        eprintln!("{}", err);
+                        Err(MethodErr::failed(&err))
+                    }
+                }
+            })
+        )
     ));
 
     tree.set_registered(&c, true).map_err(err_str)?;
@@ -437,11 +460,7 @@ fn cli<I: Iterator<Item=String>>(mut args: I) -> Result<(), String> {
                     "nvidia" => set_graphics("nvidia").map_err(err_str),
                     "power" => if let Some(arg) = args.next() {
                         match arg.as_str() {
-                            "auto" => if get_graphics().map_err(err_str)? == "nvidia" {
-                                set_graphics_power(true).map_err(err_str)
-                            } else {
-                                set_graphics_power(false).map_err(err_str)
-                            },
+                            "auto" => auto_graphics_power().map_err(err_str),
                             "off" => set_graphics_power(false).map_err(err_str),
                             "on" => set_graphics_power(true).map_err(err_str),
                             _ => Err(format!("unknown graphics power {}", arg))
