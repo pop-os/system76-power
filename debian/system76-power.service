@@ -2,7 +2,6 @@
 Description=System76 Power Daemon
 
 [Service]
-ExecStartPre=-/usr/bin/system76-power graphics power auto
 ExecStart=/usr/bin/system76-power daemon
 Restart=on-failure
 
