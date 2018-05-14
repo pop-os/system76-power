@@ -58,12 +58,12 @@ impl BacklightState {
     }
 
     pub fn restore(&mut self) -> io::Result<()> {
-        for (backlight, old) in &mut self.display {
-            backlight.set_brightness(*old)?;
+        for &mut (ref mut backlight, old) in &mut self.display {
+            backlight.set_brightness(old)?;
         }
 
-        for (backlight, old) in &mut self.kbd {
-            backlight.set_brightness(*old)?;
+        for &mut (ref mut backlight, old) in &mut self.kbd {
+            backlight.set_brightness(old)?;
         }
 
         Ok(())
