@@ -258,12 +258,10 @@ fn set_graphics_power(power: bool) -> io::Result<()> {
             .open(path)?;
 
         if power {
-            file.write_all(b"ON\n")?;
+            file.write(b"ON\n")?;
         } else {
-            file.write_all(b"OFF\n")?;
+            file.write(b"OFF\n")?;
         }
-
-        file.sync_all()?;
     }
     
     Ok(())
