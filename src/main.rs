@@ -414,6 +414,7 @@ fn usage() {
     eprintln!("  graphics intel - set graphics mode to intel");
     eprintln!("  graphics nvidia - set graphics mode to nvidia");
     eprintln!("  graphics power - query discrete graphics power state");
+    eprintln!("  graphics power auto - turn off discrete graphics if not in use");
     eprintln!("  graphics power off - power off discrete graphics");
     eprintln!("  graphics power on - power on discrete graphics");
 }
@@ -438,6 +439,11 @@ fn cli<I: Iterator<Item=String>>(mut args: I) -> Result<(), String> {
                     "nvidia" => set_graphics("nvidia").map_err(err_str),
                     "power" => if let Some(arg) = args.next() {
                         match arg.as_str() {
+                            "auto" => if get_graphics().map_err(err_str)? == "nvidia" {
+                                set_graphics_power(true).map_err(err_str)
+                            } else {
+                                set_graphics_power(false).map_err(err_str)
+                            },
                             "off" => set_graphics_power(false).map_err(err_str),
                             "on" => set_graphics_power(true).map_err(err_str),
                             _ => Err(format!("unknown graphics power {}", arg))
