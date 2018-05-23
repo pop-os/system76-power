@@ -461,17 +461,24 @@ fn pci() -> io::Result<()> {
         }
     }
 
-    for dev in intel.iter() {
+    for dev in intel {
         match dev.driver() {
             Ok(driver) => println!("{}: Intel: {}", dev.name(), driver.name()),
             Err(err) => println!("{}: Intel: driver not loaded", dev.name()),
         }
     }
 
-    for dev in nvidia.iter() {
+    for dev in nvidia {
         match dev.driver() {
-            Ok(driver) => println!("{}: NVIDIA: {}", dev.name(), driver.name()),
-            Err(err) => println!("{}: NVIDIA: driver not loaded", dev.name()),
+            Ok(driver) => {
+                println!("{}: NVIDIA: {}", dev.name(), driver.name());
+            },
+            Err(err) => {
+                println!("{}: NVIDIA: driver not loaded", dev.name());
+
+                println!("Removing device");
+                dev.remove()?;
+            },
         }
     }
 
