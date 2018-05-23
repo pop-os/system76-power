@@ -8,12 +8,13 @@ use std::io::{Read, Write};
 
 use backlight::Backlight;
 use kbd_backlight::KeyboardBacklight;
+use graphics::Graphics;
 use module::Module;
-use pci::PciBus;
 use pstate::PState;
 
 pub mod backlight;
 pub mod kbd_backlight;
+pub mod graphics;
 mod module;
 mod pci;
 pub mod pstate;
@@ -442,44 +443,14 @@ fn usage() {
     eprintln!("  graphics power on - power on discrete graphics");
 }
 
+
 fn pci() -> io::Result<()> {
-    let bus = PciBus::new()?;
+    let graphics = Graphics::new()?;
 
-    bus.rescan()?;
-
-    let mut intel = Vec::new();
-    let mut nvidia = Vec::new();
-
-    for dev in bus.devices()? {
-        let class = dev.class()?;
-        if class == 0x030000 {
-            match dev.vendor()? {
-                0x10DE => nvidia.push(dev),
-                0x8086 => intel.push(dev),
-                other => println!("{}: Unsupported graphics vendor {:X}", dev.name(), other),
-            }
-        }
-    }
-
-    for dev in intel {
-        match dev.driver() {
-            Ok(driver) => println!("{}: Intel: {}", dev.name(), driver.name()),
-            Err(err) => println!("{}: Intel: driver not loaded", dev.name()),
-        }
-    }
-
-    for dev in nvidia {
-        match dev.driver() {
-            Ok(driver) => {
-                println!("{}: NVIDIA: {}", dev.name(), driver.name());
-            },
-            Err(err) => {
-                println!("{}: NVIDIA: driver not loaded", dev.name());
-
-                println!("Removing device");
-                unsafe { dev.remove()? };
-            },
-        }
+    if graphics.can_switch() {
+        println!("Switchable");
+    } else {
+        println!("Not Switchable");
     }
 
     Ok(())
