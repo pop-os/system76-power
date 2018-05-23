@@ -3,8 +3,9 @@ use std::io;
 use pci::{PciBus, PciDevice};
 
 pub struct Graphics {
-    intel: Vec<PciDevice>,
-    nvidia: Vec<PciDevice>
+    pub intel: Vec<PciDevice>,
+    pub nvidia: Vec<PciDevice>,
+    pub other: Vec<PciDevice>,
 }
 
 impl Graphics {
@@ -15,6 +16,7 @@ impl Graphics {
 
         let mut intel = Vec::new();
         let mut nvidia = Vec::new();
+        let mut other = Vec::new();
 
         for dev in bus.devices()? {
             let class = dev.class()?;
@@ -22,32 +24,15 @@ impl Graphics {
                 match dev.vendor()? {
                     0x10DE => nvidia.push(dev),
                     0x8086 => intel.push(dev),
-                    other => println!("{}: Unsupported graphics vendor {:X}", dev.name(), other),
+                    _ => other.push(dev),
                 }
-            }
-        }
-
-        for dev in intel.iter() {
-            match dev.driver() {
-                Ok(driver) => println!("{}: Intel: {}", dev.name(), driver.name()),
-                Err(err) => println!("{}: Intel: driver not loaded", dev.name()),
-            }
-        }
-
-        for dev in nvidia.iter() {
-            match dev.driver() {
-                Ok(driver) => {
-                    println!("{}: NVIDIA: {}", dev.name(), driver.name());
-                },
-                Err(err) => {
-                    println!("{}: NVIDIA: driver not loaded", dev.name());
-                },
             }
         }
 
         Ok(Graphics {
             intel: intel,
             nvidia: nvidia,
+            other: other,
         })
     }
 

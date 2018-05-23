@@ -453,6 +453,28 @@ fn pci() -> io::Result<()> {
         println!("Not Switchable");
     }
 
+    for dev in graphics.intel.iter() {
+        match dev.driver() {
+            Ok(driver) => println!("{}: Intel: {}", dev.name(), driver.name()),
+            Err(_err) => println!("{}: Intel: driver not loaded", dev.name()),
+        }
+    }
+
+    for dev in graphics.nvidia.iter() {
+        match dev.driver() {
+            Ok(driver) => println!("{}: NVIDIA: {}", dev.name(), driver.name()),
+            Err(_err) => println!("{}: NVIDIA: driver not loaded", dev.name()),
+        }
+    }
+
+    for dev in graphics.other.iter() {
+        let vendor = dev.vendor()?;
+        match dev.driver() {
+            Ok(driver) => println!("{}: Other {:X}: {}", dev.name(), vendor, driver.name()),
+            Err(_err) => println!("{}: Other {:X}: driver not loaded", dev.name(), vendor),
+        }
+    }
+
     Ok(())
 }
 

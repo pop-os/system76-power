@@ -1,7 +1,7 @@
 use std::{fs, io, u8, u16, u32};
 use std::path::{Path, PathBuf};
 
-use util::{parse_file, read_file, write_file};
+use util::{read_file, write_file};
 
 pub struct PciBus {
     path: PathBuf
