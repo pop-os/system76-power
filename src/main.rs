@@ -447,15 +447,31 @@ fn pci() -> io::Result<()> {
 
     bus.rescan()?;
 
+    let mut intel = Vec::new();
+    let mut nvidia = Vec::new();
+
     for dev in bus.devices()? {
         let class = dev.class()?;
-        let vendor = dev.vendor()?;
-
         if class == 0x030000 {
-            match dev.driver() {
-                Ok(driver) => println!("{:X} {}", vendor, driver.name()),
-                Err(err) => println!("{:X} {:?}", vendor, err),
+            match dev.vendor()? {
+                0x10DE => nvidia.push(dev),
+                0x8086 => intel.push(dev),
+                other => println!("{}: Unsupported graphics vendor {:X}", dev.name(), other),
             }
+        }
+    }
+
+    for dev in intel.iter() {
+        match dev.driver() {
+            Ok(driver) => println!("{}: Intel: {}", dev.name(), driver.name()),
+            Err(err) => println!("{}: Intel: driver not loaded", dev.name()),
+        }
+    }
+
+    for dev in nvidia.iter() {
+        match dev.driver() {
+            Ok(driver) => println!("{}: NVIDIA: {}", dev.name(), driver.name()),
+            Err(err) => println!("{}: NVIDIA: driver not loaded", dev.name()),
         }
     }
 
