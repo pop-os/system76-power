@@ -477,7 +477,7 @@ fn pci() -> io::Result<()> {
                 println!("{}: NVIDIA: driver not loaded", dev.name());
 
                 println!("Removing device");
-                dev.remove()?;
+                unsafe { dev.remove()? };
             },
         }
     }
