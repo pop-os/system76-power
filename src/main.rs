@@ -9,7 +9,7 @@ use std::io::{Read, Write};
 use backlight::Backlight;
 use kbd_backlight::KeyboardBacklight;
 use module::Module;
-use pci::PciDevice;
+use pci::PciBus;
 use pstate::PState;
 
 pub mod backlight;
@@ -443,12 +443,19 @@ fn usage() {
 }
 
 fn pci() -> io::Result<()> {
-    for dev in PciDevice::all()? {
+    let bus = PciBus::new()?;
+
+    bus.rescan()?;
+
+    for dev in bus.devices()? {
         let class = dev.class()?;
         let vendor = dev.vendor()?;
 
         if class == 0x030000 {
-            println!("{:X}: {}", vendor, dev.boot_vga()?);
+            match dev.driver() {
+                Ok(driver) => println!("{:X} {}", vendor, driver.name()),
+                Err(err) => println!("{:X} {:?}", vendor, err),
+            }
         }
     }
 
