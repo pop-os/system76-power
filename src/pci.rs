@@ -126,7 +126,7 @@ impl PciDevice {
         })
     }
 
-    pub unsafe fn remove(self) -> io::Result<()> {
+    pub unsafe fn remove(&self) -> io::Result<()> {
         write_file(self.path.join("remove"), format!("1"))
     }
 }
