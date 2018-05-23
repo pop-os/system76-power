@@ -16,7 +16,6 @@ Architecture: amd64
 Conflicts:
   nvidia-prime
 Depends:
-  bbswitch-dkms,
   dbus,
   systemd,
   ${misc:Depends},

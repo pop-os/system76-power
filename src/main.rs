@@ -9,11 +9,13 @@ use std::io::{Read, Write};
 use backlight::Backlight;
 use kbd_backlight::KeyboardBacklight;
 use module::Module;
+use pci::PciDevice;
 use pstate::PState;
 
 pub mod backlight;
 pub mod kbd_backlight;
 mod module;
+mod pci;
 pub mod pstate;
 mod util;
 
@@ -126,13 +128,13 @@ fn load_bbswitch() -> io::Result<()> {
             ));
         }
     }
-    
+
     Ok(())
 }
 
 fn get_graphics() -> io::Result<&'static str> {
     load_bbswitch()?;
-    
+
     let modules = Module::all()?;
 
     if modules.iter().find(|module| module.name == "nouveau" || module.name == "nvidia").is_some() {
@@ -221,14 +223,14 @@ fn set_graphics(vendor: &str) -> io::Result<()> {
 
 fn get_graphics_power() -> io::Result<bool> {
     load_bbswitch()?;
-    
+
     let mut string = String::new();
     {
         let path = "/proc/acpi/bbswitch";
         let mut file = fs::File::open(path)?;
         file.read_to_string(&mut string)?;
     }
-    
+
     for line in string.lines() {
         let mut parts = line.split(" ");
         let _pci_path = parts.next().ok_or(io::Error::new(
@@ -239,18 +241,18 @@ fn get_graphics_power() -> io::Result<bool> {
             io::ErrorKind::Other,
             "/proc/acpi/bbswitch is missing power state"
         ))?;
-        
+
         if power_state == "ON" {
             return Ok(true);
         }
     }
-    
+
     Ok(false)
 }
 
 fn set_graphics_power(power: bool) -> io::Result<()> {
     load_bbswitch()?;
-    
+
     {
         let path = "/proc/acpi/bbswitch";
         let mut file = fs::OpenOptions::new()
@@ -263,7 +265,7 @@ fn set_graphics_power(power: bool) -> io::Result<()> {
             file.write(b"OFF\n")?;
         }
     }
-    
+
     Ok(())
 }
 
@@ -440,9 +442,23 @@ fn usage() {
     eprintln!("  graphics power on - power on discrete graphics");
 }
 
+fn pci() -> io::Result<()> {
+    for dev in PciDevice::all()? {
+        let class = dev.class()?;
+        let vendor = dev.vendor()?;
+
+        if class == 0x030000 {
+            println!("{:X}: {}", vendor, dev.boot_vga()?);
+        }
+    }
+
+    Ok(())
+}
+
 fn cli<I: Iterator<Item=String>>(mut args: I) -> Result<(), String> {
     if let Some(arg) = args.next() {
         match arg.as_str() {
+            "pci" => pci().map_err(err_str),
             "daemon" => daemon().map_err(err_str),
             "profile" => if let Some(arg) = args.next() {
                 match arg.as_str() {
