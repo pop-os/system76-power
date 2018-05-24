@@ -6,6 +6,8 @@ use backlight::Backlight;
 use kbd_backlight::KeyboardBacklight;
 use pstate::PState;
 
+static TIMEOUT: i32 = 60 * 1000;
+
 struct PowerClient {
     bus: Connection,
 }
@@ -22,51 +24,51 @@ impl PowerClient {
 impl Power for PowerClient {
     fn performance(&mut self) -> Result<(), String> {
         let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "Performance")?;
-        self.bus.send_with_reply_and_block(m, 2000).map_err(err_str)?;
+        self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
         Ok(())
     }
 
     fn balanced(&mut self) -> Result<(), String> {
         let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "Balanced")?;
-        self.bus.send_with_reply_and_block(m, 2000).map_err(err_str)?;
+        self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
         Ok(())
     }
 
     fn battery(&mut self) -> Result<(), String> {
         let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "Battery")?;
-        self.bus.send_with_reply_and_block(m, 2000).map_err(err_str)?;
+        self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
         Ok(())
     }
 
     fn get_graphics(&mut self) -> Result<String, String> {
         let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "GetGraphics")?;
-        let r = self.bus.send_with_reply_and_block(m, 2000).map_err(err_str)?;
+        let r = self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
         r.get1().ok_or("return value not found".to_string())
     }
 
     fn set_graphics(&mut self, vendor: &str) -> Result<(), String> {
         let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "SetGraphics")?
             .append1(vendor);
-        self.bus.send_with_reply_and_block(m, 2000).map_err(err_str)?;
+        self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
         Ok(())
     }
 
     fn get_graphics_power(&mut self) -> Result<bool, String> {
         let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "GetGraphicsPower")?;
-        let r = self.bus.send_with_reply_and_block(m, 2000).map_err(err_str)?;
+        let r = self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
         r.get1().ok_or("return value not found".to_string())
     }
 
     fn set_graphics_power(&mut self, power: bool) -> Result<(), String> {
         let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "SetGraphicsPower")?
             .append1(power);
-        self.bus.send_with_reply_and_block(m, 2000).map_err(err_str)?;
+        self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
         Ok(())
     }
 
     fn auto_graphics_power(&mut self) -> Result<(), String> {
         let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "AutoGraphicsPower")?;
-        self.bus.send_with_reply_and_block(m, 2000).map_err(err_str)?;
+        self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
         Ok(())
     }
 }
