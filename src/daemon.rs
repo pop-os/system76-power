@@ -120,13 +120,26 @@ impl Power for PowerDaemon {
 }
 
 pub fn daemon() -> Result<(), String> {
+    eprintln!("Starting daemon");
     let daemon = Rc::new(RefCell::new(PowerDaemon::new()?));
 
+    eprintln!("Setting automatic graphics power");
+    match daemon.borrow_mut().auto_graphics_power() {
+        Ok(()) => (),
+        Err(err) => {
+            eprintln!("Failed to set automatic graphics power: {}", err);
+        }
+    }
+
+    eprintln!("Connecting to dbus system bus");
     let c = Connection::get_private(BusType::System).map_err(err_str)?;
+
+    eprintln!("Registering dbus name {}", DBUS_NAME);
     c.register_name(DBUS_NAME, NameFlag::ReplaceExisting as u32).map_err(err_str)?;
 
     let f = Factory::new_fn::<()>();
 
+    eprintln!("Adding dbus path {} with interface {}", DBUS_PATH, DBUS_IFACE);
     let tree = f.tree(()).add(f.object_path(DBUS_PATH, ()).introspectable().add(
         f.interface(DBUS_IFACE, ())
         .add_m({
@@ -269,6 +282,7 @@ pub fn daemon() -> Result<(), String> {
 
     c.add_handler(tree);
 
+    eprintln!("Handling dbus requests");
     loop {
         c.incoming(1000).next();
     }
