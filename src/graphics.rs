@@ -45,11 +45,11 @@ impl Graphics {
                         nvidia.push(dev);
                     },
                     0x8086 => {
-                        println!("{}: Intel", dev.name());
+                        eprintln!("{}: Intel", dev.name());
                         intel.push(dev);
                     },
                     vendor => {
-                        println!("{}: Other({:X})", dev.name(), vendor);
+                        eprintln!("{}: Other({:X})", dev.name(), vendor);
                         other.push(dev);
                     },
                 }
