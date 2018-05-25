@@ -1,6 +1,6 @@
 [package]
 name = "system76-power"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Jeremy Soller <jackpot51@gmail.com>"]
 
 [dependencies]

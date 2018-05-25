@@ -25,10 +25,10 @@ pub fn write_file<P: AsRef<Path>, S: AsRef<[u8]>>(path: P, data: S) -> io::Resul
 }
 
 pub fn parse_file<F: FromStr, P: AsRef<Path>>(path: P) -> io::Result<F> where F::Err: Display {
-    read_file(path)?.trim().parse().map_err(|e| {
+    read_file(path)?.trim().parse().map_err(|err| {
         io::Error::new(
             io::ErrorKind::InvalidData,
-            format!("{}", e)
+            format!("{}", err)
         )
     })
 }
