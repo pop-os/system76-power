@@ -190,10 +190,6 @@ impl Graphics {
     }
 
     pub fn auto_power(&self) -> io::Result<()> {
-        if self.get_vendor()? == "nvidia" {
-            self.set_power(true)
-        } else {
-            self.set_power(false)
-        }
+        self.set_power(self.get_vendor()? == "nvidia")
     }
 }
