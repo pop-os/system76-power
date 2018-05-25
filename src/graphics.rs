@@ -141,13 +141,7 @@ impl Graphics {
 
     pub fn get_power(&self) -> io::Result<bool> {
         if self.can_switch() {
-            let mut power = false;
-            for dev in self.nvidia.iter() {
-                if dev.path().exists() {
-                    power = true;
-                }
-            }
-            Ok(power)
+            Ok(self.nvidia.iter().any(|dev| dev.path().exists()))
         } else {
             Err(io::Error::new(
                 io::ErrorKind::Other,
