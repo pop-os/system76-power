@@ -62,6 +62,14 @@ impl PciDriver {
     pub fn path(&self) -> &Path {
         &self.path
     }
+
+    pub unsafe fn bind(&self, device: &PciDevice) -> io::Result<()> {
+        write_file(self.path.join("bind"), device.name().to_string())
+    }
+
+    pub unsafe fn unbind(&self, device: &PciDevice) -> io::Result<()> {
+        write_file(self.path.join("unbind"), device.name().to_string())
+    }
 }
 
 pub struct PciDevice {
