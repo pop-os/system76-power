@@ -22,6 +22,7 @@ pub struct Graphics {
     pub bus: PciBus,
     pub intel: Vec<PciDevice>,
     pub nvidia: Vec<PciDevice>,
+    pub nvidia_hda: Vec<PciDevice>,
     pub other: Vec<PciDevice>,
 }
 
@@ -34,25 +35,33 @@ impl Graphics {
 
         let mut intel = Vec::new();
         let mut nvidia = Vec::new();
+        let mut nvidia_hda = Vec::new();
         let mut other = Vec::new();
 
         for dev in bus.devices()? {
-            let class = dev.class()?;
-            if class == 0x030000 {
-                match dev.vendor()? {
+            match dev.class()? {
+                0x030000 => match dev.vendor()? {
                     0x10DE => {
-                        eprintln!("{}: NVIDIA", dev.name());
+                        eprintln!("{}: NVIDIA graphics", dev.name());
                         nvidia.push(dev);
                     },
                     0x8086 => {
-                        eprintln!("{}: Intel", dev.name());
+                        eprintln!("{}: Intel graphics", dev.name());
                         intel.push(dev);
                     },
                     vendor => {
-                        eprintln!("{}: Other({:X})", dev.name(), vendor);
+                        eprintln!("{}: Other({:X}) graphics", dev.name(), vendor);
                         other.push(dev);
                     },
-                }
+                },
+                0x040300 => match dev.vendor()? {
+                    0x10DE => {
+                        eprintln!("{}: NVIDIA audio", dev.name());
+                        nvidia_hda.push(dev);
+                    },
+                    _ => ()
+                },
+                _ => ()
             }
         }
 
@@ -60,6 +69,7 @@ impl Graphics {
             bus,
             intel,
             nvidia,
+            nvidia_hda,
             other,
         })
     }
@@ -141,7 +151,7 @@ impl Graphics {
 
     pub fn get_power(&self) -> io::Result<bool> {
         if self.can_switch() {
-            Ok(self.nvidia.iter().any(|dev| dev.path().exists()))
+            Ok(self.nvidia.iter().chain(self.nvidia_hda.iter()).any(|dev| dev.path().exists()))
         } else {
             Err(io::Error::new(
                 io::ErrorKind::Other,
@@ -157,14 +167,32 @@ impl Graphics {
                 self.bus.rescan()?;
             } else {
                 eprintln!("Disabling graphics power");
-                for dev in self.nvidia.iter() {
+
+                // Unbind NVIDIA audio devices
+                for dev in self.nvidia_hda.iter() {
+                    if dev.path().exists() {
+                        match dev.driver() {
+                            Ok(driver) => {
+                                eprintln!("{}: Unbinding {}", driver.name(), dev.name());
+                                unsafe { driver.unbind(&dev) };
+                            },
+                            Err(err) => match err.kind() {
+                                io::ErrorKind::NotFound => (),
+                                _ => return Err(err),
+                            }
+                        }
+                    }
+                }
+
+                // Remove NVIDIA graphics and audio devices
+                for dev in self.nvidia.iter().chain(self.nvidia_hda.iter()) {
                     if dev.path().exists() {
                         match dev.driver() {
                             Ok(driver) => {
                                 eprintln!("{}: in use by {}", dev.name(), driver.name());
                                 return Err(io::Error::new(
                                     io::ErrorKind::Other,
-                                    "dedicated graphics in use"
+                                    "device in use"
                                 ));
                             },
                             Err(err) => match err.kind() {
