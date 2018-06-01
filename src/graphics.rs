@@ -39,8 +39,9 @@ impl Graphics {
         let mut other = Vec::new();
 
         for dev in bus.devices()? {
-            match dev.class()? {
-                0x030000 => match dev.vendor()? {
+            let c = dev.class()?;
+            match (c >> 16) & 0xFF {
+                0x03 => match dev.vendor()? {
                     0x10DE => {
                         eprintln!("{}: NVIDIA graphics", dev.name());
                         nvidia.push(dev);
@@ -54,10 +55,13 @@ impl Graphics {
                         other.push(dev);
                     },
                 },
-                0x040300 => match dev.vendor()? {
-                    0x10DE => {
-                        eprintln!("{}: NVIDIA audio", dev.name());
-                        nvidia_hda.push(dev);
+                0x04 => match (c >> 8) & 0xff {
+                    0x03 => match dev.vendor()? {
+                        0x10DE => {
+                            eprintln!("{}: NVIDIA audio", dev.name());
+                            nvidia_hda.push(dev);
+                        },
+                        _ => ()
                     },
                     _ => ()
                 },
