@@ -2,15 +2,24 @@ use std::thread;
 use std::time::Duration;
 use upower_dbus::UPower;
 use pstate::PState;
-use super::{battery, performance};
+use super::Power;
+use super::client::PowerClient;
 
 pub fn ac_events(mut pstate: PState) {
     thread::spawn(move || {
         let upower = match UPower::new(1000) {
             Ok(upower) => upower,
             Err(why) => {
-                eprintln!("ac_events loop failed: {}", why);
+                eprintln!("ac_events failed to connect to upower: {}", why);
                 return;
+            }
+        };
+
+        let mut client = match PowerClient::new() {
+            Ok(client) => client,
+            Err(why) => {
+                eprintln!("ac_events failed to get client: {}", why);
+                return
             }
         };
 
@@ -18,18 +27,16 @@ pub fn ac_events(mut pstate: PState) {
             if !upower.on_battery().unwrap_or(false) {
                 set_until(
                     &mut pstate,
-                    || {
-                        // TODO: Use dbus instead?
-                        let _ = performance();
+                    || if let Err(why) = client.performance() {
+                        eprintln!("ac_events failed to set daemon to performance: {}", why);
                     },
                     || upower.on_battery().unwrap_or(false)
                 );
             } else if upower.get_percentage().unwrap_or(0f64) < 25f64 {
                 set_until(
                     &mut pstate,
-                    || {
-                        // TODO: Use dbus instead?
-                        let _ = battery();
+                    || if let Err(why) = client.battery() {
+                        eprintln!("ac_events failed to set daemon to battery: {}", why);
                     },
                     || upower.get_percentage().unwrap_or(0f64) > 50f64
                 );
