@@ -1,8 +1,17 @@
 use std::fmt::Display;
-use std::fs::{File, OpenOptions};
+use std::fs::{DirEntry, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::Path;
 use std::str::FromStr;
+
+pub fn entries<T, F: FnMut(DirEntry) -> T>(path: &Path, mut func: F) -> io::Result<Vec<T>> {
+    let mut ret = Vec::new();
+    for entry_res in path.read_dir()? {
+        ret.push(func(entry_res?));
+    }
+
+    Ok(ret)
+}
 
 pub fn read_file<P: AsRef<Path>>(path: P) -> io::Result<String> {
     let mut data = String::new();
