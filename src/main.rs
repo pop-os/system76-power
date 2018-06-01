@@ -11,6 +11,7 @@ mod graphics;
 mod module;
 mod pci;
 mod pstate;
+mod scsi;
 mod util;
 
 pub static DBUS_NAME: &'static str = "com.system76.PowerDaemon";
