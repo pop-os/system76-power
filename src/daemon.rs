@@ -14,6 +14,7 @@ use kbd_backlight::KeyboardBacklight;
 use kernel_parameters::{DeviceList, Dirty, KernelParameter, LaptopMode, NmiWatchdog};
 use pstate::PState;
 use radeon::RadeonDevice;
+use scsi::{ScsiHosts, ScsiPower};
 use snd::SoundDevice;
 use wifi::WifiDevice;
 
@@ -25,6 +26,7 @@ fn experimental_is_enabled() -> bool {
 
 fn performance() -> io::Result<()> {
     if experimental_is_enabled() {
+        ScsiHosts::new().set_power_management_policy(&["med_power_with_dipm", "max_performance"])?;
         SoundDevice::get_devices().for_each(|dev| dev.set_power_save(0, false));
         RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("high", "performance", "auto"));
         // WifiDevice::get_devices().for_each(|dev| dev.set(0));
@@ -45,6 +47,7 @@ fn performance() -> io::Result<()> {
 
 fn balanced() -> io::Result<()> {
     if experimental_is_enabled() {
+        ScsiHosts::new().set_power_management_policy(&["med_power_with_dipm", "medium_power"])?;
         SoundDevice::get_devices().for_each(|dev| dev.set_power_save(0, false));
         RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("auto", "performance", "auto"));
         // // NOTE: Should balanced enable power management for wifi?
@@ -84,6 +87,7 @@ fn balanced() -> io::Result<()> {
 
 fn battery() -> io::Result<()> {
     if experimental_is_enabled() {
+        ScsiHosts::new().set_power_management_policy(&["med_power_with_dipm", "min_power"])?;
         SoundDevice::get_devices().for_each(|dev| dev.set_power_save(1, true));
         RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("low", "battery", "low"));
         // WifiDevice::get_devices().for_each(|dev| dev.set(5));
