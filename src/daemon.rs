@@ -12,7 +12,9 @@ use kbd_backlight::KeyboardBacklight;
 use pstate::PState;
 
 fn performance() -> io::Result<()> {
-    Disks::new().set_apm_level(254)?;
+    let disks = Disks::new();
+    disks.set_apm_level(254)?;
+    disks.set_autosuspend_delay(-1)?;
 
     {
         let mut pstate = PState::new()?;
@@ -25,7 +27,9 @@ fn performance() -> io::Result<()> {
 }
 
 fn balanced() -> io::Result<()> {
-    Disks::new().set_apm_level(254)?;
+    let disks = Disks::new();
+    disks.set_apm_level(254)?;
+    disks.set_autosuspend_delay(-1)?;
 
     {
         let mut pstate = PState::new()?;
@@ -56,7 +60,9 @@ fn balanced() -> io::Result<()> {
 }
 
 fn battery() -> io::Result<()> {
-    Disks::new().set_apm_level(128)?;
+    let disks = Disks::new();
+    disks.set_apm_level(128)?;
+    disks.set_autosuspend_delay(15000)?;
 
     {
         let mut pstate = PState::new()?;
