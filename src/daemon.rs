@@ -6,11 +6,14 @@ use std::rc::Rc;
 
 use {DBUS_NAME, DBUS_PATH, DBUS_IFACE, Power, err_str};
 use backlight::Backlight;
+use disks::{Disks, DiskPower};
 use graphics::Graphics;
 use kbd_backlight::KeyboardBacklight;
 use pstate::PState;
 
 fn performance() -> io::Result<()> {
+    Disks::new().set_apm_level(254)?;
+
     {
         let mut pstate = PState::new()?;
         pstate.set_min_perf_pct(50)?;
@@ -22,6 +25,8 @@ fn performance() -> io::Result<()> {
 }
 
 fn balanced() -> io::Result<()> {
+    Disks::new().set_apm_level(254)?;
+
     {
         let mut pstate = PState::new()?;
         pstate.set_min_perf_pct(0)?;
@@ -51,6 +56,8 @@ fn balanced() -> io::Result<()> {
 }
 
 fn battery() -> io::Result<()> {
+    Disks::new().set_apm_level(128)?;
+
     {
         let mut pstate = PState::new()?;
         pstate.set_min_perf_pct(0)?;
