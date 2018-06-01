@@ -129,13 +129,13 @@ fn load_bbswitch() -> io::Result<()> {
             ));
         }
     }
-    
+
     Ok(())
 }
 
 fn get_graphics() -> io::Result<&'static str> {
     load_bbswitch()?;
-    
+
     let modules = Module::all()?;
 
     if modules.iter().find(|module| module.name == "nouveau" || module.name == "nvidia").is_some() {
@@ -224,14 +224,14 @@ fn set_graphics(vendor: &str) -> io::Result<()> {
 
 fn get_graphics_power() -> io::Result<bool> {
     load_bbswitch()?;
-    
+
     let mut string = String::new();
     {
         let path = "/proc/acpi/bbswitch";
         let mut file = fs::File::open(path)?;
         file.read_to_string(&mut string)?;
     }
-    
+
     for line in string.lines() {
         let mut parts = line.split(" ");
         let _pci_path = parts.next().ok_or(io::Error::new(
@@ -242,18 +242,18 @@ fn get_graphics_power() -> io::Result<bool> {
             io::ErrorKind::Other,
             "/proc/acpi/bbswitch is missing power state"
         ))?;
-        
+
         if power_state == "ON" {
             return Ok(true);
         }
     }
-    
+
     Ok(false)
 }
 
 fn set_graphics_power(power: bool) -> io::Result<()> {
     load_bbswitch()?;
-    
+
     {
         let path = "/proc/acpi/bbswitch";
         let mut file = fs::OpenOptions::new()
@@ -266,7 +266,7 @@ fn set_graphics_power(power: bool) -> io::Result<()> {
             file.write(b"OFF\n")?;
         }
     }
-    
+
     Ok(())
 }
 
