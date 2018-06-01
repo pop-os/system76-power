@@ -26,6 +26,10 @@ fn experimental_is_enabled() -> bool {
 
 fn performance() -> io::Result<()> {
     if experimental_is_enabled() {
+        let disks = Disks::new();
+        disks.set_apm_level(254)?;
+        disks.set_autosuspend_delay(-1)?;
+
         ScsiHosts::new().set_power_management_policy(&["med_power_with_dipm", "max_performance"])?;
         SoundDevice::get_devices().for_each(|dev| dev.set_power_save(0, false));
         RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("high", "performance", "auto"));
@@ -47,6 +51,10 @@ fn performance() -> io::Result<()> {
 
 fn balanced() -> io::Result<()> {
     if experimental_is_enabled() {
+        let disks = Disks::new();
+        disks.set_apm_level(254)?;
+        disks.set_autosuspend_delay(-1)?;
+
         ScsiHosts::new().set_power_management_policy(&["med_power_with_dipm", "medium_power"])?;
         SoundDevice::get_devices().for_each(|dev| dev.set_power_save(0, false));
         RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("auto", "performance", "auto"));
@@ -87,6 +95,10 @@ fn balanced() -> io::Result<()> {
 
 fn battery() -> io::Result<()> {
     if experimental_is_enabled() {
+        let disks = Disks::new();
+        disks.set_apm_level(128)?;
+        disks.set_autosuspend_delay(15000)?;
+
         ScsiHosts::new().set_power_management_policy(&["med_power_with_dipm", "min_power"])?;
         SoundDevice::get_devices().for_each(|dev| dev.set_power_save(1, true));
         RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("low", "battery", "low"));
@@ -95,7 +107,7 @@ fn battery() -> io::Result<()> {
         Dirty::new().set_max_lost_work(60);
         LaptopMode::new().set(b"2");
     }
-
+    
     {
         let mut pstate = PState::new()?;
         pstate.set_min_perf_pct(0)?;
