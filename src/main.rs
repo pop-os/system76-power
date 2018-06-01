@@ -19,6 +19,7 @@ mod pci;
 mod pstate;
 mod radeon;
 mod snd;
+mod scsi;
 mod util;
 mod wifi;
 
