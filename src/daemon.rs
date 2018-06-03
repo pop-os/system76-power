@@ -3,10 +3,12 @@ use dbus::tree::{Factory, MethodErr};
 use std::cell::RefCell;
 use std::io;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use {DBUS_NAME, DBUS_PATH, DBUS_IFACE, Power, err_str};
 use backlight::Backlight;
 use graphics::Graphics;
+use hotplug::HotPlugDetect;
 use kbd_backlight::KeyboardBacklight;
 use pstate::PState;
 use scsi::{ScsiHosts, ScsiPower};
@@ -146,6 +148,8 @@ pub fn daemon() -> Result<(), String> {
 
     let f = Factory::new_fn::<()>();
 
+    let signal = Arc::new(f.signal("HotPlugDetect", ()).sarg::<u64,_>("port"));
+
     eprintln!("Adding dbus path {} with interface {}", DBUS_PATH, DBUS_IFACE);
     let tree = f.tree(()).add(f.object_path(DBUS_PATH, ()).introspectable().add(
         f.interface(DBUS_IFACE, ())
@@ -283,14 +287,41 @@ pub fn daemon() -> Result<(), String> {
                 }
             })
         })
+        .add_s(signal.clone())
     ));
 
     tree.set_registered(&c, true).map_err(err_str)?;
 
     c.add_handler(tree);
 
+    let hpd_res = unsafe { HotPlugDetect::new() };
+
+    let hpd = || -> [bool; 3] {
+        if let Ok(ref hpd) = hpd_res {
+            unsafe { hpd.detect() }
+        } else {
+            [false; 3]
+        }
+    };
+
+    let mut last = hpd();
+
     eprintln!("Handling dbus requests");
     loop {
         c.incoming(1000).next();
+
+        let hpd = hpd();
+        for i in 0..hpd.len() {
+            if hpd[i] != last[i] {
+                if hpd[i] {
+                    eprintln!("HotPlugDetect {}", i);
+                    c.send(
+                        signal.msg(&DBUS_PATH.into(), &DBUS_NAME.into()).append1(i as u64)
+                    ).map_err(|()| format!("failed to send message"))?;
+                }
+            }
+        }
+
+        last = hpd;
     }
 }
