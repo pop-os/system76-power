@@ -11,8 +11,11 @@ use graphics::Graphics;
 use hotplug::HotPlugDetect;
 use kbd_backlight::KeyboardBacklight;
 use pstate::PState;
+use laptop_mode::set_laptop_mode;
 
 fn performance() -> io::Result<()> {
+    set_laptop_mode(0)?;
+
     {
         let mut pstate = PState::new()?;
         pstate.set_min_perf_pct(50)?;
@@ -24,6 +27,8 @@ fn performance() -> io::Result<()> {
 }
 
 fn balanced() -> io::Result<()> {
+    set_laptop_mode(0)?;
+
     {
         let mut pstate = PState::new()?;
         pstate.set_min_perf_pct(0)?;
@@ -53,6 +58,8 @@ fn balanced() -> io::Result<()> {
 }
 
 fn battery() -> io::Result<()> {
+    set_laptop_mode(2)?;
+
     {
         let mut pstate = PState::new()?;
         pstate.set_min_perf_pct(0)?;
