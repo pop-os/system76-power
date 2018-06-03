@@ -9,6 +9,7 @@ mod disks;
 mod daemon;
 mod kbd_backlight;
 mod graphics;
+mod hotplug;
 mod module;
 mod pci;
 mod pstate;
