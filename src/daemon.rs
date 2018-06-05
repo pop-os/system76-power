@@ -11,8 +11,13 @@ use graphics::Graphics;
 use hotplug::HotPlugDetect;
 use kbd_backlight::KeyboardBacklight;
 use pstate::PState;
+use snd::{SoundDevice, SND_DEVICES};
 
 fn performance() -> io::Result<()> {
+    SND_DEVICES.into_iter()
+        .flat_map(|dev| SoundDevice::new(dev))
+        .for_each(|dev| dev.set_power_save(1, true));
+
     {
         let mut pstate = PState::new()?;
         pstate.set_min_perf_pct(50)?;
