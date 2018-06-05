@@ -10,6 +10,7 @@ use backlight::Backlight;
 use graphics::Graphics;
 use hotplug::HotPlugDetect;
 use kbd_backlight::KeyboardBacklight;
+use kernel_parameters::{Dirty, KernelParameter, NmiWatchdog};
 use pstate::PState;
 use radeon::RadeonDevice;
 use snd::{SoundDevice, SND_DEVICES};
@@ -21,6 +22,8 @@ fn performance() -> io::Result<()> {
 
     RadeonDevice::get_devices().into_iter()
         .for_each(|dev| dev.set_profiles("high", "performance", "auto"));
+
+    Dirty::new().set_max_lost_work(15);
 
     {
         let mut pstate = PState::new()?;
@@ -39,6 +42,8 @@ fn balanced() -> io::Result<()> {
 
     RadeonDevice::get_devices().into_iter()
         .for_each(|dev| dev.set_profiles("auto", "performance", "auto"));
+
+    Dirty::new().set_max_lost_work(15);
 
     {
         let mut pstate = PState::new()?;
@@ -75,6 +80,8 @@ fn battery() -> io::Result<()> {
 
     RadeonDevice::get_devices().into_iter()
         .for_each(|dev| dev.set_profiles("low", "battery", "low"));
+
+    Dirty::new().set_max_lost_work(60);
 
     {
         let mut pstate = PState::new()?;
@@ -147,6 +154,9 @@ impl Power for PowerDaemon {
 pub fn daemon() -> Result<(), String> {
     eprintln!("Starting daemon");
     let daemon = Rc::new(RefCell::new(PowerDaemon::new()?));
+
+    eprintln!("Disabling NMI Watchdog (for kernel debugging only)");
+    NmiWatchdog::new().set(b"0");
 
     eprintln!("Setting automatic graphics power");
     match daemon.borrow_mut().auto_graphics_power() {
