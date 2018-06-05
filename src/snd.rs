@@ -1,4 +1,3 @@
-#![allow(unused)]
 use std::path::Path;
 use kernel_parameters::*;
 

@@ -13,6 +13,7 @@ mod hotplug;
 mod module;
 mod pci;
 mod pstate;
+mod radeon;
 mod snd;
 mod util;
 
