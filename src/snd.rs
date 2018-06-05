@@ -1,9 +1,8 @@
 #![allow(unused)]
 use std::path::Path;
-use super::*;
+use kernel_parameters::*;
 
-pub const HDA_INTEL: &str = "snd_hda_intel";
-pub const AC97: &str = "snd_ac97_codec";
+pub const SND_DEVICES: &[&str] = &["snd_hda_intel", "snd_ac97_codec"];
 
 pub struct SoundDevice {
     power_save: SndPowerSave,
@@ -25,5 +24,12 @@ impl SoundDevice {
                 None
             }
         })
+    }
+
+    pub fn set_power_save(&self, timeout: u32, enable_controller: bool) {
+        self.power_save.set(timeout.to_string().as_bytes());
+        if let Some(ref controller) = self.power_save_controller {
+            controller.set(if enable_controller { b"Y" } else { b"N" });
+        }
     }
 }

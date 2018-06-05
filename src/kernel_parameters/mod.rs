@@ -2,7 +2,6 @@
 use std::path::{Path, PathBuf};
 use util::{read_file, write_file};
 
-pub mod snd;
 pub mod radeon;
 
 /// Base trait that implements kernel parameter get/set capabilities.
