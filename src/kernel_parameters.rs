@@ -103,3 +103,24 @@ dynamic_parameters! {
         snd_hda_intel_power_save_controller: "/sys/module/{}/parameters/power_save_controller"
     }
 }
+
+pub struct Dirty {
+    expire: DirtyExpire,
+    writeback: DirtyWriteback,
+}
+
+impl Dirty {
+    pub fn new() -> Dirty {
+        Dirty {
+            expire: DirtyExpire::new(),
+            writeback: DirtyWriteback::new(),
+        }
+    }
+
+    pub fn set_max_lost_work(&self, secs: u32) {
+        let centisecs = (secs as u64 * 100).to_string();
+        let centisecs = centisecs.as_bytes();
+        self.expire.set(centisecs);
+        self.writeback.set(centisecs);
+    }
+}
