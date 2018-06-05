@@ -2,8 +2,6 @@
 use std::path::{Path, PathBuf};
 use util::{read_file, write_file};
 
-pub mod radeon;
-
 /// Base trait that implements kernel parameter get/set capabilities.
 pub trait KernelParameter {
     const NAME: &'static str;
@@ -94,9 +92,9 @@ static_parameters! {
 dynamic_parameters! {
     DiskIoSched { disk_io_scheduler: "/sys/block/{}/queue/scheduler" },
     PhcControls { phc_controls: "/sys/devices/system/cpu/cpu{}/cpufreq/phc_controls" },
-    RadeonDpmState { radeon_dpm_state: "{}/device/power_dpm_state" },
+    RadeonDpmState { radeon_dpm_state: "{}/power_dpm_state" },
     RadeonDpmForcePerformance {
-        radeon_dpm_force_performance_level: "{}/device/power_dpm_force_performance_level"
+        radeon_dpm_force_performance_level: "{}/power_dpm_force_performance_level"
     },
     RadeonPowerMethod { radeon_power_method: "{}/power_method" },
     RadeonPowerProfile { radeon_power_profile: "{}/power_profile" },

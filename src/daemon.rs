@@ -11,12 +11,16 @@ use graphics::Graphics;
 use hotplug::HotPlugDetect;
 use kbd_backlight::KeyboardBacklight;
 use pstate::PState;
+use radeon::RadeonDevice;
 use snd::{SoundDevice, SND_DEVICES};
 
 fn performance() -> io::Result<()> {
     SND_DEVICES.into_iter()
         .flat_map(|dev| SoundDevice::new(dev))
-        .for_each(|dev| dev.set_power_save(1, true));
+        .for_each(|dev| dev.set_power_save(0, false));
+
+    RadeonDevice::get_devices().into_iter()
+        .for_each(|dev| dev.set_profiles("high", "performance", "auto"));
 
     {
         let mut pstate = PState::new()?;
@@ -29,6 +33,13 @@ fn performance() -> io::Result<()> {
 }
 
 fn balanced() -> io::Result<()> {
+    SND_DEVICES.into_iter()
+        .flat_map(|dev| SoundDevice::new(dev))
+        .for_each(|dev| dev.set_power_save(0, false));
+
+    RadeonDevice::get_devices().into_iter()
+        .for_each(|dev| dev.set_profiles("auto", "performance", "auto"));
+
     {
         let mut pstate = PState::new()?;
         pstate.set_min_perf_pct(0)?;
@@ -58,6 +69,13 @@ fn balanced() -> io::Result<()> {
 }
 
 fn battery() -> io::Result<()> {
+    SND_DEVICES.into_iter()
+        .flat_map(|dev| SoundDevice::new(dev))
+        .for_each(|dev| dev.set_power_save(1, true));
+
+    RadeonDevice::get_devices().into_iter()
+        .for_each(|dev| dev.set_profiles("low", "battery", "low"));
+
     {
         let mut pstate = PState::new()?;
         pstate.set_min_perf_pct(0)?;
