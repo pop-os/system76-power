@@ -83,6 +83,7 @@ macro_rules! dynamic_parameters {
 // Kernel parameters which implement the base trait.
 
 static_parameters! {
+    LaptopMode { laptop_mode: "/proc/sys/vm/laptop_mode" },
     DirtyExpire { dirty_expire: "/proc/sys/vm/dirty_expire_centisecs" },
     DirtyWriteback { dirty_writeback: "/proc/sys/vm/dirty_writeback_centisecs" },
     NmiWatchdog { nmi_watchdog : "/proc/sys/kernel/nmi_watchdog" },

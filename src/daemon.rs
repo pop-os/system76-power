@@ -10,7 +10,7 @@ use backlight::Backlight;
 use graphics::Graphics;
 use hotplug::HotPlugDetect;
 use kbd_backlight::KeyboardBacklight;
-use kernel_parameters::{Dirty, KernelParameter, NmiWatchdog};
+use kernel_parameters::{Dirty, KernelParameter, LaptopMode, NmiWatchdog};
 use pstate::PState;
 use radeon::RadeonDevice;
 use snd::{SoundDevice, SND_DEVICES};
@@ -24,6 +24,7 @@ fn performance() -> io::Result<()> {
         .for_each(|dev| dev.set_profiles("high", "performance", "auto"));
 
     Dirty::new().set_max_lost_work(15);
+    LaptopMode::new().set(b"0");
 
     {
         let mut pstate = PState::new()?;
@@ -44,6 +45,7 @@ fn balanced() -> io::Result<()> {
         .for_each(|dev| dev.set_profiles("auto", "performance", "auto"));
 
     Dirty::new().set_max_lost_work(15);
+    LaptopMode::new().set(b"0");
 
     {
         let mut pstate = PState::new()?;
@@ -82,6 +84,7 @@ fn battery() -> io::Result<()> {
         .for_each(|dev| dev.set_profiles("low", "battery", "low"));
 
     Dirty::new().set_max_lost_work(60);
+    LaptopMode::new().set(b"2");
 
     {
         let mut pstate = PState::new()?;
