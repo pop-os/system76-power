@@ -7,6 +7,7 @@ mod backlight;
 mod client;
 mod daemon;
 mod kbd_backlight;
+mod kernel_parameters;
 mod graphics;
 mod hotplug;
 mod module;
