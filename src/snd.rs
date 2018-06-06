@@ -8,7 +8,7 @@ pub struct SoundDevice {
 
 impl SoundDevice {
     pub fn new(device: &str) -> Option<SoundDevice> {
-        if !Path::new(device).exists() {
+        if !Path::new(&["/sys/module/", device].concat()).exists() {
             return None;
         }
 
