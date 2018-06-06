@@ -36,6 +36,12 @@ pub trait KernelParameter {
     }
 }
 
+pub trait DeviceList<T> {
+    const SUPPORTED: &'static [&'static str];
+
+    fn get_devices() -> Box<Iterator<Item = T>>;
+}
+
 // Macros to help with constructing kernel parameter structures.
 
 macro_rules! static_parameters {
@@ -99,10 +105,12 @@ dynamic_parameters! {
     },
     RadeonPowerMethod { radeon_power_method: "{}/power_method" },
     RadeonPowerProfile { radeon_power_profile: "{}/power_profile" },
-    SndPowerSave { snd_hda_intel_power_save: "/sys/module/{}/parameters/power_save" },
+    PowerSave { power_save: "/sys/module/{}/parameters/power_save" },
+    PowerLevel { power_level: "/sys/module/{}/parameters/power_level" },
     SndPowerSaveController {
         snd_hda_intel_power_save_controller: "/sys/module/{}/parameters/power_save_controller"
     }
+
 }
 
 pub struct Dirty {

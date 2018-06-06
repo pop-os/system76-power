@@ -1,8 +1,6 @@
-use std::path::Path;
 use kernel_parameters::*;
 
 pub struct RadeonDevice {
-    path: String,
     pub dpm_state: RadeonDpmState,
     pub dpm_force_performance: RadeonDpmForcePerformance,
     pub power_method: RadeonPowerMethod,
@@ -16,8 +14,7 @@ impl RadeonDevice {
             dpm_state: RadeonDpmState::new(&path),
             dpm_force_performance: RadeonDpmForcePerformance::new(&path),
             power_method: RadeonPowerMethod::new(&path),
-            power_profile: RadeonPowerProfile::new(&path),
-            path
+            power_profile: RadeonPowerProfile::new(&path)
         };
 
         // TODO: Better detection of Radeon cards.
@@ -36,10 +33,12 @@ impl RadeonDevice {
         self.power_method.set(b"profile");
         self.power_profile.set(power_profile.as_bytes());
     }
+}
 
-    // TODO: impl Iterator<Item = RadeonDevice>
+impl DeviceList<RadeonDevice> for RadeonDevice {
+    const SUPPORTED: &'static [&'static str] = &[""];
 
-    pub fn get_devices() -> Vec<RadeonDevice> {
-        (0u8..10).flat_map(RadeonDevice::new).collect()
+    fn get_devices() -> Box<Iterator<Item = RadeonDevice>> {
+        Box::new((0u8..10).flat_map(RadeonDevice::new))
     }
 }
