@@ -1,10 +1,8 @@
 use std::path::Path;
 use kernel_parameters::*;
 
-pub const SND_DEVICES: &[&str] = &["snd_hda_intel", "snd_ac97_codec"];
-
 pub struct SoundDevice {
-    power_save: SndPowerSave,
+    power_save: PowerSave,
     power_save_controller: Option<SndPowerSaveController>
 }
 
@@ -16,7 +14,7 @@ impl SoundDevice {
 
         let controller = SndPowerSaveController::new(device);
         Some(SoundDevice {
-            power_save: SndPowerSave::new(device),
+            power_save: PowerSave::new(device),
             power_save_controller: if controller.get_path().exists() {
                 Some(controller)
             } else {
@@ -30,5 +28,13 @@ impl SoundDevice {
         if let Some(ref controller) = self.power_save_controller {
             controller.set(if enable_controller { b"Y" } else { b"N" });
         }
+    }
+}
+
+impl DeviceList<SoundDevice> for SoundDevice {
+    const SUPPORTED: &'static [&'static str] = &["snd_hda_intel", "snd_ac97_codec"];
+
+    fn get_devices() -> Box<Iterator<Item = SoundDevice>> {
+        Box::new(Self::SUPPORTED.into_iter().flat_map(|dev| SoundDevice::new(dev)))
     }
 }

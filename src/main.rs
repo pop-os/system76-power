@@ -16,6 +16,7 @@ mod pstate;
 mod radeon;
 mod snd;
 mod util;
+mod wifi;
 
 pub static DBUS_NAME: &'static str = "com.system76.PowerDaemon";
 pub static DBUS_PATH: &'static str = "/com/system76/PowerDaemon";

@@ -10,18 +10,16 @@ use backlight::Backlight;
 use graphics::Graphics;
 use hotplug::HotPlugDetect;
 use kbd_backlight::KeyboardBacklight;
-use kernel_parameters::{Dirty, KernelParameter, LaptopMode, NmiWatchdog};
+use kernel_parameters::{DeviceList, Dirty, KernelParameter, LaptopMode, NmiWatchdog};
 use pstate::PState;
 use radeon::RadeonDevice;
-use snd::{SoundDevice, SND_DEVICES};
+use snd::SoundDevice;
+use wifi::WifiDevice;
 
 fn performance() -> io::Result<()> {
-    SND_DEVICES.into_iter()
-        .flat_map(|dev| SoundDevice::new(dev))
-        .for_each(|dev| dev.set_power_save(0, false));
-
-    RadeonDevice::get_devices().into_iter()
-        .for_each(|dev| dev.set_profiles("high", "performance", "auto"));
+    SoundDevice::get_devices().for_each(|dev| dev.set_power_save(0, false));
+    RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("high", "performance", "auto"));
+    WifiDevice::get_devices().for_each(|dev| dev.set(0));
 
     Dirty::new().set_max_lost_work(15);
     LaptopMode::new().set(b"0");
@@ -37,12 +35,10 @@ fn performance() -> io::Result<()> {
 }
 
 fn balanced() -> io::Result<()> {
-    SND_DEVICES.into_iter()
-        .flat_map(|dev| SoundDevice::new(dev))
-        .for_each(|dev| dev.set_power_save(0, false));
-
-    RadeonDevice::get_devices().into_iter()
-        .for_each(|dev| dev.set_profiles("auto", "performance", "auto"));
+    SoundDevice::get_devices().for_each(|dev| dev.set_power_save(0, false));
+    RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("auto", "performance", "auto"));
+    // NOTE: Should balanced enable power management for wifi?
+    WifiDevice::get_devices().for_each(|dev| dev.set(0));
 
     Dirty::new().set_max_lost_work(15);
     LaptopMode::new().set(b"0");
@@ -76,12 +72,9 @@ fn balanced() -> io::Result<()> {
 }
 
 fn battery() -> io::Result<()> {
-    SND_DEVICES.into_iter()
-        .flat_map(|dev| SoundDevice::new(dev))
-        .for_each(|dev| dev.set_power_save(1, true));
-
-    RadeonDevice::get_devices().into_iter()
-        .for_each(|dev| dev.set_profiles("low", "battery", "low"));
+    SoundDevice::get_devices().for_each(|dev| dev.set_power_save(1, true));
+    RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("low", "battery", "low"));
+    WifiDevice::get_devices().for_each(|dev| dev.set(3));
 
     Dirty::new().set_max_lost_work(60);
     LaptopMode::new().set(b"2");
