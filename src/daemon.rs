@@ -74,7 +74,7 @@ fn balanced() -> io::Result<()> {
 fn battery() -> io::Result<()> {
     SoundDevice::get_devices().for_each(|dev| dev.set_power_save(1, true));
     RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("low", "battery", "low"));
-    WifiDevice::get_devices().for_each(|dev| dev.set(3));
+    WifiDevice::get_devices().for_each(|dev| dev.set(5));
 
     Dirty::new().set_max_lost_work(60);
     LaptopMode::new().set(b"2");

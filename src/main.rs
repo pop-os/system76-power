@@ -10,6 +10,7 @@ mod kbd_backlight;
 mod kernel_parameters;
 mod graphics;
 mod hotplug;
+mod modprobe;
 mod module;
 mod pci;
 mod pstate;

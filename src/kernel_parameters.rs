@@ -12,7 +12,10 @@ pub trait KernelParameter {
         let path = self.get_path();
         if path.exists() {
             match read_file(path) {
-                Ok(value) => return Some(value),
+                Ok(mut value) => {
+                    value.pop();
+                    return Some(value);
+                },
                 Err(why) => {
                     eprintln!("{}: failed to get value: {}", path.display(), why)
                 }
