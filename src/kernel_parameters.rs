@@ -55,7 +55,7 @@ macro_rules! static_parameters {
                 const NAME: &'static str = stringify!($name);
 
                 fn get_path<'a>(&'a self) -> &'a Path {
-                    Path::new(stringify!($path))
+                    Path::new($path)
                 }
             }
         )+
