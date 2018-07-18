@@ -7,12 +7,17 @@ use std::sync::Arc;
 
 use {DBUS_NAME, DBUS_PATH, DBUS_IFACE, Power, err_str};
 use backlight::Backlight;
+use disks::{Disks, DiskPower};
 use graphics::Graphics;
 use hotplug::HotPlugDetect;
 use kbd_backlight::KeyboardBacklight;
 use pstate::PState;
 
 fn performance() -> io::Result<()> {
+    let disks = Disks::new();
+    disks.set_apm_level(254)?;
+    disks.set_autosuspend_delay(-1)?;
+
     {
         let mut pstate = PState::new()?;
         pstate.set_min_perf_pct(50)?;
@@ -24,6 +29,10 @@ fn performance() -> io::Result<()> {
 }
 
 fn balanced() -> io::Result<()> {
+    let disks = Disks::new();
+    disks.set_apm_level(254)?;
+    disks.set_autosuspend_delay(-1)?;
+
     {
         let mut pstate = PState::new()?;
         pstate.set_min_perf_pct(0)?;
@@ -53,6 +62,10 @@ fn balanced() -> io::Result<()> {
 }
 
 fn battery() -> io::Result<()> {
+    let disks = Disks::new();
+    disks.set_apm_level(128)?;
+    disks.set_autosuspend_delay(15000)?;
+
     {
         let mut pstate = PState::new()?;
         pstate.set_min_perf_pct(0)?;

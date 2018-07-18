@@ -5,6 +5,7 @@ use std::{env, process};
 
 mod backlight;
 mod client;
+mod disks;
 mod daemon;
 mod kbd_backlight;
 mod graphics;
