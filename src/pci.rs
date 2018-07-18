@@ -1,7 +1,7 @@
 use std::{fs, io, u8, u16, u32};
 use std::path::{Path, PathBuf};
 
-use util::{read_file, write_file};
+use util::{entries, read_file, write_file};
 
 pub struct PciBus {
     path: PathBuf
@@ -18,29 +18,11 @@ impl PciBus {
     }
 
     pub fn devices(&self) -> io::Result<Vec<PciDevice>> {
-        let mut ret = Vec::new();
-
-        for entry_res in fs::read_dir(self.path.join("devices"))? {
-            let entry = entry_res?;
-            ret.push(PciDevice {
-                path: entry.path()
-            });
-        }
-
-        Ok(ret)
+        entries(&self.path.join("devices"), |entry| PciDevice { path: entry.path() })
     }
 
     pub fn drivers(&self) -> io::Result<Vec<PciDriver>> {
-        let mut ret = Vec::new();
-
-        for entry_res in fs::read_dir(self.path.join("drivers"))? {
-            let entry = entry_res?;
-            ret.push(PciDriver {
-                path: entry.path()
-            });
-        }
-
-        Ok(ret)
+        entries(&self.path.join("drivers"), |entry| PciDriver { path: entry.path() })
     }
 
     pub fn rescan(&self) -> io::Result<()> {
@@ -76,6 +58,20 @@ pub struct PciDevice {
     path: PathBuf,
 }
 
+macro_rules! pci_device {
+    ($file:tt as $out:tt) => {
+        pub fn $file(&self) -> io::Result<$out> {
+            let v = read_file(self.path.join(stringify!($file)))?;
+            $out::from_str_radix(v[2..].trim(), 16).map_err(|err| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("{}", err)
+                )
+            })
+        }
+    }
+}
+
 impl PciDevice {
     pub fn name(&self) -> &str {
         self.path
@@ -87,50 +83,18 @@ impl PciDevice {
         &self.path
     }
 
-    pub fn class(&self) -> io::Result<u32> {
-        let v = read_file(self.path.join("class"))?;
-        u32::from_str_radix(v[2..].trim(), 16).map_err(|err| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("{}", err)
-            )
-        })
-    }
+    pci_device!(class as u32);
 
-    pub fn device(&self) -> io::Result<u16> {
-        let v = read_file(self.path.join("device"))?;
-        u16::from_str_radix(v[2..].trim(), 16).map_err(|err| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("{}", err)
-            )
-        })
-    }
+    pci_device!(device as u16);
+
+    pci_device!(revision as u8);
+
+    pci_device!(vendor as u16);
 
     pub fn driver(&self) -> io::Result<PciDriver> {
         let path = fs::canonicalize(self.path.join("driver"))?;
         Ok(PciDriver {
             path: path,
-        })
-    }
-
-    pub fn revision(&self) -> io::Result<u8> {
-        let v = read_file(self.path.join("device"))?;
-        u8::from_str_radix(v[2..].trim(), 16).map_err(|err| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("{}", err)
-            )
-        })
-    }
-
-    pub fn vendor(&self) -> io::Result<u16> {
-        let v = read_file(self.path.join("vendor"))?;
-        u16::from_str_radix(v[2..].trim(), 16).map_err(|err| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("{}", err)
-            )
         })
     }
 
