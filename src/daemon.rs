@@ -11,8 +11,11 @@ use graphics::Graphics;
 use hotplug::HotPlugDetect;
 use kbd_backlight::KeyboardBacklight;
 use pstate::PState;
+use scsi::{ScsiHosts, ScsiPower};
 
 fn performance() -> io::Result<()> {
+    ScsiHosts::new().set_power_management_policy(&["med_power_with_dipm", "max_performance"])?;
+
     {
         let mut pstate = PState::new()?;
         pstate.set_min_perf_pct(50)?;
@@ -24,6 +27,8 @@ fn performance() -> io::Result<()> {
 }
 
 fn balanced() -> io::Result<()> {
+    ScsiHosts::new().set_power_management_policy(&["med_power_with_dipm", "medium_power"])?;
+
     {
         let mut pstate = PState::new()?;
         pstate.set_min_perf_pct(0)?;
@@ -53,6 +58,8 @@ fn balanced() -> io::Result<()> {
 }
 
 fn battery() -> io::Result<()> {
+    ScsiHosts::new().set_power_management_policy(&["med_power_with_dipm", "min_power"])?;
+
     {
         let mut pstate = PState::new()?;
         pstate.set_min_perf_pct(0)?;
