@@ -7,6 +7,7 @@ extern crate libc;
 extern crate log;
 
 use clap::{Arg, App, AppSettings, SubCommand};
+use log::LevelFilter;
 use std::process;
 
 mod backlight;
@@ -51,11 +52,6 @@ pub (crate) fn err_str<E: ::std::fmt::Display>(err: E) -> String {
 }
 
 fn main() {
-    if let Err(why) = logging::setup_logging() {
-        eprintln!("failed to set up logging: {}", why);
-        process::exit(1);
-    }
-
     let version = format!("{} ({})", crate_version!(), short_sha());
     let matches = App::new("system76-power")
         .about("Utility for managing power profiles")
@@ -63,6 +59,16 @@ fn main() {
         .global_setting(AppSettings::ColoredHelp)
         .global_setting(AppSettings::UnifiedHelpMessage)
         .setting(AppSettings::SubcommandRequiredElseHelp)
+        .arg(Arg::with_name("quiet")
+            .short("q")
+            .long("quiet")
+            .global(true)
+            .group("verbosity"))
+        .arg(Arg::with_name("verbose")
+            .short("v")
+            .long("verbose")
+            .global(true)
+            .group("verbosity"))
         .subcommand(SubCommand::with_name("daemon")
             .about("Runs the program in daemon mode")
             .arg(Arg::with_name("experimental")
@@ -101,6 +107,19 @@ fn main() {
             )
         )
         .get_matches();
+
+    if let Err(why) = logging::setup_logging(
+        if matches.is_present("verbose") {
+            LevelFilter::Debug
+        } else if matches.is_present("quiet") {
+            LevelFilter::Off
+        } else {
+            LevelFilter::Info
+        }
+    ) {
+        eprintln!("failed to set up logging: {}", why);
+        process::exit(1);
+    }
 
 
     let res = match matches.subcommand() {
