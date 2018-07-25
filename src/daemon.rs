@@ -3,11 +3,13 @@ use dbus::tree::{Factory, MethodErr};
 use std::cell::RefCell;
 use std::io;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use {DBUS_NAME, DBUS_PATH, DBUS_IFACE, Power, err_str};
 use ac_events::ac_events;
 use backlight::Backlight;
 use graphics::Graphics;
+use hotplug::HotPlugDetect;
 use kbd_backlight::KeyboardBacklight;
 use pstate::PState;
 
@@ -140,143 +142,60 @@ pub fn daemon() -> Result<(), String> {
 
     let f = Factory::new_fn::<()>();
 
+    // Defines whether the value returned by the method should be appended.
+    macro_rules! append {
+        (true, $m:ident, $value:ident) => { $m.msg.method_return().append1($value) };
+        (false, $m:ident, $value:ident) => { $m.msg.method_return() };
+    }
+
+    // Programs the message that should be printed.
+    macro_rules! get_value {
+        (true, $name:expr, $daemon:ident, $m:ident, $method:tt) => {{
+            let value = $m.msg.read1()?;
+            eprintln!("{}({})", $name, value);
+            $daemon.borrow_mut().$method(value)
+        }};
+
+        (false, $name:expr, $daemon:ident, $m:ident, $method:tt) => {{
+            eprintln!($name);
+            $daemon.borrow_mut().$method()
+        }};
+    }
+
+    // Creates a new dbus method from an existing method in the daemon.
+    macro_rules! method {
+        ($method:tt, $name:expr, $append:tt, $print:tt) => {{
+            let daemon = daemon.clone();
+            f.method($name, (), move |m| {
+                let result = get_value!($print, $name, daemon, m, $method);
+                match result {
+                    Ok(_value) => {
+                        let mret = append!($append, m, _value);
+                        Ok(vec![mret])
+                    },
+                    Err(err) => {
+                        eprintln!("{}", err);
+                        Err(MethodErr::failed(&err))
+                    }
+                }
+            })
+        }};
+    }
+
+    let signal = Arc::new(f.signal("HotPlugDetect", ()).sarg::<u64,_>("port"));
+
     eprintln!("Adding dbus path {} with interface {}", DBUS_PATH, DBUS_IFACE);
     let tree = f.tree(()).add(f.object_path(DBUS_PATH, ()).introspectable().add(
         f.interface(DBUS_IFACE, ())
-        .add_m({
-            let daemon = daemon.clone();
-            f.method("Performance", (), move |m| {
-                eprintln!("Performance");
-                match daemon.borrow_mut().performance() {
-                    Ok(()) => {
-                        let mret = m.msg.method_return();
-                        Ok(vec![mret])
-                    },
-                    Err(err) => {
-                        eprintln!("{}", err);
-                        Err(MethodErr::failed(&err))
-                    }
-                }
-            })
-        })
-        .add_m({
-            let daemon = daemon.clone();
-            f.method("Balanced", (), move |m| {
-                eprintln!("Balanced");
-                match daemon.borrow_mut().balanced() {
-                    Ok(()) => {
-                        let mret = m.msg.method_return();
-                        Ok(vec![mret])
-                    },
-                    Err(err) => {
-                        eprintln!("{}", err);
-                        Err(MethodErr::failed(&err))
-                    }
-                }
-            })
-        })
-        .add_m({
-            let daemon = daemon.clone();
-            f.method("Battery", (), move |m| {
-                eprintln!("Battery");
-                match daemon.borrow_mut().battery() {
-                    Ok(()) => {
-                        let mret = m.msg.method_return();
-                        Ok(vec![mret])
-                    },
-                    Err(err) => {
-                        eprintln!("{}", err);
-                        Err(MethodErr::failed(&err))
-                    }
-                }
-            })
-        })
-        .add_m({
-            let daemon = daemon.clone();
-            f.method("GetGraphics", (), move |m| {
-                eprintln!("GetGraphics");
-                match daemon.borrow_mut().get_graphics() {
-                    Ok(vendor) => {
-                        let mret = m.msg.method_return().append1(vendor);
-                        Ok(vec![mret])
-                    },
-                    Err(err) => {
-                        eprintln!("{}", err);
-                        Err(MethodErr::failed(&err))
-                    }
-                }
-            })
-            .outarg::<&str,_>("vendor")
-        })
-        .add_m({
-            let daemon = daemon.clone();
-            f.method("SetGraphics", (), move |m| {
-                let vendor = m.msg.read1()?;
-                eprintln!("SetGraphics({})", vendor);
-                match daemon.borrow_mut().set_graphics(vendor) {
-                    Ok(()) => {
-                        let mret = m.msg.method_return();
-                        Ok(vec![mret])
-                    },
-                    Err(err) => {
-                        eprintln!("{}", err);
-                        Err(MethodErr::failed(&err))
-                    }
-                }
-            })
-            .inarg::<&str,_>("vendor")
-        })
-        .add_m({
-            let daemon = daemon.clone();
-            f.method("GetGraphicsPower", (), move |m| {
-                eprintln!("GetGraphicsPower");
-                match daemon.borrow_mut().get_graphics_power() {
-                    Ok(power) => {
-                        let mret = m.msg.method_return().append1(power);
-                        Ok(vec![mret])
-                    },
-                    Err(err) => {
-                        eprintln!("{}", err);
-                        Err(MethodErr::failed(&err))
-                    }
-                }
-            })
-            .outarg::<bool,_>("power")
-        })
-        .add_m({
-            let daemon = daemon.clone();
-            f.method("SetGraphicsPower", (), move |m| {
-                let power = m.msg.read1()?;
-                eprintln!("SetGraphicsPower({})", power);
-                match daemon.borrow_mut().set_graphics_power(power) {
-                    Ok(()) => {
-                        let mret = m.msg.method_return();
-                        Ok(vec![mret])
-                    },
-                    Err(err) => {
-                        eprintln!("{}", err);
-                        Err(MethodErr::failed(&err))
-                    }
-                }
-            })
-            .inarg::<bool,_>("power")
-        })
-        .add_m({
-            let daemon = daemon.clone();
-            f.method("AutoGraphicsPower", (), move |m| {
-                eprintln!("AutoGraphicsPower");
-                match daemon.borrow_mut().auto_graphics_power() {
-                    Ok(()) => {
-                        let mret = m.msg.method_return();
-                        Ok(vec![mret])
-                    },
-                    Err(err) => {
-                        eprintln!("{}", err);
-                        Err(MethodErr::failed(&err))
-                    }
-                }
-            })
-        })
+            .add_m(method!(performance, "Performance", false, false))
+            .add_m(method!(balanced, "Balanced", false, false))
+            .add_m(method!(battery, "Battery", false, false))
+            .add_m(method!(get_graphics, "GetGraphics", true, false).outarg::<&str,_>("vendor"))
+            .add_m(method!(set_graphics, "SetGraphics", false, true).inarg::<&str,_>("vendor"))
+            .add_m(method!(get_graphics_power, "GetGraphicsPower", true, false).outarg::<bool,_>("power"))
+            .add_m(method!(set_graphics_power, "SetGraphicsPower", false, true).inarg::<bool,_>("power"))
+            .add_m(method!(auto_graphics_power, "AutoGraphicsPower", false, false))
+            .add_s(signal.clone())
     ));
 
     tree.set_registered(&c, true).map_err(err_str)?;
@@ -287,9 +206,35 @@ pub fn daemon() -> Result<(), String> {
         eprintln!("Handling ac events");
         ac_events(pstate);
     }
+  
+    let hpd_res = unsafe { HotPlugDetect::new() };
+
+    let hpd = || -> [bool; 3] {
+        if let Ok(ref hpd) = hpd_res {
+            unsafe { hpd.detect() }
+        } else {
+            [false; 3]
+        }
+    };
+
+    let mut last = hpd();
 
     eprintln!("Handling dbus requests");
     loop {
         c.incoming(1000).next();
+
+        let hpd = hpd();
+        for i in 0..hpd.len() {
+            if hpd[i] != last[i] {
+                if hpd[i] {
+                    eprintln!("HotPlugDetect {}", i);
+                    c.send(
+                        signal.msg(&DBUS_PATH.into(), &DBUS_NAME.into()).append1(i as u64)
+                    ).map_err(|()| format!("failed to send message"))?;
+                }
+            }
+        }
+
+        last = hpd;
     }
 }
