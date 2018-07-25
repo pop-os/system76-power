@@ -25,7 +25,7 @@ impl WifiDevice {
 
     pub fn set(&self, power_level: u8) {
         if power_level > 5 {
-            eprintln!("invalid wifi power level. levels supported: 1-5");
+            error!("invalid wifi power level. levels supported: 1-5");
             return;
         }
 
@@ -33,7 +33,7 @@ impl WifiDevice {
             if power_level == 0 {
                 if save == "Y" {
                     if let Err(why) = modprobe::reload(self.device, &["power_save=N"]) {
-                        eprintln!("failed to reload {} module: {}", self.device, why);
+                        error!("failed to reload {} module: {}", self.device, why);
                     }
                 }
             } else {
@@ -41,7 +41,7 @@ impl WifiDevice {
                 if save != "Y" || (save == "N" && level != &power_level) {
                     let options = &["power_save=Y", &format!("power_level={}", power_level)];
                     if let Err(why) = modprobe::reload(self.device, options) {
-                        eprintln!("failed to reload {} module: {}", self.device, why);
+                        error!("failed to reload {} module: {}", self.device, why);
                     }
                 }
 

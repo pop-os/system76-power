@@ -1,7 +1,10 @@
 #[macro_use]
 extern crate clap;
 extern crate dbus;
+extern crate fern;
 extern crate libc;
+#[macro_use]
+extern crate log;
 
 use clap::{Arg, App, AppSettings, SubCommand};
 use std::process;
@@ -10,17 +13,18 @@ mod backlight;
 mod client;
 mod daemon;
 mod disks;
-mod kbd_backlight;
-mod kernel_parameters;
 mod graphics;
 mod hotplug;
+mod kbd_backlight;
+mod kernel_parameters;
+mod logging;
 mod modprobe;
 mod module;
 mod pci;
 mod pstate;
 mod radeon;
-mod snd;
 mod scsi;
+mod snd;
 mod util;
 mod wifi;
 
@@ -47,6 +51,11 @@ pub (crate) fn err_str<E: ::std::fmt::Display>(err: E) -> String {
 }
 
 fn main() {
+    if let Err(why) = logging::setup_logging() {
+        eprintln!("failed to set up logging: {}", why);
+        process::exit(1);
+    }
+
     let version = format!("{} ({})", crate_version!(), short_sha());
     let matches = App::new("system76-power")
         .about("Utility for managing power profiles")
@@ -109,7 +118,7 @@ fn main() {
     match res {
         Ok(()) => (),
         Err(err) => {
-            eprintln!("system76-power: {}", err);
+            error!("{}", err);
             process::exit(1);
         }
     }

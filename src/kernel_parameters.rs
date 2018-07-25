@@ -1,5 +1,6 @@
 #![allow(unused)]
 use std::path::{Path, PathBuf};
+use std::str;
 use util::{read_file, write_file};
 
 /// Base trait that implements kernel parameter get/set capabilities.
@@ -17,11 +18,11 @@ pub trait KernelParameter {
                     return Some(value);
                 },
                 Err(why) => {
-                    eprintln!("{}: failed to get value: {}", path.display(), why)
+                    error!("{}: failed to get value: {}", path.display(), why)
                 }
             }
         } else {
-            eprintln!("{} does not exist", path.display());
+            warn!("{} does not exist", path.display());
         }
 
         None
@@ -30,11 +31,16 @@ pub trait KernelParameter {
     fn set(&self, value: &[u8]) {
         let path = self.get_path();
         if path.exists() {
+            debug!("Modifying kernel parameter at {:?} to {}", path, match str::from_utf8(value) {
+                Ok(string) => string,
+                Err(_) => "[INVALID UTF8]",
+            });
+
             if let Err(why) = write_file(path, value) {
-                eprintln!("{}: failed to set value: {}", path.display(), why)
+                error!("{}: failed to set value: {}", path.display(), why)
             }
         } else {
-            eprintln!("{} does not exist", path.display());
+            warn!("{} does not exist", path.display());
         }
     }
 }
