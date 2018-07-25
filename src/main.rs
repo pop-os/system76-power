@@ -9,6 +9,7 @@ use std::process;
 mod backlight;
 mod client;
 mod daemon;
+mod disks;
 mod kbd_backlight;
 mod kernel_parameters;
 mod graphics;

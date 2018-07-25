@@ -8,6 +8,7 @@ use std::sync::atomic::{ATOMIC_BOOL_INIT, AtomicBool, Ordering};
 
 use {DBUS_NAME, DBUS_PATH, DBUS_IFACE, Power, err_str};
 use backlight::Backlight;
+use disks::{Disks, DiskPower};
 use graphics::Graphics;
 use hotplug::HotPlugDetect;
 use kbd_backlight::KeyboardBacklight;
