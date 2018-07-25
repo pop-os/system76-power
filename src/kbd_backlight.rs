@@ -28,7 +28,7 @@ impl KeyboardBacklight {
         let mut path = PathBuf::from("/sys/class/leds");
         path.push(name);
 
-        fs::read_dir(&path)?;
+        path.read_dir()?;
 
         Ok(KeyboardBacklight {
             name: name.to_string(),
