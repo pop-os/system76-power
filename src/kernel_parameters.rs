@@ -110,8 +110,8 @@ dynamic_parameters! {
     RadeonPowerProfile { radeon_power_profile: "{}/power_profile" },
     PowerSave { power_save: "/sys/module/{}/parameters/power_save" },
     PowerLevel { power_level: "/sys/module/{}/parameters/power_level" },
-    SndPowerSaveController {
-        snd_hda_intel_power_save_controller: "/sys/module/{}/parameters/power_save_controller"
+    PowerSaveController {
+        power_save_controller: "/sys/module/{}/parameters/power_save_controller"
     }
 
 }

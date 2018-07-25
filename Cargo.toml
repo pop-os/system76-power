@@ -6,3 +6,7 @@ authors = ["Jeremy Soller <jackpot51@gmail.com>"]
 [dependencies]
 dbus = "0.6"
 libc = "0.2"
+clap = "2.32.0"
+
+[build-dependencies]
+vergen = "0.1.1"

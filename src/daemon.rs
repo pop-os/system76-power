@@ -4,6 +4,7 @@ use std::cell::RefCell;
 use std::io;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::sync::atomic::{ATOMIC_BOOL_INIT, AtomicBool, Ordering};
 
 use {DBUS_NAME, DBUS_PATH, DBUS_IFACE, Power, err_str};
 use backlight::Backlight;
@@ -16,13 +17,21 @@ use radeon::RadeonDevice;
 use snd::SoundDevice;
 use wifi::WifiDevice;
 
-fn performance() -> io::Result<()> {
-    SoundDevice::get_devices().for_each(|dev| dev.set_power_save(0, false));
-    RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("high", "performance", "auto"));
-    WifiDevice::get_devices().for_each(|dev| dev.set(0));
+static EXPERIMENTAL: AtomicBool = ATOMIC_BOOL_INIT;
 
-    Dirty::new().set_max_lost_work(15);
-    LaptopMode::new().set(b"0");
+fn experimental_is_enabled() -> bool {
+    EXPERIMENTAL.load(Ordering::SeqCst)
+}
+
+fn performance() -> io::Result<()> {
+    if experimental_is_enabled() {
+        SoundDevice::get_devices().for_each(|dev| dev.set_power_save(0, false));
+        RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("high", "performance", "auto"));
+        // WifiDevice::get_devices().for_each(|dev| dev.set(0));
+
+        Dirty::new().set_max_lost_work(15);
+        LaptopMode::new().set(b"0");
+    }
 
     {
         let mut pstate = PState::new()?;
@@ -35,13 +44,15 @@ fn performance() -> io::Result<()> {
 }
 
 fn balanced() -> io::Result<()> {
-    SoundDevice::get_devices().for_each(|dev| dev.set_power_save(0, false));
-    RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("auto", "performance", "auto"));
-    // NOTE: Should balanced enable power management for wifi?
-    WifiDevice::get_devices().for_each(|dev| dev.set(0));
+    if experimental_is_enabled() {
+        SoundDevice::get_devices().for_each(|dev| dev.set_power_save(0, false));
+        RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("auto", "performance", "auto"));
+        // // NOTE: Should balanced enable power management for wifi?
+        // WifiDevice::get_devices().for_each(|dev| dev.set(0));
 
-    Dirty::new().set_max_lost_work(15);
-    LaptopMode::new().set(b"0");
+        Dirty::new().set_max_lost_work(15);
+        LaptopMode::new().set(b"0");
+    }
 
     {
         let mut pstate = PState::new()?;
@@ -72,12 +83,14 @@ fn balanced() -> io::Result<()> {
 }
 
 fn battery() -> io::Result<()> {
-    SoundDevice::get_devices().for_each(|dev| dev.set_power_save(1, true));
-    RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("low", "battery", "low"));
-    WifiDevice::get_devices().for_each(|dev| dev.set(5));
+    if experimental_is_enabled() {
+        SoundDevice::get_devices().for_each(|dev| dev.set_power_save(1, true));
+        RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("low", "battery", "low"));
+        // WifiDevice::get_devices().for_each(|dev| dev.set(5));
 
-    Dirty::new().set_max_lost_work(60);
-    LaptopMode::new().set(b"2");
+        Dirty::new().set_max_lost_work(60);
+        LaptopMode::new().set(b"2");
+    }
 
     {
         let mut pstate = PState::new()?;
@@ -147,8 +160,9 @@ impl Power for PowerDaemon {
     }
 }
 
-pub fn daemon() -> Result<(), String> {
-    eprintln!("Starting daemon");
+pub fn daemon(experimental: bool) -> Result<(), String> {
+    eprintln!("Starting daemon{}", if experimental { " with experimental enabled" } else { "" });
+    EXPERIMENTAL.store(experimental, Ordering::SeqCst);
     let daemon = Rc::new(RefCell::new(PowerDaemon::new()?));
 
     eprintln!("Disabling NMI Watchdog (for kernel debugging only)");

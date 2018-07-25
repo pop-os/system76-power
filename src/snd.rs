@@ -3,7 +3,7 @@ use kernel_parameters::*;
 
 pub struct SoundDevice {
     power_save: PowerSave,
-    power_save_controller: Option<SndPowerSaveController>
+    power_save_controller: Option<PowerSaveController>
 }
 
 impl SoundDevice {
@@ -12,7 +12,7 @@ impl SoundDevice {
             return None;
         }
 
-        let controller = SndPowerSaveController::new(device);
+        let controller = PowerSaveController::new(device);
         Some(SoundDevice {
             power_save: PowerSave::new(device),
             power_save_controller: if controller.get_path().exists() {
