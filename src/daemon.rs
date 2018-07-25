@@ -178,25 +178,25 @@ impl Power for PowerDaemon {
 }
 
 pub fn daemon(experimental: bool) -> Result<(), String> {
-    eprintln!("Starting daemon{}", if experimental { " with experimental enabled" } else { "" });
+    info!("Starting daemon{}", if experimental { " with experimental enabled" } else { "" });
     EXPERIMENTAL.store(experimental, Ordering::SeqCst);
     let daemon = Rc::new(RefCell::new(PowerDaemon::new()?));
 
-    eprintln!("Disabling NMI Watchdog (for kernel debugging only)");
+    info!("Disabling NMI Watchdog (for kernel debugging only)");
     NmiWatchdog::new().set(b"0");
 
-    eprintln!("Setting automatic graphics power");
+    info!("Setting automatic graphics power");
     match daemon.borrow_mut().auto_graphics_power() {
         Ok(()) => (),
         Err(err) => {
-            eprintln!("Failed to set automatic graphics power: {}", err);
+            error!("Failed to set automatic graphics power: {}", err);
         }
     }
 
-    eprintln!("Connecting to dbus system bus");
+    info!("Connecting to dbus system bus");
     let c = Connection::get_private(BusType::System).map_err(err_str)?;
 
-    eprintln!("Registering dbus name {}", DBUS_NAME);
+    info!("Registering dbus name {}", DBUS_NAME);
     c.register_name(DBUS_NAME, NameFlag::ReplaceExisting as u32).map_err(err_str)?;
 
     let f = Factory::new_fn::<()>();
@@ -211,12 +211,12 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
     macro_rules! get_value {
         (true, $name:expr, $daemon:ident, $m:ident, $method:tt) => {{
             let value = $m.msg.read1()?;
-            eprintln!("{}({})", $name, value);
+            info!("DBUS Received {}({}) method", $name, value);
             $daemon.borrow_mut().$method(value)
         }};
 
         (false, $name:expr, $daemon:ident, $m:ident, $method:tt) => {{
-            eprintln!($name);
+            info!("DBUS Received {} method", $name);
             $daemon.borrow_mut().$method()
         }};
     }
@@ -233,7 +233,7 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
                         Ok(vec![mret])
                     },
                     Err(err) => {
-                        eprintln!("{}", err);
+                        error!("{}", err);
                         Err(MethodErr::failed(&err))
                     }
                 }
@@ -243,7 +243,7 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
 
     let signal = Arc::new(f.signal("HotPlugDetect", ()).sarg::<u64,_>("port"));
 
-    eprintln!("Adding dbus path {} with interface {}", DBUS_PATH, DBUS_IFACE);
+    info!("Adding dbus path {} with interface {}", DBUS_PATH, DBUS_IFACE);
     let tree = f.tree(()).add(f.object_path(DBUS_PATH, ()).introspectable().add(
         f.interface(DBUS_IFACE, ())
             .add_m(method!(performance, "Performance", false, false))
@@ -273,7 +273,7 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
 
     let mut last = hpd();
 
-    eprintln!("Handling dbus requests");
+    info!("Handling dbus requests");
     loop {
         c.incoming(1000).next();
 
@@ -281,7 +281,7 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
         for i in 0..hpd.len() {
             if hpd[i] != last[i] {
                 if hpd[i] {
-                    eprintln!("HotPlugDetect {}", i);
+                    info!("HotPlugDetect {}", i);
                     c.send(
                         signal.msg(&DBUS_PATH.into(), &DBUS_NAME.into()).append1(i as u64)
                     ).map_err(|()| format!("failed to send message"))?;
