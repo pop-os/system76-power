@@ -1,14 +1,27 @@
 use std::io;
 use std::path::PathBuf;
-
-use once_cell::sync::OnceCell;
+use std::sync::Once;
 use util::{parse_file, write_file};
 
+// use once_cell::sync::OnceCell;
+// pub static ORIGINAL_PSTATE: OnceCell<Option<PStateValues>> = OnceCell::INIT;
+
 // The PState values that were initially set at the time of starting the daemon.
-pub static ORIGINAL_PSTATE: OnceCell<Option<PStateValues>> = OnceCell::INIT;
+static mut ORIGINAL_PSTATE_: Option<PStateValues> = None;
+pub static ORIGINAL_PSTATE: Once = Once::new();
+
+pub fn get_original_pstate() -> Option<&'static PStateValues> {
+    unsafe {
+        ORIGINAL_PSTATE.call_once(|| {
+            ORIGINAL_PSTATE_ = PStateValues::current();
+        });
+
+        ORIGINAL_PSTATE_.as_ref()
+    }
+}
 
 pub fn set_original_pstate() {
-    if let Some(&Some(ref original)) = ORIGINAL_PSTATE.get() {
+    if let Some(ref original) = get_original_pstate() {
         eprintln!("setting original pstate values: {:?}", original);
         if let Err(why) = original.set() {
             eprintln!("failed to set original pstate values: {:?}", why);

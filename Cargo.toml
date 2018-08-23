@@ -6,4 +6,3 @@ authors = ["Jeremy Soller <jackpot51@gmail.com>"]
 [dependencies]
 dbus = "0.6"
 libc = "0.2"
-once_cell = "0.1.4"
