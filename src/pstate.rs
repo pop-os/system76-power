@@ -1,7 +1,45 @@
 use std::io;
 use std::path::PathBuf;
 
+use once_cell::sync::OnceCell;
 use util::{parse_file, write_file};
+
+// The PState values that were initially set at the time of starting the daemon.
+pub static ORIGINAL_PSTATE: OnceCell<Option<PStateValues>> = OnceCell::INIT;
+
+pub fn set_original_pstate() {
+    if let Some(&Some(ref original)) = ORIGINAL_PSTATE.get() {
+        eprintln!("setting original pstate values: {:?}", original);
+        if let Err(why) = original.set() {
+            eprintln!("failed to set original pstate values: {:?}", why);
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct PStateValues {
+    min_perf_pct: u64,
+    max_perf_pct: u64,
+    no_turbo: bool
+}
+
+impl PStateValues {
+    pub fn current() -> Option<PStateValues> {
+        PState::new().ok().and_then(|pstate| Some(Self {
+            min_perf_pct: pstate.min_perf_pct().ok()?,
+            max_perf_pct: pstate.max_perf_pct().ok()?,
+            no_turbo: pstate.no_turbo().ok()?
+        }))
+    }
+
+    pub fn set(&self) -> io::Result<()> {
+        PState::new().and_then(|mut pstate| {
+            pstate.set_min_perf_pct(self.min_perf_pct)?;
+            pstate.set_max_perf_pct(self.max_perf_pct)?;
+            pstate.set_no_turbo(self.no_turbo)
+        })
+    }
+}
 
 pub struct PState {
     path: PathBuf,

@@ -1,5 +1,6 @@
 extern crate dbus;
 extern crate libc;
+extern crate once_cell;
 
 use std::{env, process};
 
@@ -12,7 +13,10 @@ mod hotplug;
 mod module;
 mod pci;
 mod pstate;
+mod signals;
 mod util;
+
+use pstate::{set_original_pstate, ORIGINAL_PSTATE, PStateValues};
 
 pub static DBUS_NAME: &'static str = "com.system76.PowerDaemon";
 pub static DBUS_PATH: &'static str = "/com/system76/PowerDaemon";
@@ -37,7 +41,11 @@ pub (crate) fn err_str<E: ::std::fmt::Display>(err: E) -> String {
 fn main() {
     let res = if env::args().nth(1).map_or(false, |arg| arg == "daemon") {
         if unsafe { libc::geteuid() } == 0 {
-            daemon::daemon()
+            ORIGINAL_PSTATE.set(PStateValues::current()).unwrap();
+            signals::daemon_signal_handler();
+            let res = daemon::daemon();
+            set_original_pstate();
+            res
         } else {
             Err(format!("must be run as root"))
         }
