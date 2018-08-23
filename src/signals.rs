@@ -15,5 +15,8 @@ pub fn daemon_signal_handler() {
         libc::signal(libc::SIGQUIT, handler);
         libc::signal(libc::SIGTERM, handler);
         libc::signal(libc::SIGPIPE, handler);
+        libc::signal(libc::SIGKILL, handler);
+        libc::signal(libc::SIGABRT, handler);
+        libc::signal(libc::SIGIOT, handler);
     }
 }
