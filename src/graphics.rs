@@ -30,7 +30,7 @@ impl Graphics {
     pub fn new() -> io::Result<Graphics> {
         let bus = PciBus::new()?;
 
-        eprintln!("Rescanning PCI bus");
+        info!("Rescanning PCI bus");
         bus.rescan()?;
 
         let mut intel = Vec::new();
@@ -43,22 +43,22 @@ impl Graphics {
             match (c >> 16) & 0xFF {
                 0x03 => match dev.vendor()? {
                     0x10DE => {
-                        eprintln!("{}: NVIDIA graphics", dev.name());
+                        info!("{}: NVIDIA graphics", dev.name());
                         nvidia.push(dev);
                     },
                     0x8086 => {
-                        eprintln!("{}: Intel graphics", dev.name());
+                        info!("{}: Intel graphics", dev.name());
                         intel.push(dev);
                     },
                     vendor => {
-                        eprintln!("{}: Other({:X}) graphics", dev.name(), vendor);
+                        info!("{}: Other({:X}) graphics", dev.name(), vendor);
                         other.push(dev);
                     },
                 },
                 0x04 => match (c >> 8) & 0xff {
                     0x03 => match dev.vendor()? {
                         0x10DE => {
-                            eprintln!("{}: NVIDIA audio", dev.name());
+                            info!("{}: NVIDIA audio", dev.name());
                             nvidia_hda.push(dev);
                         },
                         _ => ()
@@ -103,7 +103,7 @@ impl Graphics {
         if self.can_switch() {
             {
                 let path = "/etc/modprobe.d/system76-power.conf";
-                eprintln!("Creating {}", path);
+                info!("Creating {}", path);
                 let mut file = fs::OpenOptions::new()
                     .create(true)
                     .truncate(true)
@@ -120,22 +120,22 @@ impl Graphics {
             }
 
             if vendor == "nvidia" {
-                eprintln!("Enabling nvidia-fallback.service");
+                info!("Enabling nvidia-fallback.service");
                 let status = process::Command::new("systemctl").arg("enable").arg("nvidia-fallback.service").status()?;
                 if ! status.success() {
                     // Error is ignored in case this service is removed
-                    eprintln!("systemctl: failed with {}", status);
+                    error!("systemctl: failed with {}", status);
                 }
             } else {
-                eprintln!("Disabling nvidia-fallback.service");
+                info!("Disabling nvidia-fallback.service");
                 let status = process::Command::new("systemctl").arg("disable").arg("nvidia-fallback.service").status()?;
                 if ! status.success() {
                     // Error is ignored in case this service is removed
-                    eprintln!("systemctl: failed with {}", status);
+                    error!("systemctl: failed with {}", status);
                 }
             }
 
-            eprintln!("Updating initramfs");
+            info!("Updating initramfs");
             let status = process::Command::new("update-initramfs").arg("-u").status()?;
             if ! status.success() {
                 return Err(io::Error::new(
@@ -167,17 +167,17 @@ impl Graphics {
     pub fn set_power(&self, power: bool) -> io::Result<()> {
         if self.can_switch() {
             if power {
-                eprintln!("Enabling graphics power");
+                info!("Enabling graphics power");
                 self.bus.rescan()?;
             } else {
-                eprintln!("Disabling graphics power");
+                info!("Disabling graphics power");
 
                 // Unbind NVIDIA audio devices
                 for dev in self.nvidia_hda.iter() {
                     if dev.path().exists() {
                         match dev.driver() {
                             Ok(driver) => {
-                                eprintln!("{}: Unbinding {}", driver.name(), dev.name());
+                                info!("{}: Unbinding {}", driver.name(), dev.name());
                                 unsafe { driver.unbind(&dev) };
                             },
                             Err(err) => match err.kind() {
@@ -193,7 +193,7 @@ impl Graphics {
                     if dev.path().exists() {
                         match dev.driver() {
                             Ok(driver) => {
-                                eprintln!("{}: in use by {}", dev.name(), driver.name());
+                                error!("{}: in use by {}", dev.name(), driver.name());
                                 return Err(io::Error::new(
                                     io::ErrorKind::Other,
                                     "device in use"
@@ -201,14 +201,14 @@ impl Graphics {
                             },
                             Err(err) => match err.kind() {
                                 io::ErrorKind::NotFound => {
-                                    eprintln!("{}: Removing", dev.name());
+                                    info!("{}: Removing", dev.name());
                                     unsafe { dev.remove() }?;
                                 },
                                 _ => return Err(err),
                             }
                         }
                     } else {
-                        eprintln!("{}: Already removed", dev.name());
+                        warn!("{}: Already removed", dev.name());
                     }
                 }
             }
