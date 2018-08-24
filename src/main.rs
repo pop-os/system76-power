@@ -65,16 +65,6 @@ fn main() {
         }
     }
 
-    let res = if env::args().nth(1).map_or(false, |arg| arg == "daemon") {
-        if unsafe { libc::geteuid() } == 0 {
-            daemon::daemon(contains_experimental)
-        } else {
-            Err(format!("must be run as root"))
-        }
-    } else {
-        client::client(parsed_args.into_iter())
-    };
-
     if let Err(why) = logging::setup_logging(
         if contains_verbose {
             LevelFilter::Debug
@@ -88,8 +78,15 @@ fn main() {
         process::exit(1);
     }
 
-
-    
+    let res = if env::args().nth(1).map_or(false, |arg| arg == "daemon") {
+        if unsafe { libc::geteuid() } == 0 {
+            daemon::daemon(contains_experimental)
+        } else {
+            Err(format!("must be run as root"))
+        }
+    } else {
+        client::client(parsed_args.into_iter())
+    };
 
     match res {
         Ok(()) => (),
