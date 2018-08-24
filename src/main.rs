@@ -49,9 +49,21 @@ pub (crate) fn err_str<E: ::std::fmt::Display>(err: E) -> String {
 }
 
 fn main() {
-    let contains_verbose = env::args().skip(1).any(|x| x.as_str() == "--verbose");
-    let contains_quiet = env::args().skip(1).any(|x| x.as_str() == "--quiet");
-    let contains_experimental = env::args().skip(1).any(|x| x.as_str() == "--experimental");
+    let mut contains_verbose = false;
+    let mut contains_quiet = false;
+    let mut contains_experimental = false;
+    let mut parsed_args = Vec::new();
+    for arg in env::args().skip(1) {
+        if arg == "--verbose" || arg == "-v" {
+            contains_verbose = true
+        } else if arg == "--quiet" || arg == "-q" {
+            contains_quiet = true;
+        } else if arg == "--experimental" {
+            contains_experimental = true;
+        } else {
+            parsed_args.push(arg);
+        }
+    }
 
     let res = if env::args().nth(1).map_or(false, |arg| arg == "daemon") {
         if unsafe { libc::geteuid() } == 0 {
@@ -60,7 +72,7 @@ fn main() {
             Err(format!("must be run as root"))
         }
     } else {
-        client::client(env::args().skip(1))
+        client::client(parsed_args.into_iter())
     };
 
     if let Err(why) = logging::setup_logging(
