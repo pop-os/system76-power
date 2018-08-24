@@ -1,21 +1,35 @@
 #[macro_use]
 extern crate clap;
 extern crate dbus;
+extern crate fern;
 extern crate libc;
+#[macro_use]
+extern crate log;
 
+use log::LevelFilter;
 use std::{env, process};
 
 mod backlight;
 use clap::{Arg, App, AppSettings, SubCommand};
 mod client;
 mod daemon;
-mod kbd_backlight;
+mod disks;
 mod graphics;
 mod hotplug;
+mod kbd_backlight;
+mod kernel_parameters;
+mod logging;
+mod modprobe;
 mod module;
 mod pci;
 mod pstate;
+mod radeon;
+mod scsi;
+mod snd;
 mod util;
+mod wifi;
+
+include!(concat!(env!("OUT_DIR"), "/version.rs"));
 
 pub static DBUS_NAME: &'static str = "com.system76.PowerDaemon";
 pub static DBUS_PATH: &'static str = "/com/system76/PowerDaemon";
@@ -82,11 +96,24 @@ fn main() {
             )
         )
         .get_matches();
+    
+    if let Err(why) = logging::setup_logging(
+        if matches.is_present("verbose") {
+            LevelFilter::Debug
+        } else if matches.is_present("quiet") {
+            LevelFilter::Off
+        } else {
+            LevelFilter::Info
+        }
+    ) {
+        eprintln!("failed to set up logging: {}", why);
+        process::exit(1);
+    }
 
     let res = match matches.subcommand() {
         ("daemon", Some(_matches)) => {
             if unsafe { libc::geteuid() } == 0 {
-                daemon::daemon()
+                daemon::daemon(matches.is_present("experimental"))
             } else {
                 Err(format!("must be run as root"))
             }
@@ -98,7 +125,7 @@ fn main() {
     match res {
         Ok(()) => (),
         Err(err) => {
-            eprintln!("system76-power: {}", err);
+            error!("{}", err);
             process::exit(1);
         }
     }
