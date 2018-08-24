@@ -4,15 +4,42 @@ use std::cell::RefCell;
 use std::io;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::sync::atomic::{ATOMIC_BOOL_INIT, AtomicBool, Ordering};
 
 use {DBUS_NAME, DBUS_PATH, DBUS_IFACE, Power, err_str};
 use backlight::Backlight;
+use disks::{Disks, DiskPower};
 use graphics::Graphics;
 use hotplug::HotPlugDetect;
 use kbd_backlight::KeyboardBacklight;
+use kernel_parameters::{DeviceList, Dirty, KernelParameter, LaptopMode, NmiWatchdog};
 use pstate::PState;
+use radeon::RadeonDevice;
+use scsi::{ScsiHosts, ScsiPower};
+use snd::SoundDevice;
+use wifi::WifiDevice;
+
+static EXPERIMENTAL: AtomicBool = ATOMIC_BOOL_INIT;
+
+fn experimental_is_enabled() -> bool {
+    EXPERIMENTAL.load(Ordering::SeqCst)
+}
 
 fn performance() -> io::Result<()> {
+    if experimental_is_enabled() {
+        let disks = Disks::new();
+        disks.set_apm_level(254)?;
+        disks.set_autosuspend_delay(-1)?;
+
+        ScsiHosts::new().set_power_management_policy(&["med_power_with_dipm", "max_performance"])?;
+        SoundDevice::get_devices().for_each(|dev| dev.set_power_save(0, false));
+        RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("high", "performance", "auto"));
+        // WifiDevice::get_devices().for_each(|dev| dev.set(0));
+
+        Dirty::new().set_max_lost_work(15);
+        LaptopMode::new().set(b"0");
+    }
+
     {
         let mut pstate = PState::new()?;
         pstate.set_min_perf_pct(50)?;
@@ -24,6 +51,21 @@ fn performance() -> io::Result<()> {
 }
 
 fn balanced() -> io::Result<()> {
+    if experimental_is_enabled() {
+        let disks = Disks::new();
+        disks.set_apm_level(254)?;
+        disks.set_autosuspend_delay(-1)?;
+
+        ScsiHosts::new().set_power_management_policy(&["med_power_with_dipm", "medium_power"])?;
+        SoundDevice::get_devices().for_each(|dev| dev.set_power_save(0, false));
+        RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("auto", "performance", "auto"));
+        // // NOTE: Should balanced enable power management for wifi?
+        // WifiDevice::get_devices().for_each(|dev| dev.set(0));
+
+        Dirty::new().set_max_lost_work(15);
+        LaptopMode::new().set(b"0");
+    }
+
     {
         let mut pstate = PState::new()?;
         pstate.set_min_perf_pct(0)?;
@@ -53,6 +95,20 @@ fn balanced() -> io::Result<()> {
 }
 
 fn battery() -> io::Result<()> {
+    if experimental_is_enabled() {
+        let disks = Disks::new();
+        disks.set_apm_level(128)?;
+        disks.set_autosuspend_delay(15000)?;
+
+        ScsiHosts::new().set_power_management_policy(&["med_power_with_dipm", "min_power"])?;
+        SoundDevice::get_devices().for_each(|dev| dev.set_power_save(1, true));
+        RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("low", "battery", "low"));
+        // WifiDevice::get_devices().for_each(|dev| dev.set(5));
+
+        Dirty::new().set_max_lost_work(60);
+        LaptopMode::new().set(b"2");
+    }
+    
     {
         let mut pstate = PState::new()?;
         pstate.set_min_perf_pct(0)?;
@@ -121,22 +177,26 @@ impl Power for PowerDaemon {
     }
 }
 
-pub fn daemon() -> Result<(), String> {
-    eprintln!("Starting daemon");
+pub fn daemon(experimental: bool) -> Result<(), String> {
+    info!("Starting daemon{}", if experimental { " with experimental enabled" } else { "" });
+    EXPERIMENTAL.store(experimental, Ordering::SeqCst);
     let daemon = Rc::new(RefCell::new(PowerDaemon::new()?));
 
-    eprintln!("Setting automatic graphics power");
+    info!("Disabling NMI Watchdog (for kernel debugging only)");
+    NmiWatchdog::new().set(b"0");
+
+    info!("Setting automatic graphics power");
     match daemon.borrow_mut().auto_graphics_power() {
         Ok(()) => (),
         Err(err) => {
-            eprintln!("Failed to set automatic graphics power: {}", err);
+            error!("Failed to set automatic graphics power: {}", err);
         }
     }
 
-    eprintln!("Connecting to dbus system bus");
+    info!("Connecting to dbus system bus");
     let c = Connection::get_private(BusType::System).map_err(err_str)?;
 
-    eprintln!("Registering dbus name {}", DBUS_NAME);
+    info!("Registering dbus name {}", DBUS_NAME);
     c.register_name(DBUS_NAME, NameFlag::ReplaceExisting as u32).map_err(err_str)?;
 
     let f = Factory::new_fn::<()>();
@@ -151,12 +211,12 @@ pub fn daemon() -> Result<(), String> {
     macro_rules! get_value {
         (true, $name:expr, $daemon:ident, $m:ident, $method:tt) => {{
             let value = $m.msg.read1()?;
-            eprintln!("{}({})", $name, value);
+            info!("DBUS Received {}({}) method", $name, value);
             $daemon.borrow_mut().$method(value)
         }};
 
         (false, $name:expr, $daemon:ident, $m:ident, $method:tt) => {{
-            eprintln!($name);
+            info!("DBUS Received {} method", $name);
             $daemon.borrow_mut().$method()
         }};
     }
@@ -173,7 +233,7 @@ pub fn daemon() -> Result<(), String> {
                         Ok(vec![mret])
                     },
                     Err(err) => {
-                        eprintln!("{}", err);
+                        error!("{}", err);
                         Err(MethodErr::failed(&err))
                     }
                 }
@@ -183,7 +243,7 @@ pub fn daemon() -> Result<(), String> {
 
     let signal = Arc::new(f.signal("HotPlugDetect", ()).sarg::<u64,_>("port"));
 
-    eprintln!("Adding dbus path {} with interface {}", DBUS_PATH, DBUS_IFACE);
+    info!("Adding dbus path {} with interface {}", DBUS_PATH, DBUS_IFACE);
     let tree = f.tree(()).add(f.object_path(DBUS_PATH, ()).introspectable().add(
         f.interface(DBUS_IFACE, ())
             .add_m(method!(performance, "Performance", false, false))
@@ -213,7 +273,7 @@ pub fn daemon() -> Result<(), String> {
 
     let mut last = hpd();
 
-    eprintln!("Handling dbus requests");
+    info!("Handling dbus requests");
     loop {
         c.incoming(1000).next();
 
@@ -221,7 +281,7 @@ pub fn daemon() -> Result<(), String> {
         for i in 0..hpd.len() {
             if hpd[i] != last[i] {
                 if hpd[i] {
-                    eprintln!("HotPlugDetect {}", i);
+                    info!("HotPlugDetect {}", i);
                     c.send(
                         signal.msg(&DBUS_PATH.into(), &DBUS_NAME.into()).append1(i as u64)
                     ).map_err(|()| format!("failed to send message"))?;

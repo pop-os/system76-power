@@ -24,18 +24,21 @@ impl PowerClient {
 
 impl Power for PowerClient {
     fn performance(&mut self) -> Result<(), String> {
+        info!("Setting power profile to performance");
         let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "Performance")?;
         self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
         Ok(())
     }
 
     fn balanced(&mut self) -> Result<(), String> {
+        info!("Setting power profile to balanced");
         let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "Balanced")?;
         self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
         Ok(())
     }
 
     fn battery(&mut self) -> Result<(), String> {
+        info!("Setting power profile to battery");
         let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "Battery")?;
         self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
         Ok(())
@@ -48,6 +51,7 @@ impl Power for PowerClient {
     }
 
     fn set_graphics(&mut self, vendor: &str) -> Result<(), String> {
+        info!("Setting graphics to {}", vendor);
         let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "SetGraphics")?
             .append1(vendor);
         self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
@@ -61,6 +65,7 @@ impl Power for PowerClient {
     }
 
     fn set_graphics_power(&mut self, power: bool) -> Result<(), String> {
+        info!("Turning discrete graphics {}", if power { "on" } else { "off "});
         let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "SetGraphicsPower")?
             .append1(power);
         self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
@@ -68,6 +73,7 @@ impl Power for PowerClient {
     }
 
     fn auto_graphics_power(&mut self) -> Result<(), String> {
+        info!("Setting discrete graphics to turn off when not in use");
         let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "AutoGraphicsPower")?;
         self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
         Ok(())
@@ -121,9 +127,9 @@ pub fn client(subcommand: &str, matches: &ArgMatches) -> Result<(), String> {
                 Some("on") => client.set_graphics_power(true),
                 _ => {
                     if client.get_graphics_power()? {
-                        println!("on");
+                        println!("on (discrete)");
                     } else {
-                        println!("off");
+                        println!("off (discrete)");
                     }
                     Ok(())
                 }
