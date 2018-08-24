@@ -160,9 +160,9 @@ pub fn client<I: Iterator<Item=String>>(mut args: I) -> Result<(), String> {
                         }
                     } else {
                         if client.get_graphics_power()? {
-                            println!("on");
+                            println!("on (discrete)");
                         } else {
-                            println!("off");
+                            println!("off (discrete)");
                         }
                         Ok(())
                     },
