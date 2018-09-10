@@ -28,6 +28,16 @@ pub enum Profile {
     Performance
 }
 
+impl From<Profile> for &'static str {
+    fn from(&self) -> &'static str {
+        match *self {
+            Profile::Balanced => "balanced",
+            Profile::Battery => "battery",
+            Profile::Performance => "performance"
+        }
+    }
+}
+
 static EXPERIMENTAL: AtomicBool = ATOMIC_BOOL_INIT;
 lazy_static! {
     pub static ref PROFILE_ACTIVE: Atomic<Profile> = Atomic::new(Profile::Balanced);
@@ -41,7 +51,7 @@ fn change_profile_state(profile: Profile) {
     PROFILE_ACTIVE.store(profile, Ordering::SeqCst);
 }
 
-pub(crate) fn performance() -> io::Result<()> {
+fn performance() -> io::Result<()> {
     if experimental_is_enabled() {
         let disks = Disks::new();
         disks.set_apm_level(254)?;
@@ -67,7 +77,7 @@ pub(crate) fn performance() -> io::Result<()> {
     Ok(())
 }
 
-pub(crate) fn balanced() -> io::Result<()> {
+fn balanced() -> io::Result<()> {
     if experimental_is_enabled() {
         let disks = Disks::new();
         disks.set_apm_level(254)?;
@@ -112,7 +122,7 @@ pub(crate) fn balanced() -> io::Result<()> {
     Ok(())
 }
 
-pub(crate) fn battery() -> io::Result<()> {
+fn battery() -> io::Result<()> {
     if experimental_is_enabled() {
         let disks = Disks::new();
         disks.set_apm_level(128)?;
@@ -152,7 +162,7 @@ pub(crate) fn battery() -> io::Result<()> {
 }
 
 struct PowerDaemon {
-    graphics: Graphics
+    graphics: Graphics,
 }
 
 impl PowerDaemon {
@@ -173,6 +183,10 @@ impl Power for PowerDaemon {
 
     fn battery(&mut self) -> Result<(), String> {
         battery().map_err(err_str)
+    }
+
+    fn get_profile(&mut self) -> Result<&'static str, String> {
+        Ok(PROFILE_ACTIVE.load(Ordering::SeqCst).into())
     }
 
     fn get_graphics(&mut self) -> Result<String, String> {
@@ -268,6 +282,7 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
             .add_m(method!(performance, "Performance", false, false))
             .add_m(method!(balanced, "Balanced", false, false))
             .add_m(method!(battery, "Battery", false, false))
+            .add_m(method!(get_profile, "GetProfile", false, false).outarg::<(&str,_)>("profile"))
             .add_m(method!(get_graphics, "GetGraphics", true, false).outarg::<&str,_>("vendor"))
             .add_m(method!(set_graphics, "SetGraphics", false, true).inarg::<&str,_>("vendor"))
             .add_m(method!(get_graphics_power, "GetGraphicsPower", true, false).outarg::<bool,_>("power"))
