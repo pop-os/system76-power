@@ -280,10 +280,8 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
 
     c.add_handler(tree);
 
-    if let Ok(pstate) = PState::new() {
-        eprintln!("Handling ac events");
-        ac_events(pstate);
-    }
+    info!("Handling ac events");
+    ac_events();
 
     let hpd_res = unsafe { HotPlugDetect::new() };
 
