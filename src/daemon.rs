@@ -38,7 +38,6 @@ fn performance() -> io::Result<()> {
         for device in PciBus::new()?.devices()? {
             device.set_runtime_pm(RuntimePowerManagement::Off)?;
         }
-        // WifiDevice::get_devices().for_each(|dev| dev.set(0));
 
         Dirty::new().set_max_lost_work(15);
         LaptopMode::new().set(b"0");
@@ -66,8 +65,6 @@ fn balanced() -> io::Result<()> {
         for device in PciBus::new()?.devices()? {
             device.set_runtime_pm(RuntimePowerManagement::On)?;
         }
-        // // NOTE: Should balanced enable power management for wifi?
-        // WifiDevice::get_devices().for_each(|dev| dev.set(0));
 
         Dirty::new().set_max_lost_work(15);
         LaptopMode::new().set(b"0");
@@ -113,7 +110,6 @@ fn battery() -> io::Result<()> {
         for device in PciBus::new()?.devices()? {
             device.set_runtime_pm(RuntimePowerManagement::On)?;
         }
-        // WifiDevice::get_devices().for_each(|dev| dev.set(5));
 
         Dirty::new().set_max_lost_work(15);
         LaptopMode::new().set(b"2");
@@ -202,6 +198,9 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
             error!("Failed to set automatic graphics power: {}", err);
         }
     }
+
+    info!("Initializing with the balanced profile");
+    balanced().map_err(|why| format!("failed to set initial profile: {}", why))?;
 
     info!("Connecting to dbus system bus");
     let c = Connection::get_private(BusType::System).map_err(err_str)?;
