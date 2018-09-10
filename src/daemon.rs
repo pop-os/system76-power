@@ -3,15 +3,44 @@ use dbus::tree::{Factory, MethodErr};
 use std::cell::RefCell;
 use std::io;
 use std::rc::Rc;
+use std::sync::Arc;
+use std::sync::atomic::{ATOMIC_BOOL_INIT, AtomicBool, Ordering};
 
 use {DBUS_NAME, DBUS_PATH, DBUS_IFACE, Power, err_str};
 use ac_events::ac_events;
 use backlight::Backlight;
+use disks::{Disks, DiskPower};
 use graphics::Graphics;
+use hotplug::HotPlugDetect;
 use kbd_backlight::KeyboardBacklight;
+use kernel_parameters::{DeviceList, Dirty, KernelParameter, LaptopMode, NmiWatchdog};
 use pstate::PState;
+use radeon::RadeonDevice;
+use scsi::{ScsiHosts, ScsiPower};
+use snd::SoundDevice;
+use wifi::WifiDevice;
+
+static EXPERIMENTAL: AtomicBool = ATOMIC_BOOL_INIT;
+
+fn experimental_is_enabled() -> bool {
+    EXPERIMENTAL.load(Ordering::SeqCst)
+}
 
 fn performance() -> io::Result<()> {
+    if experimental_is_enabled() {
+        let disks = Disks::new();
+        disks.set_apm_level(254)?;
+        disks.set_autosuspend_delay(-1)?;
+
+        ScsiHosts::new().set_power_management_policy(&["med_power_with_dipm", "max_performance"])?;
+        SoundDevice::get_devices().for_each(|dev| dev.set_power_save(0, false));
+        RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("high", "performance", "auto"));
+        // WifiDevice::get_devices().for_each(|dev| dev.set(0));
+
+        Dirty::new().set_max_lost_work(15);
+        LaptopMode::new().set(b"0");
+    }
+
     {
         let mut pstate = PState::new()?;
         pstate.set_min_perf_pct(50)?;
@@ -23,6 +52,21 @@ fn performance() -> io::Result<()> {
 }
 
 fn balanced() -> io::Result<()> {
+    if experimental_is_enabled() {
+        let disks = Disks::new();
+        disks.set_apm_level(254)?;
+        disks.set_autosuspend_delay(-1)?;
+
+        ScsiHosts::new().set_power_management_policy(&["med_power_with_dipm", "medium_power"])?;
+        SoundDevice::get_devices().for_each(|dev| dev.set_power_save(0, false));
+        RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("auto", "performance", "auto"));
+        // // NOTE: Should balanced enable power management for wifi?
+        // WifiDevice::get_devices().for_each(|dev| dev.set(0));
+
+        Dirty::new().set_max_lost_work(15);
+        LaptopMode::new().set(b"0");
+    }
+
     {
         let mut pstate = PState::new()?;
         pstate.set_min_perf_pct(0)?;
@@ -52,6 +96,20 @@ fn balanced() -> io::Result<()> {
 }
 
 fn battery() -> io::Result<()> {
+    if experimental_is_enabled() {
+        let disks = Disks::new();
+        disks.set_apm_level(128)?;
+        disks.set_autosuspend_delay(15000)?;
+
+        ScsiHosts::new().set_power_management_policy(&["med_power_with_dipm", "min_power"])?;
+        SoundDevice::get_devices().for_each(|dev| dev.set_power_save(1, true));
+        RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("low", "battery", "low"));
+        // WifiDevice::get_devices().for_each(|dev| dev.set(5));
+
+        Dirty::new().set_max_lost_work(60);
+        LaptopMode::new().set(b"2");
+    }
+    
     {
         let mut pstate = PState::new()?;
         pstate.set_min_perf_pct(0)?;
@@ -120,163 +178,84 @@ impl Power for PowerDaemon {
     }
 }
 
-pub fn daemon() -> Result<(), String> {
-    eprintln!("Starting daemon");
+pub fn daemon(experimental: bool) -> Result<(), String> {
+    info!("Starting daemon{}", if experimental { " with experimental enabled" } else { "" });
+    EXPERIMENTAL.store(experimental, Ordering::SeqCst);
     let daemon = Rc::new(RefCell::new(PowerDaemon::new()?));
 
-    eprintln!("Setting automatic graphics power");
+    info!("Disabling NMI Watchdog (for kernel debugging only)");
+    NmiWatchdog::new().set(b"0");
+
+    info!("Setting automatic graphics power");
     match daemon.borrow_mut().auto_graphics_power() {
         Ok(()) => (),
         Err(err) => {
-            eprintln!("Failed to set automatic graphics power: {}", err);
+            error!("Failed to set automatic graphics power: {}", err);
         }
     }
 
-    eprintln!("Connecting to dbus system bus");
+    info!("Connecting to dbus system bus");
     let c = Connection::get_private(BusType::System).map_err(err_str)?;
 
-    eprintln!("Registering dbus name {}", DBUS_NAME);
+    info!("Registering dbus name {}", DBUS_NAME);
     c.register_name(DBUS_NAME, NameFlag::ReplaceExisting as u32).map_err(err_str)?;
 
     let f = Factory::new_fn::<()>();
 
-    eprintln!("Adding dbus path {} with interface {}", DBUS_PATH, DBUS_IFACE);
+    // Defines whether the value returned by the method should be appended.
+    macro_rules! append {
+        (true, $m:ident, $value:ident) => { $m.msg.method_return().append1($value) };
+        (false, $m:ident, $value:ident) => { $m.msg.method_return() };
+    }
+
+    // Programs the message that should be printed.
+    macro_rules! get_value {
+        (true, $name:expr, $daemon:ident, $m:ident, $method:tt) => {{
+            let value = $m.msg.read1()?;
+            info!("DBUS Received {}({}) method", $name, value);
+            $daemon.borrow_mut().$method(value)
+        }};
+
+        (false, $name:expr, $daemon:ident, $m:ident, $method:tt) => {{
+            info!("DBUS Received {} method", $name);
+            $daemon.borrow_mut().$method()
+        }};
+    }
+
+    // Creates a new dbus method from an existing method in the daemon.
+    macro_rules! method {
+        ($method:tt, $name:expr, $append:tt, $print:tt) => {{
+            let daemon = daemon.clone();
+            f.method($name, (), move |m| {
+                let result = get_value!($print, $name, daemon, m, $method);
+                match result {
+                    Ok(_value) => {
+                        let mret = append!($append, m, _value);
+                        Ok(vec![mret])
+                    },
+                    Err(err) => {
+                        error!("{}", err);
+                        Err(MethodErr::failed(&err))
+                    }
+                }
+            })
+        }};
+    }
+
+    let signal = Arc::new(f.signal("HotPlugDetect", ()).sarg::<u64,_>("port"));
+
+    info!("Adding dbus path {} with interface {}", DBUS_PATH, DBUS_IFACE);
     let tree = f.tree(()).add(f.object_path(DBUS_PATH, ()).introspectable().add(
         f.interface(DBUS_IFACE, ())
-        .add_m({
-            let daemon = daemon.clone();
-            f.method("Performance", (), move |m| {
-                eprintln!("Performance");
-                match daemon.borrow_mut().performance() {
-                    Ok(()) => {
-                        let mret = m.msg.method_return();
-                        Ok(vec![mret])
-                    },
-                    Err(err) => {
-                        eprintln!("{}", err);
-                        Err(MethodErr::failed(&err))
-                    }
-                }
-            })
-        })
-        .add_m({
-            let daemon = daemon.clone();
-            f.method("Balanced", (), move |m| {
-                eprintln!("Balanced");
-                match daemon.borrow_mut().balanced() {
-                    Ok(()) => {
-                        let mret = m.msg.method_return();
-                        Ok(vec![mret])
-                    },
-                    Err(err) => {
-                        eprintln!("{}", err);
-                        Err(MethodErr::failed(&err))
-                    }
-                }
-            })
-        })
-        .add_m({
-            let daemon = daemon.clone();
-            f.method("Battery", (), move |m| {
-                eprintln!("Battery");
-                match daemon.borrow_mut().battery() {
-                    Ok(()) => {
-                        let mret = m.msg.method_return();
-                        Ok(vec![mret])
-                    },
-                    Err(err) => {
-                        eprintln!("{}", err);
-                        Err(MethodErr::failed(&err))
-                    }
-                }
-            })
-        })
-        .add_m({
-            let daemon = daemon.clone();
-            f.method("GetGraphics", (), move |m| {
-                eprintln!("GetGraphics");
-                match daemon.borrow_mut().get_graphics() {
-                    Ok(vendor) => {
-                        let mret = m.msg.method_return().append1(vendor);
-                        Ok(vec![mret])
-                    },
-                    Err(err) => {
-                        eprintln!("{}", err);
-                        Err(MethodErr::failed(&err))
-                    }
-                }
-            })
-            .outarg::<&str,_>("vendor")
-        })
-        .add_m({
-            let daemon = daemon.clone();
-            f.method("SetGraphics", (), move |m| {
-                let vendor = m.msg.read1()?;
-                eprintln!("SetGraphics({})", vendor);
-                match daemon.borrow_mut().set_graphics(vendor) {
-                    Ok(()) => {
-                        let mret = m.msg.method_return();
-                        Ok(vec![mret])
-                    },
-                    Err(err) => {
-                        eprintln!("{}", err);
-                        Err(MethodErr::failed(&err))
-                    }
-                }
-            })
-            .inarg::<&str,_>("vendor")
-        })
-        .add_m({
-            let daemon = daemon.clone();
-            f.method("GetGraphicsPower", (), move |m| {
-                eprintln!("GetGraphicsPower");
-                match daemon.borrow_mut().get_graphics_power() {
-                    Ok(power) => {
-                        let mret = m.msg.method_return().append1(power);
-                        Ok(vec![mret])
-                    },
-                    Err(err) => {
-                        eprintln!("{}", err);
-                        Err(MethodErr::failed(&err))
-                    }
-                }
-            })
-            .outarg::<bool,_>("power")
-        })
-        .add_m({
-            let daemon = daemon.clone();
-            f.method("SetGraphicsPower", (), move |m| {
-                let power = m.msg.read1()?;
-                eprintln!("SetGraphicsPower({})", power);
-                match daemon.borrow_mut().set_graphics_power(power) {
-                    Ok(()) => {
-                        let mret = m.msg.method_return();
-                        Ok(vec![mret])
-                    },
-                    Err(err) => {
-                        eprintln!("{}", err);
-                        Err(MethodErr::failed(&err))
-                    }
-                }
-            })
-            .inarg::<bool,_>("power")
-        })
-        .add_m({
-            let daemon = daemon.clone();
-            f.method("AutoGraphicsPower", (), move |m| {
-                eprintln!("AutoGraphicsPower");
-                match daemon.borrow_mut().auto_graphics_power() {
-                    Ok(()) => {
-                        let mret = m.msg.method_return();
-                        Ok(vec![mret])
-                    },
-                    Err(err) => {
-                        eprintln!("{}", err);
-                        Err(MethodErr::failed(&err))
-                    }
-                }
-            })
-        })
+            .add_m(method!(performance, "Performance", false, false))
+            .add_m(method!(balanced, "Balanced", false, false))
+            .add_m(method!(battery, "Battery", false, false))
+            .add_m(method!(get_graphics, "GetGraphics", true, false).outarg::<&str,_>("vendor"))
+            .add_m(method!(set_graphics, "SetGraphics", false, true).inarg::<&str,_>("vendor"))
+            .add_m(method!(get_graphics_power, "GetGraphicsPower", true, false).outarg::<bool,_>("power"))
+            .add_m(method!(set_graphics_power, "SetGraphicsPower", false, true).inarg::<bool,_>("power"))
+            .add_m(method!(auto_graphics_power, "AutoGraphicsPower", false, false))
+            .add_s(signal.clone())
     ));
 
     tree.set_registered(&c, true).map_err(err_str)?;
@@ -289,7 +268,34 @@ pub fn daemon() -> Result<(), String> {
     }
 
     eprintln!("Handling dbus requests");
+    let hpd_res = unsafe { HotPlugDetect::new() };
+
+    let hpd = || -> [bool; 3] {
+        if let Ok(ref hpd) = hpd_res {
+            unsafe { hpd.detect() }
+        } else {
+            [false; 3]
+        }
+    };
+
+    let mut last = hpd();
+
+    info!("Handling dbus requests");
     loop {
         c.incoming(1000).next();
+
+        let hpd = hpd();
+        for i in 0..hpd.len() {
+            if hpd[i] != last[i] {
+                if hpd[i] {
+                    info!("HotPlugDetect {}", i);
+                    c.send(
+                        signal.msg(&DBUS_PATH.into(), &DBUS_NAME.into()).append1(i as u64)
+                    ).map_err(|()| format!("failed to send message"))?;
+                }
+            }
+        }
+
+        last = hpd;
     }
 }
