@@ -267,7 +267,6 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
         ac_events(pstate);
     }
 
-    eprintln!("Handling dbus requests");
     let hpd_res = unsafe { HotPlugDetect::new() };
 
     let hpd = || -> [bool; 3] {
