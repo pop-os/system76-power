@@ -1,6 +1,9 @@
+extern crate atomic;
 extern crate dbus;
 extern crate upower_dbus;
 extern crate fern;
+#[macro_use]
+extern crate lazy_static;
 extern crate libc;
 #[macro_use]
 extern crate log;

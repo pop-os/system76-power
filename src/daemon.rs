@@ -1,3 +1,4 @@
+use atomic::Atomic;
 use dbus::{Connection, BusType, NameFlag};
 use dbus::tree::{Factory, MethodErr};
 use std::cell::RefCell;
@@ -20,13 +21,27 @@ use scsi::{ScsiHosts, ScsiPower};
 use snd::SoundDevice;
 use wifi::WifiDevice;
 
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum Profile {
+    Battery,
+    Balanced,
+    Performance
+}
+
 static EXPERIMENTAL: AtomicBool = ATOMIC_BOOL_INIT;
+lazy_static! {
+    pub static ref PROFILE_ACTIVE: Atomic<Profile> = Atomic::new(Profile::Balanced);
+}
 
 fn experimental_is_enabled() -> bool {
     EXPERIMENTAL.load(Ordering::SeqCst)
 }
 
-fn performance() -> io::Result<()> {
+fn change_profile_state() {
+    PROFILE_ACTIVE.store(Profile::Performance, Ordering::SeqCst);
+}
+
+pub(crate) fn performance() -> io::Result<()> {
     if experimental_is_enabled() {
         let disks = Disks::new();
         disks.set_apm_level(254)?;
@@ -48,10 +63,11 @@ fn performance() -> io::Result<()> {
         pstate.set_no_turbo(false)?;
     }
 
+    change_profile_state();
     Ok(())
 }
 
-fn balanced() -> io::Result<()> {
+pub(crate) fn balanced() -> io::Result<()> {
     if experimental_is_enabled() {
         let disks = Disks::new();
         disks.set_apm_level(254)?;
@@ -92,10 +108,11 @@ fn balanced() -> io::Result<()> {
         }
     }
 
+    change_profile_state();
     Ok(())
 }
 
-fn battery() -> io::Result<()> {
+pub(crate) fn battery() -> io::Result<()> {
     if experimental_is_enabled() {
         let disks = Disks::new();
         disks.set_apm_level(128)?;
@@ -130,6 +147,7 @@ fn battery() -> io::Result<()> {
         backlight.set_brightness(0)?;
     }
 
+    change_profile_state();
     Ok(())
 }
 

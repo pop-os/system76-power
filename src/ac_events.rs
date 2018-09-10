@@ -1,8 +1,10 @@
+use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
 use upower_dbus::UPower;
 use pstate::PState;
 use super::Power;
+use super::daemon::{battery, balanced, performance, Profile, PROFILE_ACTIVE};
 use super::client::PowerClient;
 
 pub fn ac_events(mut pstate: PState) {
@@ -26,16 +28,18 @@ pub fn ac_events(mut pstate: PState) {
         loop {
             if !upower.on_battery().unwrap_or(false) {
                 set_until(
+                    &mut client,
                     &mut pstate,
-                    || if let Err(why) = client.performance() {
+                    |client| if let Err(why) = client.performance() {
                         eprintln!("ac_events failed to set daemon to performance: {}", why);
                     },
                     || upower.on_battery().unwrap_or(false)
                 );
             } else if upower.get_percentage().unwrap_or(0f64) < 25f64 {
                 set_until(
+                    &mut client,
                     &mut pstate,
-                    || if let Err(why) = client.battery() {
+                    |client| if let Err(why) = client.battery() {
                         eprintln!("ac_events failed to set daemon to battery: {}", why);
                     },
                     || upower.get_percentage().unwrap_or(0f64) > 50f64
@@ -47,22 +51,30 @@ pub fn ac_events(mut pstate: PState) {
 }
 
 
-fn set_until<A: FnMut(), U: FnMut() -> bool>(
+fn set_until<A: FnMut(&mut PowerClient), U: FnMut() -> bool>(
+    client: &mut PowerClient,
     pstate: &mut PState,
     mut action: A,
     mut until: U
 ) {
     if let Ok((min, max, no_turbo)) = pstate.get_all_values() {
-        action();
-        let new_values = pstate.get_all_values().unwrap();
+        // This profile will be restored upon reaching the `until` condition.
+        let previous_profile = PROFILE_ACTIVE.load(Ordering::SeqCst);
+
+        action(client);
+
+        // If this profile differs at the time of returning, we will keep the newer profile.
+        let set_profile = PROFILE_ACTIVE.load(Ordering::SeqCst);
 
         loop {
             thread::sleep(Duration::from_secs(1));
             if until() {
-                if pstate.get_all_values().unwrap() == new_values {
-                    let _ = pstate.set_min_perf_pct(min);
-                    let _ = pstate.set_max_perf_pct(max);
-                    let _ = pstate.set_no_turbo(no_turbo);
+                if PROFILE_ACTIVE.load(Ordering::SeqCst) == set_profile {
+                    let _ = match previous_profile {
+                        Profile::Battery => client.battery(),
+                        Profile::Balanced => client.balanced(),
+                        Profile::Performance => client.performance(),
+                    };
                 }
                 break;
             }
