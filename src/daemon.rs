@@ -37,8 +37,8 @@ fn experimental_is_enabled() -> bool {
     EXPERIMENTAL.load(Ordering::SeqCst)
 }
 
-fn change_profile_state() {
-    PROFILE_ACTIVE.store(Profile::Performance, Ordering::SeqCst);
+fn change_profile_state(profile: Profile) {
+    PROFILE_ACTIVE.store(profile, Ordering::SeqCst);
 }
 
 pub(crate) fn performance() -> io::Result<()> {
@@ -63,7 +63,7 @@ pub(crate) fn performance() -> io::Result<()> {
         pstate.set_no_turbo(false)?;
     }
 
-    change_profile_state();
+    change_profile_state(Profile::Performance);
     Ok(())
 }
 
@@ -108,7 +108,7 @@ pub(crate) fn balanced() -> io::Result<()> {
         }
     }
 
-    change_profile_state();
+    change_profile_state(Profile::Balanced);
     Ok(())
 }
 
@@ -147,7 +147,7 @@ pub(crate) fn battery() -> io::Result<()> {
         backlight.set_brightness(0)?;
     }
 
-    change_profile_state();
+    change_profile_state(Profile::Battery);
     Ok(())
 }
 
