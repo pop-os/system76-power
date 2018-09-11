@@ -12,12 +12,13 @@ use disks::{Disks, DiskPower};
 use graphics::Graphics;
 use hotplug::HotPlugDetect;
 use kbd_backlight::KeyboardBacklight;
-use kernel_parameters::{DeviceList, Dirty, KernelParameter, LaptopMode, NmiWatchdog};
+use kernel_parameters::{DeviceList, Dirty, KernelParameter, LaptopMode, NmiWatchdog, RuntimePowerManagement};
+use pci::PciBus;
 use pstate::PState;
 use radeon::RadeonDevice;
 use scsi::{ScsiHosts, ScsiPower};
 use snd::SoundDevice;
-use wifi::WifiDevice;
+// use wifi::WifiDevice;
 
 static EXPERIMENTAL: AtomicBool = ATOMIC_BOOL_INIT;
 
@@ -34,7 +35,9 @@ fn performance() -> io::Result<()> {
         ScsiHosts::new().set_power_management_policy(&["med_power_with_dipm", "max_performance"])?;
         SoundDevice::get_devices().for_each(|dev| dev.set_power_save(0, false));
         RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("high", "performance", "auto"));
-        // WifiDevice::get_devices().for_each(|dev| dev.set(0));
+        for device in PciBus::new()?.devices()? {
+            device.set_runtime_pm(RuntimePowerManagement::Off)?;
+        }
 
         Dirty::new().set_max_lost_work(15);
         LaptopMode::new().set(b"0");
@@ -59,8 +62,9 @@ fn balanced() -> io::Result<()> {
         ScsiHosts::new().set_power_management_policy(&["med_power_with_dipm", "medium_power"])?;
         SoundDevice::get_devices().for_each(|dev| dev.set_power_save(0, false));
         RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("auto", "performance", "auto"));
-        // // NOTE: Should balanced enable power management for wifi?
-        // WifiDevice::get_devices().for_each(|dev| dev.set(0));
+        for device in PciBus::new()?.devices()? {
+            device.set_runtime_pm(RuntimePowerManagement::On)?;
+        }
 
         Dirty::new().set_max_lost_work(15);
         LaptopMode::new().set(b"0");
@@ -100,15 +104,17 @@ fn battery() -> io::Result<()> {
         disks.set_apm_level(128)?;
         disks.set_autosuspend_delay(15000)?;
 
-        ScsiHosts::new().set_power_management_policy(&["med_power_with_dipm", "min_power"])?;
+        ScsiHosts::new().set_power_management_policy(&["min_power", "min_power"])?;
         SoundDevice::get_devices().for_each(|dev| dev.set_power_save(1, true));
         RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("low", "battery", "low"));
-        // WifiDevice::get_devices().for_each(|dev| dev.set(5));
+        for device in PciBus::new()?.devices()? {
+            device.set_runtime_pm(RuntimePowerManagement::On)?;
+        }
 
-        Dirty::new().set_max_lost_work(60);
+        Dirty::new().set_max_lost_work(15);
         LaptopMode::new().set(b"2");
     }
-    
+
     {
         let mut pstate = PState::new()?;
         pstate.set_min_perf_pct(0)?;
@@ -192,6 +198,9 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
             error!("Failed to set automatic graphics power: {}", err);
         }
     }
+
+    info!("Initializing with the balanced profile");
+    balanced().map_err(|why| format!("failed to set initial profile: {}", why))?;
 
     info!("Connecting to dbus system bus");
     let c = Connection::get_private(BusType::System).map_err(err_str)?;
