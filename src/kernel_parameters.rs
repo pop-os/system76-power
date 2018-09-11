@@ -119,7 +119,21 @@ dynamic_parameters! {
     PowerSaveController {
         power_save_controller: "/sys/module/{}/parameters/power_save_controller"
     }
+}
 
+/// Control whether a device uses, or does not use, runtime power management.
+pub enum RuntimePowerManagement {
+    On,
+    Off,
+}
+
+impl From<RuntimePowerManagement> for &'static str {
+    fn from(pm: RuntimePowerManagement) -> &'static str {
+        match pm {
+            RuntimePowerManagement::On => "auto",
+            RuntimePowerManagement::Off => "on",
+        }
+    }
 }
 
 pub struct Dirty {
