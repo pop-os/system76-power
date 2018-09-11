@@ -1,5 +1,6 @@
 use std::{fs, io, u8, u16, u32};
 use std::path::{Path, PathBuf};
+use kernel_parameters::RuntimePowerManagement;
 
 use util::{entries, read_file, write_file};
 
@@ -81,6 +82,11 @@ impl PciDevice {
 
     pub fn path(&self) -> &Path {
         &self.path
+    }
+
+    pub fn set_runtime_pm(&self, state: RuntimePowerManagement) -> io::Result<()> {
+        let state: &'static str = state.into();
+        write_file(&self.path.join("power/control"), state)
     }
 
     pci_device!(class as u32);
