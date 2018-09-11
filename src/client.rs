@@ -43,7 +43,7 @@ impl Power for PowerClient {
         Ok(())
     }
 
-    fn get_profile(&mut self) -> Result<&'static str, String> {
+    fn get_profile(&mut self) -> Result<String, String> {
         let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "GetProfile")?;
         let r = self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
         r.get1().ok_or("return value not found".to_string())

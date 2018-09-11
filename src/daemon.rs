@@ -29,8 +29,8 @@ pub enum Profile {
 }
 
 impl From<Profile> for &'static str {
-    fn from(&self) -> &'static str {
-        match *self {
+    fn from(profile: Profile) -> &'static str {
+        match profile {
             Profile::Balanced => "balanced",
             Profile::Battery => "battery",
             Profile::Performance => "performance"
@@ -185,8 +185,11 @@ impl Power for PowerDaemon {
         battery().map_err(err_str)
     }
 
-    fn get_profile(&mut self) -> Result<&'static str, String> {
-        Ok(PROFILE_ACTIVE.load(Ordering::SeqCst).into())
+    fn get_profile(&mut self) -> Result<String, String> {
+        Ok({
+            let string: &str = PROFILE_ACTIVE.load(Ordering::SeqCst).into();
+            string.to_owned()
+        })
     }
 
     fn get_graphics(&mut self) -> Result<String, String> {
@@ -282,7 +285,7 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
             .add_m(method!(performance, "Performance", false, false))
             .add_m(method!(balanced, "Balanced", false, false))
             .add_m(method!(battery, "Battery", false, false))
-            .add_m(method!(get_profile, "GetProfile", false, false).outarg::<(&str,_)>("profile"))
+            .add_m(method!(get_profile, "GetProfile", false, false).outarg::<&str,_>("profile"))
             .add_m(method!(get_graphics, "GetGraphics", true, false).outarg::<&str,_>("vendor"))
             .add_m(method!(set_graphics, "SetGraphics", false, true).inarg::<&str,_>("vendor"))
             .add_m(method!(get_graphics_power, "GetGraphicsPower", true, false).outarg::<bool,_>("power"))
