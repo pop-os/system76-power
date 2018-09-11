@@ -83,20 +83,16 @@ impl Graphics {
     }
 
     pub fn get_vendor(&self) -> io::Result<String> {
-        if self.can_switch() {
-            let modules = Module::all()?;
-
-            if modules.iter().find(|module| module.name == "nouveau" || module.name == "nvidia").is_some() {
-                Ok("nvidia".to_string())
-            } else {
-                Ok("intel".to_string())
-            }
+        let modules = Module::all()?;
+        let mut vendor = if modules.iter().find(|module| module.name == "nouveau" || module.name == "nvidia").is_some() {
+            "nvidia".to_string()
         } else {
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "does not have switchable graphics"
-            ))
-        }
+            "intel".to_string()
+        };
+
+        vendor += if self.can_switch() { " (switchable)" } else { " (not switchable)" };
+
+        Ok(vendor)
     }
 
     pub fn set_vendor(&self, vendor: &str) -> io::Result<()> {
