@@ -15,9 +15,10 @@ all: target/release/$(BIN)
 
 clean:
 	cargo clean
+	rm -rf .cargo
 
 distclean: clean
-	rm -rf .cargo vendor
+	rm -rf vendor
 
 install: all
 	install -D -m 04755 "target/release/$(BIN)" "$(DESTDIR)$(bindir)/$(BIN)"
