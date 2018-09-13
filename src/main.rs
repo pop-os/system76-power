@@ -1,3 +1,5 @@
+#[macro_use]
+extern crate clap;
 extern crate dbus;
 extern crate fern;
 extern crate libc;
@@ -8,6 +10,7 @@ use log::LevelFilter;
 use std::{env, process};
 
 mod backlight;
+use clap::{Arg, App, AppSettings, SubCommand};
 mod client;
 mod daemon;
 mod disks;
@@ -49,26 +52,66 @@ pub (crate) fn err_str<E: ::std::fmt::Display>(err: E) -> String {
 }
 
 fn main() {
-    let mut contains_verbose = false;
-    let mut contains_quiet = false;
-    let mut contains_experimental = false;
-    let mut parsed_args = Vec::new();
-    for arg in env::args().skip(1) {
-        if arg == "--verbose" || arg == "-v" {
-            contains_verbose = true
-        } else if arg == "--quiet" || arg == "-q" {
-            contains_quiet = true;
-        } else if arg == "--experimental" {
-            contains_experimental = true;
-        } else {
-            parsed_args.push(arg);
-        }
-    }
-
+    let version = format!("{}", crate_version!());
+    let matches = App::new("system76-power")
+        .about("Utility for managing graphics and power profiles")
+        .version(version.as_str())
+        .global_setting(AppSettings::ColoredHelp)
+        .global_setting(AppSettings::UnifiedHelpMessage)
+        .global_setting(AppSettings::VersionlessSubcommands)
+        .setting(AppSettings::SubcommandRequiredElseHelp)
+        .subcommand(SubCommand::with_name("daemon")
+            .about("Runs the program in daemon mode")
+            .long_about("Registers a new DBUS service and starts an event loop\
+                to listen for, and respond to, DBUS events from clients")
+            .arg(Arg::with_name("quiet")
+                .short("q")
+                .long("quiet")
+                .help("Set the verbosity of daemon logs to 'off' [default is 'info']")
+                .global(true)
+                .group("verbosity"))
+            .arg(Arg::with_name("verbose")
+                .short("v")
+                .long("verbose")
+                .help("Set the verbosity of daemon logs to 'debug' [default is 'info']")
+                .global(true)
+                .group("verbosity"))
+            .arg(Arg::with_name("experimental")
+                .long("experimental")
+                .help("enables experimental power-saving features"))
+        )
+        .subcommand(SubCommand::with_name("profile")
+            .about("Query or set the power profile")
+            .long_about("Queries or sets the power profile.\n\n \
+                - If an argument is not provided, the power profile will be queried\n \
+                - Otherwise, that profile will be set, if it is a valid profile")
+            .arg(Arg::with_name("profile")
+                .help("set the power profile")
+                .possible_values(&["battery", "balanced", "performance"])
+                .required(false))
+        )
+        .subcommand(SubCommand::with_name("graphics")
+            .about("Query or set the graphics mode")
+            .long_about("Query or set the graphics mode.\n\n \
+                - If an argument is not provided, the graphics profile will be queried\n \
+                - Otherwise, that profile will be set, if it is a valid profile")
+            .subcommand(SubCommand::with_name("intel")
+                .about("Set the graphics mode to Intel"))
+            .subcommand(SubCommand::with_name("nvidia")
+                .about("Set the graphics mode to NVIDIA"))
+            .subcommand(SubCommand::with_name("power")
+                .about("Query or set the discrete graphics power state")
+                .arg(Arg::with_name("state")
+                    .help("Set whether discrete graphics should be on or off")
+                    .possible_values(&["auto", "off", "on"]))
+            )
+        )
+        .get_matches();
+    
     if let Err(why) = logging::setup_logging(
-        if contains_verbose {
+        if matches.is_present("verbose") {
             LevelFilter::Debug
-        } else if contains_quiet {
+        } else if matches.is_present("quiet") {
             LevelFilter::Off
         } else {
             LevelFilter::Info
@@ -78,14 +121,16 @@ fn main() {
         process::exit(1);
     }
 
-    let res = if env::args().nth(1).map_or(false, |arg| arg == "daemon") {
-        if unsafe { libc::geteuid() } == 0 {
-            daemon::daemon(contains_experimental)
-        } else {
-            Err(format!("must be run as root"))
+    let res = match matches.subcommand() {
+        ("daemon", Some(_matches)) => {
+            if unsafe { libc::geteuid() } == 0 {
+                daemon::daemon(matches.is_present("experimental"))
+            } else {
+                Err(format!("must be run as root"))
+            }
         }
-    } else {
-        client::client(parsed_args.into_iter())
+        (subcommand, Some(matches)) => client::client(subcommand, matches),
+        _ => unreachable!()
     };
 
     match res {
