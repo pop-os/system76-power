@@ -3,6 +3,7 @@ use std::io;
 
 use {DBUS_NAME, DBUS_PATH, DBUS_IFACE, Power, err_str};
 use backlight::Backlight;
+use clap::ArgMatches;
 use kbd_backlight::KeyboardBacklight;
 use pstate::PState;
 
@@ -107,81 +108,37 @@ fn profile() -> io::Result<()> {
     Ok(())
 }
 
-fn usage() {
-    eprintln!("system76-power [options] [sub-command] [args...]");
-    eprintln!("  --quiet - reduce logging verbosity");
-    eprintln!("  --verbose - increase logging verbosity");
-    eprintln!("  daemon - run in daemon mode");
-    eprintln!("  daemon --experimental - run in daemon mode with experimental features");
-    eprintln!("  profile - query current profile");
-    eprintln!("  profile performance - set profile to performance");
-    eprintln!("  profile balanced - set profile to balanced");
-    eprintln!("  profile battery - set profile to battery");
-    eprintln!("  graphics - query graphics mode");
-    eprintln!("  graphics intel - set graphics mode to intel");
-    eprintln!("  graphics nvidia - set graphics mode to nvidia");
-    eprintln!("  graphics power - query discrete graphics power state");
-    eprintln!("  graphics power auto - turn off discrete graphics if not in use");
-    eprintln!("  graphics power off - power off discrete graphics");
-    eprintln!("  graphics power on - power on discrete graphics");
-}
-
-pub fn client<I: Iterator<Item=String>>(mut args: I) -> Result<(), String> {
+pub fn client(subcommand: &str, matches: &ArgMatches) -> Result<(), String> {
     let mut client = PowerClient::new()?;
 
-    if let Some(arg) = args.next() {
-        match arg.as_str() {
-            "profile" => if let Some(arg) = args.next() {
-                match arg.as_str() {
-                    "performance" => client.performance(),
-                    "balanced" => client.balanced(),
-                    "battery" => client.battery(),
-                    _ => {
-                        usage();
-                        Err(format!("unknown profile {}", arg))
-                    }
-                }
-            } else {
-                profile().map_err(err_str)
-            },
-            "graphics" => if let Some(arg) = args.next() {
-                match arg.as_str() {
-                    "intel" => client.set_graphics("intel"),
-                    "nvidia" => client.set_graphics("nvidia"),
-                    "power" => if let Some(arg) = args.next() {
-                        match arg.as_str() {
-                            "auto" => client.auto_graphics_power(),
-                            "off" => client.set_graphics_power(false),
-                            "on" => client.set_graphics_power(true),
-                            _ => {
-                                usage();
-                                Err(format!("unknown graphics power {}", arg))
-                            }
-                        }
+    match subcommand {
+        "profile" => match matches.value_of("profile") {
+            Some("balanced") => client.balanced(),
+            Some("battery") => client.battery(),
+            Some("performance") => client.performance(),
+            _ => profile().map_err(err_str)
+        },
+        "graphics" => match matches.subcommand() {
+            ("intel", _) => client.set_graphics("intel"),
+            ("nvidia", _) => client.set_graphics("nvidia"),
+            ("power", Some(matches)) => match matches.value_of("state") {
+                Some("auto") => client.auto_graphics_power(),
+                Some("off") => client.set_graphics_power(false),
+                Some("on") => client.set_graphics_power(true),
+                _ => {
+                    if client.get_graphics_power()? {
+                        println!("on (discrete)");
                     } else {
-                        if client.get_graphics_power()? {
-                            println!("on (discrete)");
-                        } else {
-                            println!("off (discrete)");
-                        }
-                        Ok(())
-                    },
-                    _ => {
-                        usage();
-                        Err(format!("unknown graphics vendor {}", arg))
+                        println!("off (discrete)");
                     }
+                    Ok(())
                 }
-            } else {
+            }
+            _ => {
                 println!("{}", client.get_graphics()?);
                 Ok(())
-            },
-            _ => {
-                usage();
-                Err(format!("unknown sub-command {}", arg))
             }
         }
-    } else {
-        usage();
-        Err(format!("no sub-command specified"))
+        _ => Err(format!("unknown sub-command {}", subcommand))
     }
 }
