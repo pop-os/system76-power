@@ -46,6 +46,7 @@ pub trait Power {
     fn battery(&mut self) -> Result<(), String>;
     fn get_profile(&mut self) -> Result<String, String>;
     fn get_graphics(&mut self) -> Result<String, String>;
+    fn get_switchable(&mut self) -> Result<bool, String>;
     fn set_graphics(&mut self, vendor: &str) -> Result<(), String>;
     fn get_graphics_power(&mut self) -> Result<bool, String>;
     fn set_graphics_power(&mut self, power: bool) -> Result<(), String>;
@@ -105,6 +106,8 @@ fn main() {
                 .about("Set the graphics mode to Intel"))
             .subcommand(SubCommand::with_name("nvidia")
                 .about("Set the graphics mode to NVIDIA"))
+            .subcommand(SubCommand::with_name("switchable")
+                .about("Determines if the system has switchable graphics"))
             .subcommand(SubCommand::with_name("power")
                 .about("Query or set the discrete graphics power state")
                 .arg(Arg::with_name("state")
@@ -113,22 +116,22 @@ fn main() {
             )
         )
         .get_matches();
-    
-    if let Err(why) = logging::setup_logging(
-        if matches.is_present("verbose") {
-            LevelFilter::Debug
-        } else if matches.is_present("quiet") {
-            LevelFilter::Off
-        } else {
-            LevelFilter::Info
-        }
-    ) {
-        eprintln!("failed to set up logging: {}", why);
-        process::exit(1);
-    }
 
     let res = match matches.subcommand() {
-        ("daemon", Some(_matches)) => {
+        ("daemon", Some(matches)) => {
+            if let Err(why) = logging::setup_logging(
+                if matches.is_present("verbose") {
+                    LevelFilter::Debug
+                } else if matches.is_present("quiet") {
+                    LevelFilter::Off
+                } else {
+                    LevelFilter::Info
+                }
+            ) {
+                eprintln!("failed to set up logging: {}", why);
+                process::exit(1);
+            }
+
             if unsafe { libc::geteuid() } == 0 {
                 daemon::daemon(matches.is_present("experimental"))
             } else {
