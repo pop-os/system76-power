@@ -1,6 +1,7 @@
 use std::io;
 use std::path::PathBuf;
 
+use config::ConfigPState;
 use util::{parse_file, write_file};
 
 pub struct PState {
@@ -15,6 +16,12 @@ impl PState {
         } else {
             Err(io::Error::new(io::ErrorKind::NotFound, "intel_pstate directory not found"))
         }
+    }
+
+    pub fn set_config(&mut self, config: Option<&ConfigPState>, defaults: (u8, u8, bool)) -> io::Result<()> {
+        self.set_min_perf_pct(config.map_or(defaults.0, |p| p.min) as u64)?;
+        self.set_max_perf_pct(config.map_or(defaults.1, |p| p.max) as u64)?;
+        self.set_no_turbo(config.map_or(!defaults.2, |p| !p.turbo))
     }
 
     pub fn min_perf_pct(&self) -> io::Result<u64> {
@@ -42,3 +49,5 @@ impl PState {
         write_file(self.path.join("no_turbo"), if value { "1" } else { "0" })
     }
 }
+
+

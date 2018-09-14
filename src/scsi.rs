@@ -64,17 +64,17 @@ impl ScsiPower for ScsiHost {
             ));
         }
 
-        let mut last_result = unsafe { ::std::mem::uninitialized() };
+        let mut last_result = None;
 
         for prof in profiles {
             debug!("Setting scsi_host {} to {}", self.host, prof);
-            last_result = write_file(&self.link_power_management_policy, prof);
-            match last_result.as_ref() {
+            last_result = Some(write_file(&self.link_power_management_policy, prof));
+            match *last_result.as_ref().unwrap() {
                 Ok(_) => break,
                 Err(ref why) => error!("Failed to set scsi_host {} to {}: {}", self.host, prof, why)
             }
         }
 
-        last_result
+        last_result.unwrap()
     }
 }

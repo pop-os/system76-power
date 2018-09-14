@@ -2,12 +2,15 @@ use dbus::{Connection, BusType, NameFlag};
 use dbus::tree::{Factory, MethodErr};
 use std::cell::RefCell;
 use std::io;
+use std::path::Path;
+use std::process::Command;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{ATOMIC_BOOL_INIT, AtomicBool, Ordering};
 
 use {DBUS_NAME, DBUS_PATH, DBUS_IFACE, Power, err_str};
-use backlight::Backlight;
+use backlight::{Backlight, BacklightExt};
+use config::{Config, ConfigProfile, Profile};
 use disks::{Disks, DiskPower};
 use graphics::Graphics;
 use hotplug::HotPlugDetect;
@@ -26,7 +29,20 @@ fn experimental_is_enabled() -> bool {
     EXPERIMENTAL.load(Ordering::SeqCst)
 }
 
-fn performance() -> io::Result<()> {
+/// Executes an external script that is defined for a given profile.
+fn execute_script(script: &Path) {
+    match Command::new(script).status() {
+        Ok(status) => if ! status.success() {
+            warn!("balance script failed with status: {:?}", status);
+        }
+        Err(why) => {
+            warn!("balance script failed to execute: {}", why);
+        }
+    }
+}
+
+/// Sets the performance profile.
+fn performance(config: &ConfigProfile, profile: &mut Profile) -> io::Result<()> {
     if experimental_is_enabled() {
         let disks = Disks::new();
         disks.set_apm_level(254)?;
@@ -43,17 +59,16 @@ fn performance() -> io::Result<()> {
         LaptopMode::new().set(b"0");
     }
 
-    {
-        let mut pstate = PState::new()?;
-        pstate.set_min_perf_pct(50)?;
-        pstate.set_max_perf_pct(100)?;
-        pstate.set_no_turbo(false)?;
+    PState::new()?.set_config(config.pstate.as_ref(), (50, 100, true))?;
+
+    if let Some(ref script) = config.script {
+        execute_script(script);
     }
 
     Ok(())
 }
 
-fn balanced() -> io::Result<()> {
+fn balanced(config: &ConfigProfile, profile: &mut Profile) -> io::Result<()> {
     if experimental_is_enabled() {
         let disks = Disks::new();
         disks.set_apm_level(254)?;
@@ -65,40 +80,34 @@ fn balanced() -> io::Result<()> {
         for device in PciBus::new()?.devices()? {
             device.set_runtime_pm(RuntimePowerManagement::On)?;
         }
-
         Dirty::new().set_max_lost_work(15);
         LaptopMode::new().set(b"0");
     }
 
-    {
-        let mut pstate = PState::new()?;
-        pstate.set_min_perf_pct(0)?;
-        pstate.set_max_perf_pct(100)?;
-        pstate.set_no_turbo(false)?;
-    }
+    PState::new()?.set_config(config.pstate.as_ref(), (0, 100, true))?;
 
     for mut backlight in Backlight::all()? {
-        let max_brightness = backlight.max_brightness()?;
-        let current = backlight.brightness()?;
-        let new = max_brightness * 40 / 100;
-        if new < current {
-            backlight.set_brightness(new)?;
-        }
+        backlight.set_if_lower(
+            config.backlight.as_ref().map_or(40, |b| b.screen) as u64
+        )?;
     }
 
     for mut backlight in KeyboardBacklight::all()? {
-        let max_brightness = backlight.max_brightness()?;
-        let current = backlight.brightness()?;
-        let new = max_brightness/2;
-        if new < current {
-            backlight.set_brightness(new)?;
-        }
+        backlight.set_if_lower(
+            config.backlight.as_ref().map_or(50, |b| b.keyboard) as u64
+        )?;
     }
+
+    if let Some(ref script) = config.script {
+        execute_script(script);
+    }
+
+    
 
     Ok(())
 }
 
-fn battery() -> io::Result<()> {
+fn battery(config: &ConfigProfile, profile: &mut Profile) -> io::Result<()> {
     if experimental_is_enabled() {
         let disks = Disks::new();
         disks.set_apm_level(128)?;
@@ -115,51 +124,51 @@ fn battery() -> io::Result<()> {
         LaptopMode::new().set(b"2");
     }
 
-    {
-        let mut pstate = PState::new()?;
-        pstate.set_min_perf_pct(0)?;
-        pstate.set_max_perf_pct(50)?;
-        pstate.set_no_turbo(true)?;
-    }
+    PState::new()?.set_config(config.pstate.as_ref(), (0, 50, false))?;
 
     for mut backlight in Backlight::all()? {
-        let max_brightness = backlight.max_brightness()?;
-        let current = backlight.brightness()?;
-        let new = max_brightness * 10 / 100;
-        if new < current {
-            backlight.set_brightness(new)?;
-        }
+        backlight.set_if_lower(
+            config.backlight.as_ref().map_or(10, |b| b.screen) as u64
+        )?;
     }
 
     for mut backlight in KeyboardBacklight::all()? {
-        backlight.set_brightness(0)?;
+        backlight.set_if_lower(
+            config.backlight.as_ref().map_or(0, |b| b.keyboard) as u64
+        )?;
+    }
+
+    if let Some(ref script) = config.script {
+        execute_script(script);
     }
 
     Ok(())
 }
 
 struct PowerDaemon {
-    graphics: Graphics
+    graphics: Graphics,
+    config: Config,
 }
 
 impl PowerDaemon {
     fn new() -> Result<PowerDaemon, String> {
         let graphics = Graphics::new().map_err(err_str)?;
-        Ok(PowerDaemon { graphics })
+        let config = Config::new();
+        Ok(PowerDaemon { graphics, config })
     }
 }
 
 impl Power for PowerDaemon {
     fn performance(&mut self) -> Result<(), String> {
-        performance().map_err(err_str)
+        performance(&self.config.profiles.performance, &mut self.config.defaults.last_profile).map_err(err_str)
     }
 
     fn balanced(&mut self) -> Result<(), String> {
-        balanced().map_err(err_str)
+        balanced(&mut self.config.profiles.balanced, &mut self.config.defaults.last_profile).map_err(err_str)
     }
 
     fn battery(&mut self) -> Result<(), String> {
-        battery().map_err(err_str)
+        battery(&mut self.config.profiles.battery, &mut self.config.defaults.last_profile).map_err(err_str)
     }
 
     fn get_graphics(&mut self) -> Result<String, String> {
@@ -184,9 +193,10 @@ impl Power for PowerDaemon {
 }
 
 pub fn daemon(experimental: bool) -> Result<(), String> {
+    let daemon = Rc::new(RefCell::new(PowerDaemon::new()?));
+    let experimental = experimental || daemon.borrow().config.defaults.experimental;
     info!("Starting daemon{}", if experimental { " with experimental enabled" } else { "" });
     EXPERIMENTAL.store(experimental, Ordering::SeqCst);
-    let daemon = Rc::new(RefCell::new(PowerDaemon::new()?));
 
     info!("Disabling NMI Watchdog (for kernel debugging only)");
     NmiWatchdog::new().set(b"0");
@@ -199,8 +209,19 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
         }
     }
 
-    info!("Initializing with the balanced profile");
-    balanced().map_err(|why| format!("failed to set initial profile: {}", why))?;
+    info!("Initializing with the default profile");
+    let res = {
+        let mut daemon = daemon.borrow_mut();
+        let profiles = &daemon.config.profiles.clone();
+        let last_profile = &mut daemon.config.defaults.last_profile;
+        match *last_profile {
+            Profile::Battery => battery(&profiles.battery, last_profile),
+            Profile::Balanced => balanced(&profiles.balanced, last_profile),
+            Profile::Performance => performance(&profiles.performance, last_profile)
+        }
+    };
+
+    res.map_err(|why| format!("failed to set initial profile: {}", why))?;
 
     info!("Connecting to dbus system bus");
     let c = Connection::get_private(BusType::System).map_err(err_str)?;

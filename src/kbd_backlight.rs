@@ -1,11 +1,15 @@
 use std::{fs, io};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-use util::{parse_file, write_file};
+use backlight::BacklightExt;
 
 pub struct KeyboardBacklight {
     name: String,
     path: PathBuf,
+}
+
+impl BacklightExt for KeyboardBacklight {
+    fn path(&self) -> &Path { &self.path }
 }
 
 impl KeyboardBacklight {
@@ -38,17 +42,5 @@ impl KeyboardBacklight {
 
     pub fn name(&self) -> &str {
         &self.name
-    }
-
-    pub fn brightness(&self) -> io::Result<u64> {
-        parse_file(self.path.join("brightness"))
-    }
-
-    pub fn set_brightness(&mut self, value: u64) -> io::Result<()> {
-        write_file(self.path.join("brightness"), format!("{}", value))
-    }
-
-    pub fn max_brightness(&self) -> io::Result<u64> {
-        parse_file(self.path.join("max_brightness"))
     }
 }

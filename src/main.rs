@@ -5,13 +5,19 @@ extern crate fern;
 extern crate libc;
 #[macro_use]
 extern crate log;
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
+extern crate toml;
+extern crate xdg;
 
 use log::LevelFilter;
-use std::{env, process};
+use std::process;
 
 mod backlight;
 use clap::{Arg, App, AppSettings, SubCommand};
 mod client;
+mod config;
 mod daemon;
 mod disks;
 mod graphics;
@@ -122,7 +128,7 @@ fn main() {
     }
 
     let res = match matches.subcommand() {
-        ("daemon", Some(_matches)) => {
+        ("daemon", Some(matches)) => {
             if unsafe { libc::geteuid() } == 0 {
                 daemon::daemon(matches.is_present("experimental"))
             } else {
