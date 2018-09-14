@@ -56,6 +56,12 @@ impl Power for PowerClient {
         r.get1().ok_or("return value not found".to_string())
     }
 
+    fn get_switchable(&mut self) -> Result<bool, String> {
+        let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "GetSwitchable")?;
+        let r = self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
+        r.get1().ok_or("return value not found".to_string())
+    }
+
     fn set_graphics(&mut self, vendor: &str) -> Result<(), String> {
         info!("Setting graphics to {}", vendor);
         let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "SetGraphics")?
@@ -129,6 +135,14 @@ pub fn client(subcommand: &str, matches: &ArgMatches) -> Result<(), String> {
         "graphics" => match matches.subcommand() {
             ("intel", _) => client.set_graphics("intel"),
             ("nvidia", _) => client.set_graphics("nvidia"),
+            ("switchable", _) => {
+                if client.get_switchable()? {
+                    println!("switchable");
+                } else {
+                    println!("not switchable");
+                }
+                Ok(())
+            }
             ("power", Some(matches)) => match matches.value_of("state") {
                 Some("auto") => client.auto_graphics_power(),
                 Some("off") => client.set_graphics_power(false),

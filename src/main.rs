@@ -46,6 +46,7 @@ pub trait Power {
     fn battery(&mut self) -> Result<(), String>;
     fn get_profile(&mut self) -> Result<String, String>;
     fn get_graphics(&mut self) -> Result<String, String>;
+    fn get_switchable(&mut self) -> Result<bool, String>;
     fn set_graphics(&mut self, vendor: &str) -> Result<(), String>;
     fn get_graphics_power(&mut self) -> Result<bool, String>;
     fn set_graphics_power(&mut self, power: bool) -> Result<(), String>;
@@ -105,6 +106,8 @@ fn main() {
                 .about("Set the graphics mode to Intel"))
             .subcommand(SubCommand::with_name("nvidia")
                 .about("Set the graphics mode to NVIDIA"))
+            .subcommand(SubCommand::with_name("switchable")
+                .about("Determines if the system has switchable graphics"))
             .subcommand(SubCommand::with_name("power")
                 .about("Query or set the discrete graphics power state")
                 .arg(Arg::with_name("state")

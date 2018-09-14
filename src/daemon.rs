@@ -202,6 +202,10 @@ impl Power for PowerDaemon {
         self.graphics.get_vendor().map_err(err_str)
     }
 
+    fn get_switchable(&mut self) -> Result<bool, String> {
+        Ok(self.graphics.can_switch())
+    }
+
     fn set_graphics(&mut self, vendor: &str) -> Result<(), String> {
         self.graphics.set_vendor(vendor).map_err(err_str)
     }
@@ -300,6 +304,7 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
             .add_m(method!(get_profile, "GetProfile", true, false).outarg::<&str,_>("profile"))
             .add_m(method!(get_graphics, "GetGraphics", true, false).outarg::<&str,_>("vendor"))
             .add_m(method!(set_graphics, "SetGraphics", false, true).inarg::<&str,_>("vendor"))
+            .add_m(method!(get_switchable, "GetSwitchable", true, false).outarg::<bool, _>("switchable"))
             .add_m(method!(get_graphics_power, "GetGraphicsPower", true, false).outarg::<bool,_>("power"))
             .add_m(method!(set_graphics_power, "SetGraphicsPower", false, true).inarg::<bool,_>("power"))
             .add_m(method!(auto_graphics_power, "AutoGraphicsPower", false, false))
