@@ -86,7 +86,7 @@ impl Power for PowerClient {
     }
 }
 
-fn profile() -> io::Result<()> {
+fn profile(profile: &str) -> io::Result<()> {
     {
         let pstate = PState::new()?;
         let min = pstate.min_perf_pct()?;
@@ -111,6 +111,8 @@ fn profile() -> io::Result<()> {
         println!("Keyboard Backlight {}: {}/{} = {}%", backlight.name(), brightness, max_brightness, percent);
     }
 
+    println!("Profile: {}", profile);
+
     Ok(())
 }
 
@@ -122,7 +124,7 @@ pub fn client(subcommand: &str, matches: &ArgMatches) -> Result<(), String> {
             Some("balanced") => client.balanced(),
             Some("battery") => client.battery(),
             Some("performance") => client.performance(),
-            _ => profile().map_err(err_str)
+            _ => profile(&client.get_profile()?).map_err(err_str)
         },
         "graphics" => match matches.subcommand() {
             ("intel", _) => client.set_graphics("intel"),

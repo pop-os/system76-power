@@ -294,7 +294,7 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
             .add_m(method!(performance, "Performance", false, false))
             .add_m(method!(balanced, "Balanced", false, false))
             .add_m(method!(battery, "Battery", false, false))
-            .add_m(method!(get_profile, "GetProfile", false, false).outarg::<&str,_>("profile"))
+            .add_m(method!(get_profile, "GetProfile", true, false).outarg::<&str,_>("profile"))
             .add_m(method!(get_graphics, "GetGraphics", true, false).outarg::<&str,_>("vendor"))
             .add_m(method!(set_graphics, "SetGraphics", false, true).inarg::<&str,_>("vendor"))
             .add_m(method!(get_graphics_power, "GetGraphicsPower", true, false).outarg::<bool,_>("power"))
