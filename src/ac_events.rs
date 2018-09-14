@@ -1,11 +1,22 @@
+use dbus::{BusType, Connection};
+use dbus::tree::Signal;
+use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 use upower_dbus::UPower;
-use super::Power;
+use super::{DBUS_PATH, DBUS_NAME, Power};
 use super::client::PowerClient;
 
-pub fn ac_events() {
+pub fn ac_events(sig_critical: Arc<Signal<()>>, sig_normal: Arc<Signal<()>>, sig_ac: Arc<Signal<()>>) {
     thread::spawn(move || {
+        let connection = match Connection::get_private(BusType::System) {
+            Ok(c) => c,
+            Err(why) => {
+                eprintln!("ac_events failed to get DBUS connection: {}", why);
+                return;
+            }
+        };
+
         let upower = match UPower::new(1000) {
             Ok(upower) => upower,
             Err(why) => {
@@ -33,6 +44,7 @@ pub fn ac_events() {
                         eprintln!("ac_events failed to set daemon to balanced: {}", why);
                     }
 
+                    let _ = connection.send(sig_ac.msg(&DBUS_PATH.into(), &DBUS_NAME.into()).append1(false));
                     on_ac = false;
                 }
             } else {
@@ -42,6 +54,7 @@ pub fn ac_events() {
                         eprintln!("ac_events failed to set daemon to performance: {}", why);
                     }
 
+                    let _ = connection.send(sig_ac.msg(&DBUS_PATH.into(), &DBUS_NAME.into()).append1(true));
                     on_ac = true;
                 } else if ! critical && upower.get_percentage().unwrap_or(0f64) < 25f64 {
                     // Switch to battery if the battery has dropped less than 25%.
@@ -49,6 +62,7 @@ pub fn ac_events() {
                         eprintln!("ac_events failed to set daemon to battery: {}", why);
                     }
 
+                    let _ = connection.send(sig_critical.msg(&DBUS_PATH.into(), &DBUS_NAME.into()));
                     critical = true;
                 } else if critical && upower.get_percentage().unwrap_or(0f64) > 50f64 {
                     // Switch to balanced once the battery is back to being beyond 50%.
@@ -56,6 +70,7 @@ pub fn ac_events() {
                         eprintln!("ac_events failed to set daemon to balanced: {}", why);
                     }
 
+                     let _ = connection.send(sig_normal.msg(&DBUS_PATH.into(), &DBUS_NAME.into()));
                     critical = false;
                 }
             }

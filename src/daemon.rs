@@ -286,7 +286,10 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
         }};
     }
 
-    let signal = Arc::new(f.signal("HotPlugDetect", ()).sarg::<u64,_>("port"));
+    let signal_hotplug = Arc::new(f.signal("HotPlugDetect", ()).sarg::<u64,_>("port"));
+    let signal_critical = Arc::new(f.signal("BatteryCritical", ()));
+    let signal_normal = Arc::new(f.signal("BatteryNormal", ()));
+    let signal_ac = Arc::new(f.signal("AcEvent", ()).sarg::<bool,_>("on_ac"));
 
     info!("Adding dbus path {} with interface {}", DBUS_PATH, DBUS_IFACE);
     let tree = f.tree(()).add(f.object_path(DBUS_PATH, ()).introspectable().add(
@@ -300,7 +303,10 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
             .add_m(method!(get_graphics_power, "GetGraphicsPower", true, false).outarg::<bool,_>("power"))
             .add_m(method!(set_graphics_power, "SetGraphicsPower", false, true).inarg::<bool,_>("power"))
             .add_m(method!(auto_graphics_power, "AutoGraphicsPower", false, false))
-            .add_s(signal.clone())
+            .add_s(signal_hotplug.clone())
+            .add_s(signal_critical.clone())
+            .add_s(signal_normal.clone())
+            .add_s(signal_ac.clone())
     ));
 
     tree.set_registered(&c, true).map_err(err_str)?;
@@ -308,7 +314,7 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
     c.add_handler(tree);
 
     info!("Handling ac events");
-    ac_events();
+    ac_events(signal_critical, signal_normal, signal_ac);
 
     let hpd_res = unsafe { HotPlugDetect::new() };
 
@@ -332,7 +338,7 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
                 if hpd[i] {
                     info!("HotPlugDetect {}", i);
                     c.send(
-                        signal.msg(&DBUS_PATH.into(), &DBUS_NAME.into()).append1(i as u64)
+                        signal_hotplug.msg(&DBUS_PATH.into(), &DBUS_NAME.into()).append1(i as u64)
                     ).map_err(|()| format!("failed to send message"))?;
                 }
             }
