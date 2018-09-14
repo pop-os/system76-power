@@ -22,7 +22,7 @@ pub fn ac_events() {
             }
         };
 
-        let mut on_ac = ! upower.on_battery().unwrap_or(false);
+        let mut on_ac = false;
         let mut critical = false;
 
         loop {
