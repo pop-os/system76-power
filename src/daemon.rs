@@ -231,8 +231,7 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
         let mut daemon = daemon.borrow_mut();
         let profiles = &daemon.config.profiles.clone();
         let last_profile = &mut daemon.config.defaults.last_profile;
-        let profile: &str = (*last_profile).into();
-        info!("Initializing with previously-set profile: {}", profile);
+        info!("Initializing with previously-set profile: {}", <&'static str>::from(*last_profile));
         match *last_profile {
             Profile::Battery => battery(&profiles.battery, last_profile),
             Profile::Balanced => balanced(&profiles.balanced, last_profile),

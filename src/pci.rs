@@ -85,8 +85,7 @@ impl PciDevice {
     }
 
     pub fn set_runtime_pm(&self, state: RuntimePowerManagement) -> io::Result<()> {
-        let state: &'static str = state.into();
-        write_file(&self.path.join("power/control"), state)
+        write_file(&self.path.join("power/control"), <&'static str>::from(state))
     }
 
     pci_device!(class as u32);

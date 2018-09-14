@@ -129,18 +129,9 @@ impl ConfigDefaults {
             ac = '{}'\n\
             # The last profile that was activated\n\
             last_profile = '{}'",
-            {
-                let bat: &str = self.battery.into();
-                bat
-            },
-            {
-                let ac: &str = self.ac.into();
-                ac
-            },
-            {
-                let last: &str = self.last_profile.into();
-                last
-            }
+                <&'static str>::from(self.battery),
+                <&'static str>::from(self.ac),
+                <&'static str>::from(self.last_profile)
         );
 
         let exp: &[u8] = if self.experimental {
