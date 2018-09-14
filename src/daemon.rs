@@ -65,6 +65,8 @@ fn performance(config: &ConfigProfile, profile: &mut Profile) -> io::Result<()> 
         execute_script(script);
     }
 
+    *profile = Profile::Performance;
+
     Ok(())
 }
 
@@ -102,7 +104,7 @@ fn balanced(config: &ConfigProfile, profile: &mut Profile) -> io::Result<()> {
         execute_script(script);
     }
 
-    
+    *profile = Profile::Balanced;
 
     Ok(())
 }
@@ -142,6 +144,8 @@ fn battery(config: &ConfigProfile, profile: &mut Profile) -> io::Result<()> {
         execute_script(script);
     }
 
+    *profile = Profile::Battery;
+
     Ok(())
 }
 
@@ -156,19 +160,33 @@ impl PowerDaemon {
         let config = Config::new();
         Ok(PowerDaemon { graphics, config })
     }
+
+    fn set_profile_and_then(&mut self, func: fn(&mut Self) -> Result<(), String>) -> Result<(), String> {
+        let res = func(self);
+        if let Err(why) = self.config.write() {
+            error!("errored when writing config: {}", why);
+        }
+        res
+    }
 }
 
 impl Power for PowerDaemon {
     fn performance(&mut self) -> Result<(), String> {
-        performance(&self.config.profiles.performance, &mut self.config.defaults.last_profile).map_err(err_str)
+        self.set_profile_and_then(|d| {
+            performance(&d.config.profiles.performance, &mut d.config.defaults.last_profile).map_err(err_str)
+        })
     }
 
     fn balanced(&mut self) -> Result<(), String> {
-        balanced(&mut self.config.profiles.balanced, &mut self.config.defaults.last_profile).map_err(err_str)
+        self.set_profile_and_then(|d| {
+            balanced(&mut d.config.profiles.balanced, &mut d.config.defaults.last_profile).map_err(err_str)
+        })
     }
 
     fn battery(&mut self) -> Result<(), String> {
-        battery(&mut self.config.profiles.battery, &mut self.config.defaults.last_profile).map_err(err_str)
+        self.set_profile_and_then(|d| {
+            battery(&mut d.config.profiles.battery, &mut d.config.defaults.last_profile).map_err(err_str)
+        })
     }
 
     fn get_graphics(&mut self) -> Result<String, String> {
@@ -209,11 +227,12 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
         }
     }
 
-    info!("Initializing with the default profile");
     let res = {
         let mut daemon = daemon.borrow_mut();
         let profiles = &daemon.config.profiles.clone();
         let last_profile = &mut daemon.config.defaults.last_profile;
+        let profile: &str = (*last_profile).into();
+        info!("Initializing with previously-set profile: {}", profile);
         match *last_profile {
             Profile::Battery => battery(&profiles.battery, last_profile),
             Profile::Balanced => balanced(&profiles.balanced, last_profile),
