@@ -90,8 +90,6 @@ impl Graphics {
             "intel".to_string()
         };
 
-        vendor += if self.can_switch() { " (switchable)" } else { " (not switchable)" };
-
         Ok(vendor)
     }
 
