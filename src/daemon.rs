@@ -42,7 +42,7 @@ fn execute_script(script: &Path) {
 }
 
 /// Record every error that occurs, so that they may later be combined into an error of errors for the caller.
-fn try<F: Fn() -> io::Result<()>>(errors: &mut Vec<io::Error>, msg: &str, func: F) {
+fn try<F: FnMut() -> io::Result<()>>(errors: &mut Vec<io::Error>, msg: &str, mut func: F) {
     if let Err(why) = func() {
         errors.push(io::Error::new(
             io::ErrorKind::Other,
@@ -89,9 +89,11 @@ fn apply_profile(
         LaptopMode::new().set(params.laptop_mode);
     }
 
-    try(errors, "failed to set Intel PState settings", || {
-        PState::new()?.set_config(config.pstate.as_ref(), params.pstate_defaults)
-    });
+    if let Ok(mut pstate) = PState::new() {
+        try(errors, "failed to set Intel PState settings", || {
+            pstate.set_config(config.pstate.as_ref(), params.pstate_defaults)
+        });
+    }
 
     if let Some(default_brightness) = params.backlight_screen {
         try(errors, "failed to set screen backlight", || {
