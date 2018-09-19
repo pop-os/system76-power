@@ -10,7 +10,7 @@ use std::sync::atomic::{ATOMIC_BOOL_INIT, AtomicBool, Ordering};
 
 use {DBUS_NAME, DBUS_PATH, DBUS_IFACE, Power, err_str};
 use backlight::{Backlight, BacklightExt};
-use config::{Config, ConfigProfile, Profile};
+use config::{Config, ConfigProfile, Profile, ProfileParameters};
 use disks::{Disks, DiskPower};
 use graphics::Graphics;
 use hotplug::HotPlugDetect;
@@ -41,151 +41,204 @@ fn execute_script(script: &Path) {
     }
 }
 
-/// Sets the performance profile.
-fn performance(config: &ConfigProfile, profile: &mut Profile) -> io::Result<()> {
-    if experimental_is_enabled() {
-        let disks = Disks::new();
-        disks.set_apm_level(254)?;
-        disks.set_autosuspend_delay(-1)?;
-
-        ScsiHosts::new().set_power_management_policy(&["med_power_with_dipm", "max_performance"])?;
-        SoundDevice::get_devices().for_each(|dev| dev.set_power_save(0, false));
-        RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("high", "performance", "auto"));
-        for device in PciBus::new()?.devices()? {
-            device.set_runtime_pm(RuntimePowerManagement::Off)?;
-        }
-
-        Dirty::new().set_max_lost_work(15);
-        LaptopMode::new().set(b"0");
+/// Record every error that occurs, so that they may later be combined into an error of errors for the caller.
+fn try<F: Fn() -> io::Result<()>>(errors: &mut Vec<io::Error>, msg: &str, func: F) {
+    if let Err(why) = func() {
+        errors.push(io::Error::new(
+            io::ErrorKind::Other,
+            format!("{}: {}", msg, why)
+        ));
     }
-
-    PState::new()?.set_config(config.pstate.as_ref(), (50, 100, true))?;
-
-    if let Some(ref script) = config.script {
-        execute_script(script);
-    }
-
-    *profile = Profile::Performance;
-
-    Ok(())
 }
 
-fn balanced(config: &ConfigProfile, profile: &mut Profile) -> io::Result<()> {
+fn apply_profile(
+    profile: &mut Profile,
+    errors: &mut Vec<io::Error>,
+    config: &ConfigProfile,
+    params: &ProfileParameters
+) {
     if experimental_is_enabled() {
         let disks = Disks::new();
-        disks.set_apm_level(254)?;
-        disks.set_autosuspend_delay(-1)?;
+        try(errors, "failed to set disk apm level", || disks.set_apm_level(params.disk_apm));
+        try(errors, "failed to set disk autosuspend delay", || disks.set_autosuspend_delay(params.disk_autosuspend_delay));
+        try(errors, "failed to set SCSI power management policy", || {
+            ScsiHosts::new().set_power_management_policy(params.scsi_profiles)
+        });
 
-        ScsiHosts::new().set_power_management_policy(&["med_power_with_dipm", "medium_power"])?;
-        SoundDevice::get_devices().for_each(|dev| dev.set_power_save(0, false));
-        RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("auto", "performance", "auto"));
-        for device in PciBus::new()?.devices()? {
-            device.set_runtime_pm(RuntimePowerManagement::On)?;
-        }
-        Dirty::new().set_max_lost_work(15);
-        LaptopMode::new().set(b"0");
+        SoundDevice::get_devices().for_each(|dev| dev.set_power_save(
+            params.sound_power_save.0,
+            params.sound_power_save.1
+        ));
+
+        RadeonDevice::get_devices().for_each(|dev| dev.set_profiles(
+            params.radeon_profile,
+            params.radeon_dpm_state,
+            params.radeon_dpm_perf
+        ));
+
+        try(errors, "failed to change PCI device runtime power management", || {
+            for device in PciBus::new()?.devices()? {
+                device.set_runtime_pm(params.pci_runtime_pm)?;
+            }
+
+            Ok(())
+        });
+        
+
+        Dirty::new().set_max_lost_work(params.max_lost_work);
+        LaptopMode::new().set(params.laptop_mode);
     }
 
-    PState::new()?.set_config(config.pstate.as_ref(), (0, 100, true))?;
+    try(errors, "failed to set Intel PState settings", || {
+        PState::new()?.set_config(config.pstate.as_ref(), params.pstate_defaults)
+    });
 
-    for mut backlight in Backlight::all()? {
-        backlight.set_if_lower(
-            config.backlight.as_ref().map_or(40, |b| b.screen) as u64
-        )?;
+    if let Some(default_brightness) = params.backlight_screen {
+        try(errors, "failed to set screen backlight", || {
+            for mut backlight in Backlight::all()? {
+                backlight.set_if_lower(
+                    config.backlight.as_ref().map_or(default_brightness, |b| b.screen) as u64
+                )?;
+            }
+
+            Ok(())
+        });
     }
 
-    for mut backlight in KeyboardBacklight::all()? {
-        backlight.set_if_lower(
-            config.backlight.as_ref().map_or(50, |b| b.keyboard) as u64
-        )?;
+    if let Some(default_brightness) = params.backlight_keyboard {
+        try(errors, "failed to set keyboard backlight", || {
+            for mut backlight in KeyboardBacklight::all()? {
+                backlight.set_if_lower(
+                    config.backlight.as_ref().map_or(default_brightness, |b| b.keyboard) as u64
+                )?;
+            }
+
+            Ok(())
+        });
     }
 
     if let Some(ref script) = config.script {
         execute_script(script);
     }
 
-    *profile = Profile::Balanced;
-
-    Ok(())
-}
-
-fn battery(config: &ConfigProfile, profile: &mut Profile) -> io::Result<()> {
-    if experimental_is_enabled() {
-        let disks = Disks::new();
-        disks.set_apm_level(128)?;
-        disks.set_autosuspend_delay(15000)?;
-
-        ScsiHosts::new().set_power_management_policy(&["min_power", "min_power"])?;
-        SoundDevice::get_devices().for_each(|dev| dev.set_power_save(1, true));
-        RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("low", "battery", "low"));
-        for device in PciBus::new()?.devices()? {
-            device.set_runtime_pm(RuntimePowerManagement::On)?;
-        }
-
-        Dirty::new().set_max_lost_work(15);
-        LaptopMode::new().set(b"2");
-    }
-
-    PState::new()?.set_config(config.pstate.as_ref(), (0, 50, false))?;
-
-    for mut backlight in Backlight::all()? {
-        backlight.set_if_lower(
-            config.backlight.as_ref().map_or(10, |b| b.screen) as u64
-        )?;
-    }
-
-    for mut backlight in KeyboardBacklight::all()? {
-        backlight.set_if_lower(
-            config.backlight.as_ref().map_or(0, |b| b.keyboard) as u64
-        )?;
-    }
-
-    if let Some(ref script) = config.script {
-        execute_script(script);
-    }
-
-    *profile = Profile::Battery;
-
-    Ok(())
+    *profile = params.profile;
 }
 
 struct PowerDaemon {
     graphics: Graphics,
     config: Config,
+    errors: Vec<io::Error>,
 }
 
 impl PowerDaemon {
     fn new() -> Result<PowerDaemon, String> {
         let graphics = Graphics::new().map_err(err_str)?;
         let config = Config::new();
-        Ok(PowerDaemon { graphics, config })
+        let errors = Vec::new();
+        Ok(PowerDaemon { graphics, config, errors })
     }
 
-    fn set_profile_and_then(&mut self, func: fn(&mut Self) -> Result<(), String>) -> Result<(), String> {
-        let res = func(self);
+    fn set_profile_and_then(&mut self, func: fn(&mut Self)) -> Result<(), String> {
+        func(self);
         if let Err(why) = self.config.write() {
             error!("errored when writing config: {}", why);
         }
-        res
+
+        if self.errors.is_empty() {
+            return Ok(());
+        }
+
+        let mut message = String::from("error(s) occurred when setting profile:\n");
+        for error in self.errors.drain(..) {
+            message.push_str(format!("    {}", error).as_str());
+        }
+
+        Err(message)
     }
 }
 
 impl Power for PowerDaemon {
     fn performance(&mut self) -> Result<(), String> {
+        static PARAMETERS: ProfileParameters = ProfileParameters {
+            profile: Profile::Performance,
+            disk_apm: 254,
+            disk_autosuspend_delay: -1,
+            scsi_profiles: &["med_power_with_dipm", "max_performance"],
+            sound_power_save: (0, false),
+            radeon_profile: "high",
+            radeon_dpm_state: "performance",
+            radeon_dpm_perf: "auto",
+            pci_runtime_pm: RuntimePowerManagement::Off,
+            max_lost_work: 15,
+            laptop_mode: b"0",
+            pstate_defaults: (50, 100, true),
+            backlight_screen: None,
+            backlight_keyboard: None,
+        };
+
         self.set_profile_and_then(|d| {
-            performance(&d.config.profiles.performance, &mut d.config.defaults.last_profile).map_err(err_str)
+            apply_profile(
+                &mut d.config.defaults.last_profile,
+                &mut d.errors,
+                &d.config.profiles.performance,
+                &PARAMETERS
+            )
         })
     }
 
     fn balanced(&mut self) -> Result<(), String> {
+        static PARAMETERS: ProfileParameters = ProfileParameters {
+            profile: Profile::Balanced,
+            disk_apm: 254,
+            disk_autosuspend_delay: -1,
+            scsi_profiles: &["med_power_with_dipm", "medium_power"],
+            sound_power_save: (0, false),
+            radeon_profile: "auto",
+            radeon_dpm_state: "performance",
+            radeon_dpm_perf: "auto",
+            pci_runtime_pm: RuntimePowerManagement::Off,
+            max_lost_work: 15,
+            laptop_mode: b"0",
+            pstate_defaults: (0, 100, true),
+            backlight_screen: Some(80),
+            backlight_keyboard: Some(50),
+        };
+
         self.set_profile_and_then(|d| {
-            balanced(&mut d.config.profiles.balanced, &mut d.config.defaults.last_profile).map_err(err_str)
+            apply_profile(
+                &mut d.config.defaults.last_profile,
+                &mut d.errors,
+                &d.config.profiles.balanced,
+                &PARAMETERS
+            )
         })
     }
 
     fn battery(&mut self) -> Result<(), String> {
+        static PARAMETERS: ProfileParameters = ProfileParameters {
+            profile: Profile::Battery,
+            disk_apm: 128,
+            disk_autosuspend_delay: 15000,
+            scsi_profiles: &["min_power", "min_power"],
+            sound_power_save: (1, true),
+            radeon_profile: "low",
+            radeon_dpm_state: "battery",
+            radeon_dpm_perf: "low",
+            pci_runtime_pm: RuntimePowerManagement::On,
+            max_lost_work: 15,
+            laptop_mode: b"2",
+            pstate_defaults: (0, 50, false),
+            backlight_screen: Some(10),
+            backlight_keyboard: Some(0),
+        };
+
         self.set_profile_and_then(|d| {
-            battery(&mut d.config.profiles.battery, &mut d.config.defaults.last_profile).map_err(err_str)
+            apply_profile(
+                &mut d.config.defaults.last_profile,
+                &mut d.errors,
+                &d.config.profiles.battery,
+                &PARAMETERS
+            )
         })
     }
 
@@ -229,17 +282,18 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
 
     let res = {
         let mut daemon = daemon.borrow_mut();
-        let profiles = &daemon.config.profiles.clone();
-        let last_profile = &mut daemon.config.defaults.last_profile;
-        info!("Initializing with previously-set profile: {}", <&'static str>::from(*last_profile));
-        match *last_profile {
-            Profile::Battery => battery(&profiles.battery, last_profile),
-            Profile::Balanced => balanced(&profiles.balanced, last_profile),
-            Profile::Performance => performance(&profiles.performance, last_profile)
+        let last_profile = daemon.config.defaults.last_profile;
+        info!("Initializing with previously-set profile: {}", <&'static str>::from(last_profile));
+        match last_profile {
+            Profile::Battery => daemon.battery(),
+            Profile::Balanced => daemon.balanced(),
+            Profile::Performance => daemon.performance()
         }
     };
 
-    res.map_err(|why| format!("failed to set initial profile: {}", why))?;
+    if let Err(why) = res {
+        eprintln!("failed to set initial profile: {}", why);
+    }
 
     info!("Connecting to dbus system bus");
     let c = Connection::get_private(BusType::System).map_err(err_str)?;

@@ -122,6 +122,7 @@ dynamic_parameters! {
 }
 
 /// Control whether a device uses, or does not use, runtime power management.
+#[derive(Copy, Clone, Debug)]
 pub enum RuntimePowerManagement {
     On,
     Off,
