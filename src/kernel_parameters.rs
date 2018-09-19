@@ -31,7 +31,7 @@ pub trait KernelParameter {
     fn set(&self, value: &[u8]) {
         let path = self.get_path();
         if path.exists() {
-            debug!("Modifying kernel parameter at {:?} to {}", path, match str::from_utf8(value) {
+            debug!("modifying kernel parameter at {:?} to {}", path, match str::from_utf8(value) {
                 Ok(string) => string,
                 Err(_) => "[INVALID UTF8]",
             });

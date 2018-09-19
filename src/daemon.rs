@@ -83,7 +83,6 @@ fn apply_profile(
 
             Ok(())
         });
-        
 
         Dirty::new().set_max_lost_work(params.max_lost_work);
         LaptopMode::new().set(params.laptop_mode);
@@ -198,7 +197,7 @@ impl Power for PowerDaemon {
             radeon_profile: "auto",
             radeon_dpm_state: "performance",
             radeon_dpm_perf: "auto",
-            pci_runtime_pm: RuntimePowerManagement::Off,
+            pci_runtime_pm: RuntimePowerManagement::On,
             max_lost_work: 15,
             laptop_mode: b"0",
             pstate_defaults: (0, 100, true),

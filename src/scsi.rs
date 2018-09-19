@@ -67,7 +67,7 @@ impl ScsiPower for ScsiHost {
         let mut last_result = None;
 
         for prof in profiles {
-            debug!("Setting scsi_host {} to {}", self.host, prof);
+            debug!("setting scsi_host {} to {}", self.host, prof);
             last_result = Some(write_file(&self.link_power_management_policy, prof));
             match *last_result.as_ref().unwrap() {
                 Ok(_) => break,

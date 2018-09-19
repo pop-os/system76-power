@@ -85,6 +85,7 @@ impl PciDevice {
     }
 
     pub fn set_runtime_pm(&self, state: RuntimePowerManagement) -> io::Result<()> {
+        debug!("setting runtime PM for {:?} to {:?}", self.path, state);
         write_file(&self.path.join("power/control"), <&'static str>::from(state))
     }
 

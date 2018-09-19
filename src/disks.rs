@@ -68,7 +68,7 @@ pub struct Disk {
 
 impl DiskPower for Disk {
     fn set_apm_level(&self, level: u8) -> io::Result<()> {
-        debug!("Setting APM level on {:?} to {}", &self.path, level);
+        debug!("setting APM level on {:?} to {}", &self.path, level);
         Command::new("hdparm")
             .arg("-B")
             .arg(level.to_string())
@@ -80,7 +80,7 @@ impl DiskPower for Disk {
     }
 
     fn set_autosuspend_delay(&self, ms: i32) -> io::Result<()> {
-        debug!("Setting autosuspend delay on {:?} to {}", &self.block, ms);
+        debug!("setting autosuspend delay on {:?} to {}", &self.block, ms);
         write_file(&self.block.join(AUTOSUSPEND), ms.to_string().as_bytes())
     }
 }

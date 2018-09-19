@@ -29,6 +29,7 @@ impl PState {
     }
 
     pub fn set_min_perf_pct(&mut self, value: u64) -> io::Result<()> {
+        debug!("setting intel pstate min perf to {}%", value);
         write_file(self.path.join("min_perf_pct"), format!("{}", value))
     }
 
@@ -37,6 +38,7 @@ impl PState {
     }
 
     pub fn set_max_perf_pct(&mut self, value: u64) -> io::Result<()> {
+        debug!("setting intel pstate max perf to {}%0", value);
         write_file(self.path.join("max_perf_pct"), format!("{}", value))
     }
 
@@ -46,6 +48,7 @@ impl PState {
     }
 
     pub fn set_no_turbo(&mut self, value: bool) -> io::Result<()> {
+        eprintln!("setting intel no_turbo to {}", value);
         write_file(self.path.join("no_turbo"), if value { "1" } else { "0" })
     }
 }
