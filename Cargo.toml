@@ -4,7 +4,7 @@ version = "1.0.0"
 authors = ["Jeremy Soller <jackpot51@gmail.com>"]
 
 [dependencies]
-dbus = "0.6"
+dbus = "0.6.2"
 libc = "0.2"
 clap = "2.32.0"
 log = "0.4.5"

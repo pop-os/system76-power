@@ -1,5 +1,6 @@
 use dbus::{BusType, Connection, Message};
 use dbus::arg::Append;
+use std::cmp::Ordering;
 use std::io;
 
 use {DBUS_NAME, DBUS_PATH, DBUS_IFACE, Power, err_str};
@@ -7,17 +8,20 @@ use backlight::{Backlight, BacklightExt};
 use clap::ArgMatches;
 use kbd_backlight::KeyboardBacklight;
 use pstate::PState;
+use sdp::SettingsDaemonPower;
 
 static TIMEOUT: i32 = 60 * 1000;
 
 struct PowerClient {
     bus: Connection,
+    sdp: Option<SettingsDaemonPower>,
 }
 
 impl PowerClient {
     fn new() -> Result<PowerClient, String> {
         let bus = Connection::get_private(BusType::System).map_err(err_str)?;
-        Ok(PowerClient { bus })
+        let sdp = SettingsDaemonPower::new().ok();
+        Ok(PowerClient { bus, sdp })
     }
 
     fn call_method<A: Append>(&mut self, method: &str, append: Option<A>) -> Result<Message, String> {
@@ -27,6 +31,58 @@ impl PowerClient {
         }
         let r = self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
         Ok(r)
+    }
+
+    fn get_brightness_keyboard(&mut self) -> Result<i32, String> {
+        if let Some(ref mut sdp) = self.sdp {
+            return sdp.get_brightness_keyboard().map_err(err_str);
+        }
+
+        Ok(0)
+    }
+
+    fn get_brightness_screen(&mut self) -> Result<i32, String> {
+        if let Some(ref mut sdp) = self.sdp {
+            return sdp.get_brightness_screen().map_err(err_str);
+        }
+
+        Ok(0)
+    }
+
+    fn set_brightness_keyboard(&mut self, new: i32) -> Result<(), String> {
+        if let Some(ref mut sdp) = self.sdp {
+            sdp.set_brightness_keyboard(new).map_err(err_str)?;
+        }
+
+        Ok(())
+    }
+
+    fn set_brightness_keyboard_cmp(&mut self, new: i32, ordering: Ordering) -> Result<i32, String> {
+        let brightness = self.get_brightness_keyboard()?;
+        if new.cmp(&brightness) == ordering {
+            self.set_brightness_keyboard(new)?;
+            Ok(new)
+        } else {
+            Ok(brightness)
+        }
+    }
+
+    fn set_brightness_screen(&mut self, new: i32) -> Result<(), String> {
+        if let Some(ref mut sdp) = self.sdp {
+            sdp.set_brightness_screen(new).map_err(err_str)?;
+        }
+
+        Ok(())
+    }
+
+    fn set_brightness_screen_cmp(&mut self, new: i32, ordering: Ordering) -> Result<i32, String> {
+        let brightness = self.get_brightness_screen()?;
+        if new.cmp(&brightness) == ordering {
+            self.set_brightness_screen(new)?;
+            Ok(new)
+        } else {
+            Ok(brightness)
+        }
     }
 }
 
@@ -122,6 +178,45 @@ pub fn client(subcommand: &str, matches: &ArgMatches) -> Result<(), String> {
             Some("performance") => client.performance(),
             _ => profile().map_err(err_str)
         },
+        "brightness" => match (matches.value_of("brightness"), matches.value_of("value")) {
+            (Some("keyboard"), Some(value)) => {
+                let new = value.parse::<i32>().unwrap();
+                let new = if matches.is_present("min") {
+                    client.set_brightness_keyboard_cmp(new, Ordering::Less)?
+                } else if matches.is_present("max") {
+                    client.set_brightness_keyboard_cmp(new, Ordering::Greater)?
+                } else {
+                    client.set_brightness_keyboard(new)?;
+                    new
+                };
+
+                println!("keyboard brightness: {}", new);
+                Ok(())
+            },
+            (Some("keyboard"), None) => {
+                println!("keyboard brightness: {}", client.get_brightness_keyboard()?);
+                Ok(())
+            },
+            (Some("screen"), Some(value)) => {
+                let new = value.parse::<i32>().unwrap();
+                let new = if matches.is_present("min") {
+                    client.set_brightness_screen_cmp(new, Ordering::Less)?
+                } else if matches.is_present("max") {
+                    client.set_brightness_screen_cmp(new, Ordering::Greater)?
+                } else {
+                    client.set_brightness_screen(new)?;
+                    new
+                };
+
+                println!("screen brightness: {}", new);
+                Ok(())
+            },
+            (Some("screen"), None) => {
+                println!("screen brightness: {}", client.get_brightness_screen()?);
+                Ok(())
+            },
+            _ => unimplemented!()
+        }
         "graphics" => match matches.subcommand() {
             ("intel", _) => client.set_graphics("intel"),
             ("nvidia", _) => client.set_graphics("nvidia"),

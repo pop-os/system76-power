@@ -31,6 +31,7 @@ mod pci;
 mod pstate;
 mod radeon;
 mod scsi;
+mod sdp;
 mod snd;
 mod util;
 mod wifi;
@@ -58,6 +59,14 @@ pub (crate) fn err_str<E: ::std::fmt::Display>(err: E) -> String {
     format!("{}", err)
 }
 
+fn valid_percent(v: String) -> Result<(), String> {
+    let v = v.parse::<usize>().map_err(|why| format!("{}", why))?;
+    if v > 100 {
+        return Err(format!("{} is not within range (0-100)", v));
+    }
+    Ok(())
+}
+
 fn main() {
     let version = format!("{}", crate_version!());
     let matches = App::new("system76-power")
@@ -79,6 +88,19 @@ fn main() {
             .help("Set the verbosity of daemon logs to 'debug' [default is 'info']")
             .global(true)
             .group("verbosity"))
+        .subcommand(SubCommand::with_name("brightness")
+            .about("change brightness of the screen or keyboard")
+            .arg(Arg::with_name("brightness").possible_values(&["keyboard", "screen"]))
+            .arg(Arg::with_name("value").validator(valid_percent))
+            .arg(Arg::with_name("min")
+                .long("min")
+                .help("sets the minimum brightness between the current and new value")
+                .requires("value"))
+            .arg(Arg::with_name("max")
+                .long("max")
+                .help("sets the maximum brightness between the current and new value")
+                .requires("value"))
+        )
         .subcommand(SubCommand::with_name("daemon")
             .about("Runs the program in daemon mode")
             .long_about("Registers a new DBUS service and starts an event loop\

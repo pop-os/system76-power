@@ -1,6 +1,5 @@
 use std::{fs, io};
 use std::path::{Path, PathBuf};
-
 use util::{parse_file, write_file};
 
 pub trait BacklightExt {
