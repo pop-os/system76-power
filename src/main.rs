@@ -110,22 +110,22 @@ fn main() {
             )
         )
         .get_matches();
-    
-    if let Err(why) = logging::setup_logging(
-        if matches.is_present("verbose") {
-            LevelFilter::Debug
-        } else if matches.is_present("quiet") {
-            LevelFilter::Off
-        } else {
-            LevelFilter::Info
-        }
-    ) {
-        eprintln!("failed to set up logging: {}", why);
-        process::exit(1);
-    }
 
     let res = match matches.subcommand() {
-        ("daemon", Some(_matches)) => {
+        ("daemon", Some(matches)) => {
+            if let Err(why) = logging::setup_logging(
+                if matches.is_present("verbose") {
+                    LevelFilter::Debug
+                } else if matches.is_present("quiet") {
+                    LevelFilter::Off
+                } else {
+                    LevelFilter::Info
+                }
+            ) {
+                eprintln!("failed to set up logging: {}", why);
+                process::exit(1);
+            }
+
             if unsafe { libc::geteuid() } == 0 {
                 daemon::daemon(matches.is_present("experimental"))
             } else {
