@@ -18,7 +18,8 @@ impl FanDaemon {
                 info!("hwmon: {}", name);
 
                 match name.as_str() {
-                    "system76" => platform_opt = Some(hwmon),
+                    "system76" => (), //TODO: Support laptops
+                    "system76_io" => platform_opt = Some(hwmon),
                     "coretemp" => coretemp_opt = Some(hwmon),
                     _ => ()
                 }
@@ -50,12 +51,15 @@ impl FanDaemon {
         if let Some(duty) = duty_opt {
             info!("fan duty: {}", duty);
 
-            let _ = self.platform.write_file("pwm1_enable", "1");
+            //TODO: Implement in system76-io-dkms
+            //let _ = self.platform.write_file("pwm1_enable", "1");
 
             let duty_str = format!("{}", ((duty as u32) * 255)/10000);
-            let _ = self.platform.write_file("pwm1", duty_str);
+            let _ = self.platform.write_file("pwm1", &duty_str);
+            let _ = self.platform.write_file("pwm2", &duty_str);
         } else {
-            let _ = self.platform.write_file("pwm1_enable", "2");
+            //TODO: Implement in system76-io-dkms
+            //let _ = self.platform.write_file("pwm1_enable", "2");
         }
     }
 }
@@ -96,10 +100,10 @@ impl FanCurve {
     pub fn standard() -> Self {
         Self {
             points: vec![
-                FanPoint::new(20_00, 37_50),
-                FanPoint::new(30_00, 42_50),
-                FanPoint::new(40_00, 55_50),
-                FanPoint::new(50_00, 67_50),
+                FanPoint::new(20_00, 30_00),
+                FanPoint::new(30_00, 35_00),
+                FanPoint::new(40_00, 42_50),
+                FanPoint::new(50_00, 52_50),
                 FanPoint::new(65_00, 100_00)
             ]
         }
