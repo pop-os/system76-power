@@ -49,8 +49,6 @@ impl FanDaemon {
         }
 
         if let Some(duty) = duty_opt {
-            info!("fan duty: {}", duty);
-
             //TODO: Implement in system76-io-dkms
             //let _ = self.platform.write_file("pwm1_enable", "1");
 
