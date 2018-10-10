@@ -5,6 +5,7 @@ extern crate fern;
 extern crate libc;
 #[macro_use]
 extern crate log;
+extern crate sys_class;
 
 use log::LevelFilter;
 use std::{env, process};
@@ -14,6 +15,7 @@ use clap::{Arg, App, AppSettings, SubCommand};
 mod client;
 mod daemon;
 mod disks;
+mod fan;
 mod graphics;
 mod hotplug;
 mod kbd_backlight;
