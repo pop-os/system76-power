@@ -1,0 +1,158 @@
+use std::io;
+use sys_class::{SysClass, HwMon};
+
+pub struct FanDaemon {
+    curve: FanCurve,
+    platform: HwMon,
+    coretemp: HwMon,
+}
+
+impl FanDaemon {
+    pub fn new() -> io::Result<FanDaemon> {
+        //TODO: Support multiple hwmons
+        let mut platform_opt = None;
+        let mut coretemp_opt = None;
+
+        for hwmon in HwMon::all()? {
+            if let Ok(name) = hwmon.name() {
+                info!("hwmon: {}", name);
+
+                match name.as_str() {
+                    "system76" => platform_opt = Some(hwmon),
+                    "coretemp" => coretemp_opt = Some(hwmon),
+                    _ => ()
+                }
+            }
+        }
+
+        Ok(FanDaemon {
+            curve: FanCurve::standard(),
+            platform: platform_opt.ok_or(io::Error::new(
+                io::ErrorKind::NotFound,
+                "platform hwmon not found"
+            ))?,
+            coretemp: coretemp_opt.ok_or(io::Error::new(
+                io::ErrorKind::NotFound,
+                "coretemp hwmon not found"
+            ))?,
+        })
+    }
+
+    pub fn step(&self) {
+        let mut duty_opt = None;
+        if let Ok(temp) = self.coretemp.temp(1) {
+            if let Ok(input) = temp.input() {
+                let c = (input as f64) / 1000.0;
+                duty_opt = self.curve.get_duty((c * 100.0) as i16);
+            }
+        }
+
+        if let Some(duty) = duty_opt {
+            info!("fan duty: {}", duty);
+
+            let _ = self.platform.write_file("pwm1_enable", "1");
+
+            let duty_str = format!("{}", ((duty as u32) * 255)/10000);
+            let _ = self.platform.write_file("pwm1", duty_str);
+        } else {
+            let _ = self.platform.write_file("pwm1_enable", "2");
+        }
+    }
+}
+
+impl Drop for FanDaemon {
+    fn drop(&mut self) {
+        let _ = self.platform.write_file("pwm1_enable", "2");
+    }
+}
+
+pub struct FanPoint {
+    // Temperature in hundreths of a degree, 10000 = 100C
+    temp: i16,
+    // duty in hundredths of a percent, 10000 = 100%
+    duty: u16,
+}
+
+impl FanPoint {
+    pub fn new(temp: i16, duty: u16) -> Self {
+        Self {
+            temp,
+            duty
+        }
+    }
+}
+
+pub struct FanCurve {
+    points: Vec<FanPoint>
+}
+
+impl FanCurve {
+    pub fn new(points: Vec<FanPoint>) -> Self {
+        Self {
+            points
+        }
+    }
+
+    pub fn standard() -> Self {
+        Self {
+            points: vec![
+                FanPoint::new(20_00, 37_50),
+                FanPoint::new(30_00, 42_50),
+                FanPoint::new(40_00, 55_50),
+                FanPoint::new(50_00, 67_50),
+                FanPoint::new(65_00, 100_00)
+            ]
+        }
+    }
+
+    pub fn get_duty(&self, temp: i16) -> Option<u16> {
+        let mut i = 0;
+
+        // If the temp is less than the first point, return the first point duty
+        if let Some(first) = self.points.get(i) {
+            if temp < first.temp {
+                return Some(first.duty);
+            }
+        }
+
+        while i + 1 < self.points.len() {
+            let prev = &self.points[i];
+            let next = &self.points[i +  1];
+
+            // If the temp matches the next point, return the next point duty
+            if temp == next.temp {
+                return Some(next.duty);
+            }
+
+            // If the temp matches the previous point, return the previous point duty
+            if temp == prev.temp {
+                return Some(prev.duty);
+            }
+
+            // If the temp is in between the previous and next points, interpolate the duty
+            if prev.temp < temp && next.temp > temp {
+                let dtemp = next.temp - prev.temp;
+                let dduty = next.duty - prev.duty;
+
+                let slope = (dduty as f32) / (dtemp as f32);
+
+                let temp_offset = temp - prev.temp;
+                let duty_offset = (slope * (temp_offset as f32)).round();
+
+                return Some(prev.duty + (duty_offset as u16));
+            }
+
+            i += 1;
+        }
+
+        // If the temp is greater than the last point, return the last point duty
+        if let Some(last) = self.points.get(i) {
+            if temp > last.temp {
+                return Some(last.duty);
+            }
+        }
+
+        // If there are no points, return None
+        None
+    }
+}
