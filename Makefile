@@ -17,7 +17,7 @@ clean:
 	cargo clean
 
 distclean: clean
-	rm -rf .cargo vendor
+	rm -rf .cargo vendor vendor.tar.xz
 
 install: all
 	install -D -m 04755 "target/release/$(BIN)" "$(DESTDIR)$(bindir)/$(BIN)"
@@ -35,12 +35,17 @@ update:
 	cp $< $@
 
 vendor: .cargo/config
-	cargo vendor
-	touch vendor
+	if [ ! -f vendor.tar.xz ]; then \
+		cargo vendor; \
+		touch vendor; \
+		tar pcfJ vendor.tar.xz vendor; \
+		rm vendor -r; \
+	fi
 
 target/release/$(BIN): Cargo.lock Cargo.toml **/*.rs
-	if [ -d vendor ]; \
+	if [ -f vendor.tar.xz ]; \
 	then \
+		tar pxf vendor.tar.xz; \
 		cargo build --release --frozen; \
 	else \
 		cargo build --release; \
