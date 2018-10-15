@@ -34,18 +34,18 @@ update:
 	mkdir -p .cargo
 	cp $< $@
 
-vendor: .cargo/config
-	if [ ! -f vendor.tar.xz ]; then \
-		cargo vendor; \
-		touch vendor; \
-		tar pcfJ vendor.tar.xz vendor; \
-		rm vendor -r; \
-	fi
+vendor.tar.xz:
+	cargo vendor
+	tar pcfJ vendor.tar.xz vendor
+	rm -rf vendor
+
+vendor: .cargo/config vendor.tar.xz
 
 target/release/$(BIN): Cargo.lock Cargo.toml **/*.rs
 	if [ -f vendor.tar.xz ]; \
 	then \
 		tar pxf vendor.tar.xz; \
+		rm vendor.tar.xz; \
 		cargo build --release --frozen; \
 	else \
 		cargo build --release; \
