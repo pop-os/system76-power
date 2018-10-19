@@ -5,7 +5,7 @@ extern crate fern;
 extern crate libc;
 #[macro_use]
 extern crate log;
-extern crate sys_class;
+extern crate sysfs_class;
 
 use log::LevelFilter;
 use std::{env, process};
