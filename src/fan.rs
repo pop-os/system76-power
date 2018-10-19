@@ -1,5 +1,5 @@
 use std::io;
-use sys_class::{SysClass, HwMon};
+use sysfs_class::{SysClass, HwMon};
 
 pub struct FanDaemon {
     curve: FanCurve,
