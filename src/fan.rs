@@ -4,14 +4,14 @@ use sysfs_class::{SysClass, HwMon};
 pub struct FanDaemon {
     curve: FanCurve,
     platform: HwMon,
-    coretemp: HwMon,
+    cpu: HwMon,
 }
 
 impl FanDaemon {
     pub fn new() -> io::Result<FanDaemon> {
-        //TODO: Support multiple hwmons
+        //TODO: Support multiple hwmons for platform and cpu
         let mut platform_opt = None;
-        let mut coretemp_opt = None;
+        let mut cpu_opt = None;
 
         for hwmon in HwMon::all()? {
             if let Ok(name) = hwmon.name() {
@@ -20,7 +20,7 @@ impl FanDaemon {
                 match name.as_str() {
                     "system76" => (), //TODO: Support laptops
                     "system76_io" => platform_opt = Some(hwmon),
-                    "coretemp" => coretemp_opt = Some(hwmon),
+                    "coretemp" | "k10temp" => cpu_opt = Some(hwmon),
                     _ => ()
                 }
             }
@@ -32,16 +32,16 @@ impl FanDaemon {
                 io::ErrorKind::NotFound,
                 "platform hwmon not found"
             ))?,
-            coretemp: coretemp_opt.ok_or_else(|| io::Error::new(
+            cpu: cpu_opt.ok_or_else(|| io::Error::new(
                 io::ErrorKind::NotFound,
-                "coretemp hwmon not found"
+                "cpu hwmon not found"
             ))?,
         })
     }
 
     pub fn step(&self) {
         let mut duty_opt = None;
-        if let Ok(temp) = self.coretemp.temp(1) {
+        if let Ok(temp) = self.cpu.temp(1) {
             if let Ok(input) = temp.input() {
                 let c = f64::from(input) / 1000.0;
                 duty_opt = self.curve.get_duty((c * 100.0) as i16);
