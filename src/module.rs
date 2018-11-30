@@ -8,9 +8,9 @@ pub struct Module {
 
 impl Module {
     fn parse(line: &str) -> io::Result<Module> {
-        let mut parts = line.split(" ");
+        let mut parts = line.split(' ');
 
-        let name = parts.next().ok_or(io::Error::new(
+        let name = parts.next().ok_or_else(|| io::Error::new(
             io::ErrorKind::InvalidData,
             "module name not found"
         ))?;

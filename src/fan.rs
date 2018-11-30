@@ -28,11 +28,11 @@ impl FanDaemon {
 
         Ok(FanDaemon {
             curve: FanCurve::standard(),
-            platform: platform_opt.ok_or(io::Error::new(
+            platform: platform_opt.ok_or_else(|| io::Error::new(
                 io::ErrorKind::NotFound,
                 "platform hwmon not found"
             ))?,
-            coretemp: coretemp_opt.ok_or(io::Error::new(
+            coretemp: coretemp_opt.ok_or_else(|| io::Error::new(
                 io::ErrorKind::NotFound,
                 "coretemp hwmon not found"
             ))?,
@@ -43,7 +43,7 @@ impl FanDaemon {
         let mut duty_opt = None;
         if let Ok(temp) = self.coretemp.temp(1) {
             if let Ok(input) = temp.input() {
-                let c = (input as f64) / 1000.0;
+                let c = f64::from(input) / 1000.0;
                 duty_opt = self.curve.get_duty((c * 100.0) as i16);
             }
         }
@@ -52,7 +52,7 @@ impl FanDaemon {
             //TODO: Implement in system76-io-dkms
             //let _ = self.platform.write_file("pwm1_enable", "1");
 
-            let duty_str = format!("{}", ((duty as u32) * 255)/10000);
+            let duty_str = format!("{}", (u32::from(duty) * 255)/10000);
             let _ = self.platform.write_file("pwm1", &duty_str);
             let _ = self.platform.write_file("pwm2", &duty_str);
         } else {
@@ -102,7 +102,7 @@ impl FanCurve {
                 FanPoint::new(30_00, 35_00),
                 FanPoint::new(40_00, 42_50),
                 FanPoint::new(50_00, 52_50),
-                FanPoint::new(65_00, 100_00)
+                FanPoint::new(65_00, 10_000)
             ]
         }
     }
@@ -136,10 +136,10 @@ impl FanCurve {
                 let dtemp = next.temp - prev.temp;
                 let dduty = next.duty - prev.duty;
 
-                let slope = (dduty as f32) / (dtemp as f32);
+                let slope = f32::from(dduty) / f32::from(dtemp);
 
                 let temp_offset = temp - prev.temp;
-                let duty_offset = (slope * (temp_offset as f32)).round();
+                let duty_offset = (slope * f32::from(temp_offset)).round();
 
                 return Some(prev.duty + (duty_offset as u16));
             }
