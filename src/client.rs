@@ -87,8 +87,7 @@ impl Power for PowerClient {
 }
 
 fn profile() -> io::Result<()> {
-    {
-        let pstate = PState::new()?;
+    if let Ok(pstate) = PState::new() {
         let min = pstate.min_perf_pct()?;
         let max = pstate.max_perf_pct()?;
         let no_turbo = pstate.no_turbo()?;
