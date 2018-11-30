@@ -144,28 +144,26 @@ impl FanCurve {
     }
 
     pub fn get_duty(&self, temp: i16) -> Option<u16> {
-        let mut i = 0;
-
         // If the temp is less than the first point, return the first point duty
-        if let Some(first) = self.points.get(i) {
+        if let Some(first) = self.points.first() {
             if temp < first.temp {
                 return Some(first.duty);
             }
         }
 
-        while i + 1 < self.points.len() {
-            let prev = self.points[i];
-            let next = self.points[i +  1];
+        // Use when we upgrade to 1.28.0
+        // for &[prev, next] in self.points.windows(2) {
 
+        for window in self.points.windows(2) {
+            let prev = window[0];
+            let next = window[1];
             if let Some(duty) = prev.get_duty_between_points(next, temp) {
                 return Some(duty);
             }
-
-            i += 1;
         }
 
         // If the temp is greater than the last point, return the last point duty
-        if let Some(last) = self.points.get(i) {
+        if let Some(last) = self.points.last() {
             if temp > last.temp {
                 return Some(last.duty);
             }
