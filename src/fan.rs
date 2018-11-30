@@ -191,15 +191,15 @@ mod tests {
         let standard = FanCurve::standard();
 
         assert_eq!(standard.get_duty(0), Some(3000));
-        assert_eq!(standard.get_duty(100), Some(3000));
-        assert_eq!(standard.get_duty(200), Some(3000));
-        assert_eq!(standard.get_duty(300), Some(3000));
-        assert_eq!(standard.get_duty(400), Some(3000));
-        assert_eq!(standard.get_duty(500), Some(3000));
-        assert_eq!(standard.get_duty(600), Some(3000));
-        assert_eq!(standard.get_duty(700), Some(3000));
-        assert_eq!(standard.get_duty(800), Some(3000));
-        assert_eq!(standard.get_duty(900), Some(3000));
         assert_eq!(standard.get_duty(1000), Some(3000));
+        assert_eq!(standard.get_duty(2000), Some(3000));
+        assert_eq!(standard.get_duty(3000), Some(3500));
+        assert_eq!(standard.get_duty(4000), Some(4250));
+        assert_eq!(standard.get_duty(5000), Some(5250));
+        assert_eq!(standard.get_duty(6000), Some(8417));
+        assert_eq!(standard.get_duty(7000), Some(10000));
+        assert_eq!(standard.get_duty(8000), Some(10000));
+        assert_eq!(standard.get_duty(9000), Some(10000));
+        assert_eq!(standard.get_duty(10000), Some(10000));
     }
 }
