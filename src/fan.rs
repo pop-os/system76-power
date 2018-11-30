@@ -119,28 +119,26 @@ impl FanPoint {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct FanCurve {
     points: Vec<FanPoint>
 }
 
 impl FanCurve {
-    pub fn new(points: Vec<FanPoint>) -> Self {
-        Self {
-            points
-        }
+    /// Adds a point to the fan curve
+    pub fn append(mut self, temp: i16, duty: u16) -> Self {
+        self.points.push(FanPoint::new(temp, duty));
+        self
     }
 
+    /// The standard fan curve
     pub fn standard() -> Self {
-        Self {
-            points: vec![
-                FanPoint::new(20_00, 30_00),
-                FanPoint::new(30_00, 35_00),
-                FanPoint::new(40_00, 42_50),
-                FanPoint::new(50_00, 52_50),
-                FanPoint::new(65_00, 10_000)
-            ]
-        }
+        Self::default()
+            .append(20_00, 30_00)
+            .append(30_00, 35_00)
+            .append(40_00, 42_50)
+            .append(50_00, 52_50)
+            .append(65_00, 10_000)
     }
 
     pub fn get_duty(&self, temp: i16) -> Option<u16> {
@@ -183,7 +181,11 @@ mod tests {
         let fan_point = FanPoint::new(20_00, 30_00);
         let next_point = FanPoint::new(30_00, 35_00);
 
-        assert_eq!(fan_point.get_duty_between_points(next_point, 500), None);
+        assert_eq!(fan_point.get_duty_between_points(next_point, 1500), None);
+        assert_eq!(fan_point.get_duty_between_points(next_point, 2000), Some(3000));
+        assert_eq!(fan_point.get_duty_between_points(next_point, 3000), Some(3500));
+        assert_eq!(fan_point.get_duty_between_points(next_point, 3250), None);
+        assert_eq!(fan_point.get_duty_between_points(next_point, 3500), None);
     }
 
     #[test]
