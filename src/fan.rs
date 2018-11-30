@@ -68,8 +68,9 @@ impl Drop for FanDaemon {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FanPoint {
-    // Temperature in hundreths of a degree, 10000 = 100C
+    // Temperature in hundredths of a degree, 10000 = 100C
     temp: i16,
     // duty in hundredths of a percent, 10000 = 100%
     duty: u16,
@@ -82,8 +83,43 @@ impl FanPoint {
             duty
         }
     }
+
+    /// Find the duty between two points and a given temperature, if the temperature
+    /// lies within this range.
+    fn get_duty_between_points(self, next: FanPoint, temp: i16) -> Option<u16> {
+        // If the temp matches the next point, return the next point duty
+        if temp == next.temp {
+            return Some(next.duty);
+        }
+
+        // If the temp matches the previous point, return the previous point duty
+        if temp == self.temp {
+            return Some(self.duty);
+        }
+
+        // If the temp is in between the previous and next points, interpolate the duty
+        if self.temp < temp && next.temp > temp {
+            return Some(self.interpolate_duties(next, temp));
+        }
+
+        None
+    }
+
+    /// Interpolates the current duty with that of the given next point and temperature.
+    fn interpolate_duties(self, next: FanPoint, temp: i16) -> u16 {
+        let dtemp = next.temp - self.temp;
+        let dduty = next.duty - self.duty;
+
+        let slope = f32::from(dduty) / f32::from(dtemp);
+
+        let temp_offset = temp - self.temp;
+        let duty_offset = (slope * f32::from(temp_offset)).round();
+
+        self.duty + (duty_offset as u16)
+    }
 }
 
+#[derive(Clone, Debug, PartialEq)]
 pub struct FanCurve {
     points: Vec<FanPoint>
 }
@@ -118,30 +154,11 @@ impl FanCurve {
         }
 
         while i + 1 < self.points.len() {
-            let prev = &self.points[i];
-            let next = &self.points[i +  1];
+            let prev = self.points[i];
+            let next = self.points[i +  1];
 
-            // If the temp matches the next point, return the next point duty
-            if temp == next.temp {
-                return Some(next.duty);
-            }
-
-            // If the temp matches the previous point, return the previous point duty
-            if temp == prev.temp {
-                return Some(prev.duty);
-            }
-
-            // If the temp is in between the previous and next points, interpolate the duty
-            if prev.temp < temp && next.temp > temp {
-                let dtemp = next.temp - prev.temp;
-                let dduty = next.duty - prev.duty;
-
-                let slope = f32::from(dduty) / f32::from(dtemp);
-
-                let temp_offset = temp - prev.temp;
-                let duty_offset = (slope * f32::from(temp_offset)).round();
-
-                return Some(prev.duty + (duty_offset as u16));
+            if let Some(duty) = prev.get_duty_between_points(next, temp) {
+                return Some(duty);
             }
 
             i += 1;
@@ -156,5 +173,35 @@ impl FanCurve {
 
         // If there are no points, return None
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn duty_interpolation() {
+        let fan_point = FanPoint::new(20_00, 30_00);
+        let next_point = FanPoint::new(30_00, 35_00);
+
+        assert_eq!(fan_point.get_duty_between_points(next_point, 500), None);
+    }
+
+    #[test]
+    fn standard_points() {
+        let standard = FanCurve::standard();
+
+        assert_eq!(standard.get_duty(0), Some(3000));
+        assert_eq!(standard.get_duty(100), Some(3000));
+        assert_eq!(standard.get_duty(200), Some(3000));
+        assert_eq!(standard.get_duty(300), Some(3000));
+        assert_eq!(standard.get_duty(400), Some(3000));
+        assert_eq!(standard.get_duty(500), Some(3000));
+        assert_eq!(standard.get_duty(600), Some(3000));
+        assert_eq!(standard.get_duty(700), Some(3000));
+        assert_eq!(standard.get_duty(800), Some(3000));
+        assert_eq!(standard.get_duty(900), Some(3000));
+        assert_eq!(standard.get_duty(1000), Some(3000));
     }
 }
