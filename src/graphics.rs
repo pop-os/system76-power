@@ -147,6 +147,54 @@ impl Graphics {
         }
     }
 
+    pub fn load_nvidia(&self,) -> io::Result<()> {
+        if self.can_switch() {
+        let path = "/etc/modprobe.d/system76-power.conf";
+
+            {
+                info!("Creating {}", path);
+                let mut file = fs::OpenOptions::new()
+                    .create(true)
+                    .truncate(true)
+                    .write(true)
+                    .open(path)?;
+
+                file.write_all(MODPROBE_NVIDIA)?;
+                file.sync_all()?;
+            }
+
+            self.set_power(true);
+
+            info!("Enabling nvidia module");
+            let status = process::Command::new("modprobe").arg("nvidia").status()?;
+            if ! status.success() {
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    format!("modprobe: failed with {}", status)
+                ));
+            }
+
+            {
+                info!("Creating {}", path);
+                let mut file = fs::OpenOptions::new()
+                    .create(true)
+                    .truncate(true)
+                    .write(true)
+                    .open(path)?;
+
+                file.write_all(MODPROBE_INTEL)?; // Unblock nvidia
+                file.sync_all()?;
+            }
+
+        Ok(())
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::Other,
+                "does not have switchable graphics"
+            ))
+        }
+    }
+
     pub fn get_power(&self) -> io::Result<bool> {
         if self.can_switch() {
             Ok(self.nvidia.iter().chain(self.nvidia_hda.iter()).any(|dev| dev.path().exists()))

@@ -45,6 +45,7 @@ pub trait Power {
     fn get_graphics_power(&mut self) -> Result<bool, String>;
     fn set_graphics_power(&mut self, power: bool) -> Result<(), String>;
     fn auto_graphics_power(&mut self) -> Result<(), String>;
+    fn load_nvidia(&mut self) -> Result<(), String>;
 }
 
 // Helper function for errors
@@ -100,6 +101,8 @@ fn main() {
                 .about("Set the graphics mode to Intel"))
             .subcommand(SubCommand::with_name("nvidia")
                 .about("Set the graphics mode to NVIDIA"))
+            .subcommand(SubCommand::with_name("driver")
+                .about("Starts discrete graphics and loads driver for this session"))
             .subcommand(SubCommand::with_name("switchable")
                 .about("Determines if the system has switchable graphics"))
             .subcommand(SubCommand::with_name("power")

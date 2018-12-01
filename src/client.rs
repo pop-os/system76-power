@@ -84,6 +84,13 @@ impl Power for PowerClient {
         self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
         Ok(())
     }
+
+    fn load_nvidia(&mut self) -> Result<(), String> {
+        info!("Enable discrete graphics and load nvidia driver");
+        let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "LoadNvidia")?;
+        self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
+        Ok(())
+    }
 }
 
 fn profile() -> io::Result<()> {
@@ -127,6 +134,7 @@ pub fn client(subcommand: &str, matches: &ArgMatches) -> Result<(), String> {
         "graphics" => match matches.subcommand() {
             ("intel", _) => client.set_graphics("intel"),
             ("nvidia", _) => client.set_graphics("nvidia"),
+            ("driver", _) => client.load_nvidia(),
             ("switchable", _) => {
                 if client.get_switchable()? {
                     println!("switchable");
