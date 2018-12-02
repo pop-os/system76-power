@@ -156,19 +156,16 @@ impl Graphics {
                 {
                     info!("Creating {}", path);
                     let mut file = fs::File::create(path)?;
-
                     file.write_all(MODPROBE_NVIDIA)?;
                     file.sync_all()?;
                 }
 
                 self.set_power(true)?;
-
                 modprobe::load("nvidia", &[])?;
 
                 {
                     info!("Creating {}", path);
                     let mut file = fs::File::create(path)?;
-
                     file.write_all(MODPROBE_INTEL)?;
                     file.sync_all()?;
                 }
