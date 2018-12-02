@@ -148,37 +148,37 @@ impl Graphics {
         }
     }
 
-    pub fn load_nvidia(&self,) -> io::Result<()> {
+    pub fn load_nvidia(&self) -> io::Result<()> {
         if (self.can_switch())  {
-            if(self.get_vendor()? == "intel") {
+            if (self.get_vendor()? == "intel") {
                 let path = "/etc/modprobe.d/system76-power.conf";
 
-                    {
-                        info!("Creating {}", path);
-                        let mut file = fs::File::create(path)?;
+                {
+                    info!("Creating {}", path);
+                    let mut file = fs::File::create(path)?;
 
-                        file.write_all(MODPROBE_NVIDIA)?;
-                        file.sync_all()?;
-                    }
+                    file.write_all(MODPROBE_NVIDIA)?;
+                    file.sync_all()?;
+                }
 
-                    self.set_power(true);
+                self.set_power(true)?;
 
-                    modprobe::load("nvidia", &[])?;
+                modprobe::load("nvidia", &[])?;
 
-                    {
-                        info!("Creating {}", path);
-                        let mut file = fs::File::create(path)?;
+                {
+                    info!("Creating {}", path);
+                    let mut file = fs::File::create(path)?;
 
-                        file.write_all(MODPROBE_INTEL)?;
-                        file.sync_all()?;
-                    }
+                    file.write_all(MODPROBE_INTEL)?;
+                    file.sync_all()?;
+                }
 
                 Ok(())
             } else {
-                    Err(io::Error::new(
-                        io::ErrorKind::Other,
-                        "nvidia is already running"
-                    ))
+                Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    "nvidia is already running"
+                ))
             }
         } else {
             Err(io::Error::new(
