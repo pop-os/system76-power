@@ -9,6 +9,7 @@ use std::sync::atomic::{ATOMIC_BOOL_INIT, AtomicBool, Ordering};
 use {DBUS_NAME, DBUS_PATH, DBUS_IFACE, Power, err_str};
 use backlight::Backlight;
 use disks::{Disks, DiskPower};
+use fan::FanDaemon;
 use graphics::Graphics;
 use hotplug::HotPlugDetect;
 use kbd_backlight::KeyboardBacklight;
@@ -43,8 +44,7 @@ fn performance() -> io::Result<()> {
         LaptopMode::new().set(b"0");
     }
 
-    {
-        let mut pstate = PState::new()?;
+    if let Ok(mut pstate) = PState::new() {
         pstate.set_min_perf_pct(50)?;
         pstate.set_max_perf_pct(100)?;
         pstate.set_no_turbo(false)?;
@@ -70,8 +70,7 @@ fn balanced() -> io::Result<()> {
         LaptopMode::new().set(b"0");
     }
 
-    {
-        let mut pstate = PState::new()?;
+    if let Ok(mut pstate) = PState::new() {
         pstate.set_min_perf_pct(0)?;
         pstate.set_max_perf_pct(100)?;
         pstate.set_no_turbo(false)?;
@@ -115,8 +114,7 @@ fn battery() -> io::Result<()> {
         LaptopMode::new().set(b"2");
     }
 
-    {
-        let mut pstate = PState::new()?;
+    if let Ok(mut pstate) = PState::new() {
         pstate.set_min_perf_pct(0)?;
         pstate.set_max_perf_pct(50)?;
         pstate.set_no_turbo(true)?;
@@ -280,6 +278,12 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
 
     c.add_handler(tree);
 
+    let fan_daemon_res = FanDaemon::new();
+
+    if let Err(ref err) = fan_daemon_res {
+        error!("fan daemon: {}", err);
+    }
+
     let hpd_res = unsafe { HotPlugDetect::new() };
 
     let hpd = || -> [bool; 3] {
@@ -295,6 +299,10 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
     info!("Handling dbus requests");
     loop {
         c.incoming(1000).next();
+
+        if let Ok(ref fan_daemon) = fan_daemon_res {
+            fan_daemon.step();
+        }
 
         let hpd = hpd();
         for i in 0..hpd.len() {
