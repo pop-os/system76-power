@@ -183,6 +183,10 @@ impl Power for PowerDaemon {
     fn auto_graphics_power(&mut self) -> Result<(), String> {
         self.graphics.auto_power().map_err(err_str)
     }
+
+     fn load_nvidia(&mut self,) -> Result<(), String> {
+        self.graphics.load_nvidia().map_err(err_str)
+    }
 }
 
 pub fn daemon(experimental: bool) -> Result<(), String> {
@@ -266,6 +270,7 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
             .add_m(method!(get_graphics_power, "GetGraphicsPower", true, false).outarg::<bool,_>("power"))
             .add_m(method!(set_graphics_power, "SetGraphicsPower", false, true).inarg::<bool,_>("power"))
             .add_m(method!(auto_graphics_power, "AutoGraphicsPower", false, false))
+            .add_m(method!(load_nvidia, "LoadNvidia", false, false))
             .add_s(signal.clone())
     ));
 
