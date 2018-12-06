@@ -14,6 +14,7 @@ use clap::{Arg, App, AppSettings, SubCommand};
 mod client;
 mod daemon;
 mod disks;
+mod fan;
 mod graphics;
 mod hotplug;
 mod kernel_parameters;
