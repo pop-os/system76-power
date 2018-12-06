@@ -1,4 +1,6 @@
 #![allow(unused)]
+pub use sysfs_class::RuntimePowerManagement;
+
 use std::path::{Path, PathBuf};
 use std::str;
 use util::{read_file, write_file};
@@ -118,21 +120,6 @@ dynamic_parameters! {
     PowerLevel { power_level: "/sys/module/{}/parameters/power_level" },
     PowerSaveController {
         power_save_controller: "/sys/module/{}/parameters/power_save_controller"
-    }
-}
-
-/// Control whether a device uses, or does not use, runtime power management.
-pub enum RuntimePowerManagement {
-    On,
-    Off,
-}
-
-impl From<RuntimePowerManagement> for &'static str {
-    fn from(pm: RuntimePowerManagement) -> &'static str {
-        match pm {
-            RuntimePowerManagement::On => "auto",
-            RuntimePowerManagement::Off => "on",
-        }
     }
 }
 
