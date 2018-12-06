@@ -107,6 +107,10 @@ version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
+name = "sysfs-class"
+version = "0.1.1"
+
+[[package]]
 name = "system76-power"
 version = "1.0.0"
 dependencies = [
@@ -115,6 +119,7 @@ dependencies = [
  "fern 0.5.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.43 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sysfs-class 0.1.1",
  "vergen 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
