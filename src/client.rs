@@ -1,11 +1,9 @@
 use dbus::{BusType, Connection, Message};
 use std::io;
-
 use {DBUS_NAME, DBUS_PATH, DBUS_IFACE, Power, err_str};
-use backlight::Backlight;
 use clap::ArgMatches;
-use kbd_backlight::KeyboardBacklight;
 use pstate::PState;
+use sysfs_class::{Backlight, Leds, SysClass};
 
 static TIMEOUT: i32 = 60 * 1000;
 
@@ -95,20 +93,22 @@ fn profile() -> io::Result<()> {
         println!("CPU: {}% - {}%, {}", min, max, if no_turbo { "No Turbo" } else { "Turbo" });
     }
 
-    for backlight in Backlight::all()? {
+    for backlight in Backlight::iter() {
+        let backlight = backlight?;
         let brightness = backlight.actual_brightness()?;
         let max_brightness = backlight.max_brightness()?;
         let ratio = (brightness as f64)/(max_brightness as f64);
         let percent = (ratio * 100.0) as u64;
-        println!("Backlight {}: {}/{} = {}%", backlight.name(), brightness, max_brightness, percent);
+        println!("Backlight {}: {}/{} = {}%", backlight.id(), brightness, max_brightness, percent);
     }
 
-    for backlight in KeyboardBacklight::all()? {
+    for backlight in Leds::keyboard_backlights() {
+        let backlight = backlight?;
         let brightness = backlight.brightness()?;
         let max_brightness = backlight.max_brightness()?;
         let ratio = (brightness as f64)/(max_brightness as f64);
         let percent = (ratio * 100.0) as u64;
-        println!("Keyboard Backlight {}: {}/{} = {}%", backlight.name(), brightness, max_brightness, percent);
+        println!("Keyboard Backlight {}: {}/{} = {}%", backlight.id(), brightness, max_brightness, percent);
     }
 
     Ok(())

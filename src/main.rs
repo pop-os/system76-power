@@ -5,18 +5,17 @@ extern crate fern;
 extern crate libc;
 #[macro_use]
 extern crate log;
+extern crate sysfs_class;
 
 use log::LevelFilter;
 use std::{env, process};
 
-mod backlight;
 use clap::{Arg, App, AppSettings, SubCommand};
 mod client;
 mod daemon;
 mod disks;
 mod graphics;
 mod hotplug;
-mod kbd_backlight;
 mod kernel_parameters;
 mod logging;
 mod modprobe;
@@ -24,7 +23,6 @@ mod module;
 mod pci;
 mod pstate;
 mod radeon;
-mod scsi;
 mod snd;
 mod util;
 mod wifi;

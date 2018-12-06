@@ -7,17 +7,15 @@ use std::sync::Arc;
 use std::sync::atomic::{ATOMIC_BOOL_INIT, AtomicBool, Ordering};
 
 use {DBUS_NAME, DBUS_PATH, DBUS_IFACE, Power, err_str};
-use backlight::Backlight;
 use disks::{Disks, DiskPower};
 use graphics::Graphics;
 use hotplug::HotPlugDetect;
-use kbd_backlight::KeyboardBacklight;
 use kernel_parameters::{DeviceList, Dirty, KernelParameter, LaptopMode, NmiWatchdog, RuntimePowerManagement};
 use pci::PciBus;
 use pstate::PState;
 use radeon::RadeonDevice;
-use scsi::{ScsiHosts, ScsiPower};
 use snd::SoundDevice;
+use sysfs_class::{Backlight, Leds, ScsiHost, SysClass};
 // use wifi::WifiDevice;
 
 static EXPERIMENTAL: AtomicBool = ATOMIC_BOOL_INIT;
@@ -32,7 +30,10 @@ fn performance() -> io::Result<()> {
         disks.set_apm_level(254)?;
         disks.set_autosuspend_delay(-1)?;
 
-        ScsiHosts::new().set_power_management_policy(&["med_power_with_dipm", "max_performance"])?;
+        for host in ScsiHost::iter() {
+            host?.set_link_power_management_policy(&["med_power_with_dipm", "max_performance"])?;
+        }
+
         SoundDevice::get_devices().for_each(|dev| dev.set_power_save(0, false));
         RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("high", "performance", "auto"));
         for device in PciBus::new()?.devices()? {
@@ -59,7 +60,10 @@ fn balanced() -> io::Result<()> {
         disks.set_apm_level(254)?;
         disks.set_autosuspend_delay(-1)?;
 
-        ScsiHosts::new().set_power_management_policy(&["med_power_with_dipm", "medium_power"])?;
+        for host in ScsiHost::iter() {
+            host?.set_link_power_management_policy(&["med_power_with_dipm", "medium_power"])?;
+        }
+
         SoundDevice::get_devices().for_each(|dev| dev.set_power_save(0, false));
         RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("auto", "performance", "auto"));
         for device in PciBus::new()?.devices()? {
@@ -77,7 +81,8 @@ fn balanced() -> io::Result<()> {
         pstate.set_no_turbo(false)?;
     }
 
-    for mut backlight in Backlight::all()? {
+    for mut backlight in Backlight::iter() {
+        let backlight = backlight?;
         let max_brightness = backlight.max_brightness()?;
         let current = backlight.brightness()?;
         let new = max_brightness * 40 / 100;
@@ -86,7 +91,8 @@ fn balanced() -> io::Result<()> {
         }
     }
 
-    for mut backlight in KeyboardBacklight::all()? {
+    for mut backlight in Leds::keyboard_backlights() {
+        let backlight = backlight?;
         let max_brightness = backlight.max_brightness()?;
         let current = backlight.brightness()?;
         let new = max_brightness/2;
@@ -104,7 +110,10 @@ fn battery() -> io::Result<()> {
         disks.set_apm_level(128)?;
         disks.set_autosuspend_delay(15000)?;
 
-        ScsiHosts::new().set_power_management_policy(&["min_power", "min_power"])?;
+        for host in ScsiHost::iter() {
+            host?.set_link_power_management_policy(&["min_power", "min_power"])?;
+        }
+
         SoundDevice::get_devices().for_each(|dev| dev.set_power_save(1, true));
         RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("low", "battery", "low"));
         for device in PciBus::new()?.devices()? {
@@ -131,7 +140,8 @@ fn battery() -> io::Result<()> {
         }
     }
 
-    for mut backlight in KeyboardBacklight::all()? {
+    for mut backlight in Leds::keyboard_backlights() {
+        let backlight = backlight?;
         backlight.set_brightness(0)?;
     }
 
