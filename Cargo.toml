@@ -4,7 +4,7 @@ version = "1.0.0"
 authors = ["Jeremy Soller <jackpot51@gmail.com>"]
 
 [dependencies]
-dbus = "0.6.2"
+dbus = "=0.6.2"
 libc = "0.2"
 clap = "2.32.0"
 log = "0.4.5"
@@ -13,6 +13,7 @@ serde = "1.0.78"
 serde_derive = "1.0.78"
 toml = "0.4.6"
 xdg = "2.1.0"
+sysfs-class = "0.1"
 
 [build-dependencies]
 vergen = "0.1.1"

@@ -10,6 +10,7 @@ extern crate serde;
 extern crate serde_derive;
 extern crate toml;
 extern crate xdg;
+extern crate sysfs_class;
 
 use log::LevelFilter;
 use std::process;
@@ -20,6 +21,7 @@ mod client;
 mod config;
 mod daemon;
 mod disks;
+mod fan;
 mod graphics;
 mod hotplug;
 mod kbd_backlight;

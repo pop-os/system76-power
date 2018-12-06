@@ -106,14 +106,15 @@ impl Power for PowerClient {
     }
 
     fn get_graphics(&mut self) -> Result<String, String> {
-        let r = self.call_method::<bool>("GetGraphics", None)?;
-        r.get1().ok_or("return value not found".to_string())
+        let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "GetGraphics")?;
+        let r = self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
+        r.get1().ok_or_else(|| "return value not found".to_string())
     }
 
     fn get_switchable(&mut self) -> Result<bool, String> {
         let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "GetSwitchable")?;
         let r = self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
-        r.get1().ok_or("return value not found".to_string())
+        r.get1().ok_or_else(|| "return value not found".to_string())
     }
 
     fn set_graphics(&mut self, vendor: &str) -> Result<(), String> {
@@ -123,8 +124,9 @@ impl Power for PowerClient {
     }
 
     fn get_graphics_power(&mut self) -> Result<bool, String> {
-        let r = self.call_method::<bool>("GetGraphicsPower", None)?;
-        r.get1().ok_or("return value not found".to_string())
+        let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "GetGraphicsPower")?;
+        let r = self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
+        r.get1().ok_or_else(|| "return value not found".to_string())
     }
 
     fn set_graphics_power(&mut self, power: bool) -> Result<(), String> {
@@ -141,8 +143,7 @@ impl Power for PowerClient {
 }
 
 fn profile() -> io::Result<()> {
-    {
-        let pstate = PState::new()?;
+    if let Ok(pstate) = PState::new() {
         let min = pstate.min_perf_pct()?;
         let max = pstate.max_perf_pct()?;
         let no_turbo = pstate.no_turbo()?;

@@ -12,6 +12,7 @@ use {DBUS_NAME, DBUS_PATH, DBUS_IFACE, Power, err_str};
 use backlight::{Backlight, BacklightExt};
 use config::{Config, ConfigProfile, Profile, ProfileParameters};
 use disks::{Disks, DiskPower};
+use fan::FanDaemon;
 use graphics::Graphics;
 use hotplug::HotPlugDetect;
 use kbd_backlight::KeyboardBacklight;
@@ -369,6 +370,12 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
 
     c.add_handler(tree);
 
+    let fan_daemon_res = FanDaemon::new();
+
+    if let Err(ref err) = fan_daemon_res {
+        error!("fan daemon: {}", err);
+    }
+
     let hpd_res = unsafe { HotPlugDetect::new() };
 
     let hpd = || -> [bool; 3] {
@@ -384,6 +391,10 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
     info!("Handling dbus requests");
     loop {
         c.incoming(1000).next();
+
+        if let Ok(ref fan_daemon) = fan_daemon_res {
+            fan_daemon.step();
+        }
 
         let hpd = hpd();
         for i in 0..hpd.len() {
