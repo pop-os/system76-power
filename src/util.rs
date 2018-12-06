@@ -1,8 +1,6 @@
-use std::fmt::Display;
 use std::fs::{DirEntry, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::Path;
-use std::str::FromStr;
 
 pub fn entries<T, F: FnMut(DirEntry) -> T>(path: &Path, mut func: F) -> io::Result<Vec<T>> {
     let mut ret = Vec::new();
@@ -31,13 +29,4 @@ pub fn write_file<P: AsRef<Path>, S: AsRef<[u8]>>(path: P, data: S) -> io::Resul
     }
 
     Ok(())
-}
-
-pub fn parse_file<F: FromStr, P: AsRef<Path>>(path: P) -> io::Result<F> where F::Err: Display {
-    read_file(path)?.trim().parse().map_err(|err| {
-        io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("{}", err)
-        )
-    })
 }

@@ -79,12 +79,12 @@ impl Graphics {
     }
 
     pub fn can_switch(&self) -> bool {
-        self.intel.len() > 0 && self.nvidia.len() > 0
+        !self.intel.is_empty() && !self.nvidia.is_empty()
     }
 
     pub fn get_vendor(&self) -> io::Result<String> {
         let modules = Module::all()?;
-        let mut vendor = if modules.iter().find(|module| module.name == "nouveau" || module.name == "nvidia").is_some() {
+        let vendor = if modules.iter().any(|module| module.name == "nouveau" || module.name == "nvidia") {
             "nvidia".to_string()
         } else {
             "intel".to_string()

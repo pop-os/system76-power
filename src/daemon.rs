@@ -45,7 +45,7 @@ fn performance() -> io::Result<()> {
         LaptopMode::new().set(b"0");
     }
 
-    if let Ok(mut pstate) = PState::new() {
+    if let Ok(pstate) = PState::new() {
         pstate.set_min_perf_pct(50)?;
         pstate.set_max_perf_pct(100)?;
         pstate.set_no_turbo(false)?;
@@ -74,7 +74,7 @@ fn balanced() -> io::Result<()> {
         LaptopMode::new().set(b"0");
     }
 
-    if let Ok(mut pstate) = PState::new() {
+    if let Ok(pstate) = PState::new() {
         pstate.set_min_perf_pct(0)?;
         pstate.set_max_perf_pct(100)?;
         pstate.set_no_turbo(false)?;
@@ -123,7 +123,7 @@ fn battery() -> io::Result<()> {
         LaptopMode::new().set(b"2");
     }
 
-    if let Ok(mut pstate) = PState::new() {
+    if let Ok(pstate) = PState::new() {
         pstate.set_min_perf_pct(0)?;
         pstate.set_max_perf_pct(50)?;
         pstate.set_no_turbo(true)?;
@@ -311,13 +311,11 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
 
         let hpd = hpd();
         for i in 0..hpd.len() {
-            if hpd[i] != last[i] {
-                if hpd[i] {
-                    info!("HotPlugDetect {}", i);
-                    c.send(
-                        signal.msg(&DBUS_PATH.into(), &DBUS_NAME.into()).append1(i as u64)
-                    ).map_err(|()| format!("failed to send message"))?;
-                }
+            if hpd[i] != last[i] && hpd[i] {
+                info!("HotPlugDetect {}", i);
+                c.send(
+                    signal.msg(&DBUS_PATH.into(), &DBUS_NAME.into()).append1(i as u64)
+                ).map_err(|()| "failed to send message".to_string())?;
             }
         }
 

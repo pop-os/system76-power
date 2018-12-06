@@ -27,7 +27,7 @@ impl PciBus {
     }
 
     pub fn rescan(&self) -> io::Result<()> {
-        write_file(self.path.join("rescan"), format!("1"))
+        write_file(self.path.join("rescan"), "1")
     }
 }
 
@@ -105,6 +105,6 @@ impl PciDevice {
     }
 
     pub unsafe fn remove(&self) -> io::Result<()> {
-        write_file(self.path.join("remove"), format!("1"))
+        write_file(self.path.join("remove"), "1")
     }
 }
