@@ -11,12 +11,11 @@ use disks::{Disks, DiskPower};
 use fan::FanDaemon;
 use graphics::Graphics;
 use hotplug::HotPlugDetect;
-use kernel_parameters::{DeviceList, Dirty, KernelParameter, LaptopMode, NmiWatchdog, RuntimePowerManagement};
-use pci::PciBus;
+use kernel_parameters::{DeviceList, Dirty, KernelParameter, LaptopMode, NmiWatchdog};
 use pstate::PState;
 use radeon::RadeonDevice;
 use snd::SoundDevice;
-use sysfs_class::{Backlight, Leds, ScsiHost, SysClass};
+use sysfs_class::{Backlight, Leds, PciDevice, RuntimePM, RuntimePowerManagement, ScsiHost, SysClass};
 // use wifi::WifiDevice;
 
 static EXPERIMENTAL: AtomicBool = ATOMIC_BOOL_INIT;
@@ -37,7 +36,7 @@ fn performance() -> io::Result<()> {
 
         SoundDevice::get_devices().for_each(|dev| dev.set_power_save(0, false));
         RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("high", "performance", "auto"));
-        for device in PciBus::new()?.devices()? {
+        for device in PciDevice::all()? {
             device.set_runtime_pm(RuntimePowerManagement::Off)?;
         }
 
@@ -66,7 +65,7 @@ fn balanced() -> io::Result<()> {
 
         SoundDevice::get_devices().for_each(|dev| dev.set_power_save(0, false));
         RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("auto", "performance", "auto"));
-        for device in PciBus::new()?.devices()? {
+        for device in PciDevice::all()? {
             device.set_runtime_pm(RuntimePowerManagement::On)?;
         }
 
@@ -115,7 +114,7 @@ fn battery() -> io::Result<()> {
 
         SoundDevice::get_devices().for_each(|dev| dev.set_power_save(1, true));
         RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("low", "battery", "low"));
-        for device in PciBus::new()?.devices()? {
+        for device in PciDevice::all()? {
             device.set_runtime_pm(RuntimePowerManagement::On)?;
         }
 
