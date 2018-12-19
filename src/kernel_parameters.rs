@@ -1,4 +1,6 @@
 #![allow(unused)]
+pub use sysfs_class::RuntimePowerManagement;
+
 use std::path::{Path, PathBuf};
 use std::str;
 use util::{read_file, write_file};
@@ -63,7 +65,7 @@ macro_rules! static_parameters {
             impl KernelParameter for $struct {
                 const NAME: &'static str = stringify!($name);
 
-                fn get_path<'a>(&'a self) -> &'a Path {
+                fn get_path(&self) -> &Path {
                     Path::new($path)
                 }
             }
@@ -89,7 +91,7 @@ macro_rules! dynamic_parameters {
             impl KernelParameter for $struct {
                 const NAME: &'static str = stringify!($name);
 
-                fn get_path<'a>(&'a self) -> &'a Path { &self.path }
+                fn get_path(&self) -> &Path { &self.path }
             }
         )+
     );
@@ -121,21 +123,6 @@ dynamic_parameters! {
     }
 }
 
-/// Control whether a device uses, or does not use, runtime power management.
-pub enum RuntimePowerManagement {
-    On,
-    Off,
-}
-
-impl From<RuntimePowerManagement> for &'static str {
-    fn from(pm: RuntimePowerManagement) -> &'static str {
-        match pm {
-            RuntimePowerManagement::On => "auto",
-            RuntimePowerManagement::Off => "on",
-        }
-    }
-}
-
 pub struct Dirty {
     expire: DirtyExpire,
     writeback: DirtyWriteback,
@@ -150,7 +137,7 @@ impl Dirty {
     }
 
     pub fn set_max_lost_work(&self, secs: u32) {
-        let centisecs = (secs as u64 * 100).to_string();
+        let centisecs = (u64::from(secs) * 100).to_string();
         let centisecs = centisecs.as_bytes();
         self.expire.set(centisecs);
         self.writeback.set(centisecs);
