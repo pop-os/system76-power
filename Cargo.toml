@@ -9,7 +9,8 @@ libc = "0.2"
 clap = "2.32.0"
 log = "0.4.3"
 fern = "0.5.6"
-sysfs-class = "0.1"
+intel-pstate = "0.1.0"
+sysfs-class = { git = "https://github.com/pop-os/sysfs-class" }
 
 [build-dependencies]
 vergen = "0.1.1"

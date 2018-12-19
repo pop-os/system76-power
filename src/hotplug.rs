@@ -36,7 +36,7 @@ impl Sideband {
         let mem_str = CString::new("/dev/mem").unwrap();
         let memfd: c_int = open(mem_str.as_ptr(), O_RDWR);
         if memfd == -1 {
-            return Err(format!("Failed to open /dev/mem"));
+            return Err("Failed to open /dev/mem".to_string());
         }
 
         let sbreg_virt = mmap(
@@ -51,7 +51,7 @@ impl Sideband {
         close(memfd);
 
         if sbreg_virt == MAP_FAILED {
-            return Err(format!("Failed to map Sideband memory"));
+            return Err("Failed to map Sideband memory".to_string());
         }
 
         Ok(Sideband {
@@ -60,7 +60,7 @@ impl Sideband {
     }
 
     pub unsafe fn read(&self, port: u8, reg: u32) -> u32 {
-        let offset = ((port as u64) << P2SB_PORTID_SHIFT) + reg as u64;
+        let offset = (u64::from(port) << P2SB_PORTID_SHIFT) + u64::from(reg);
         if offset < 1<<24 {
             let addr = self.addr + offset;
             ptr::read(addr as *mut u32)
@@ -72,10 +72,10 @@ impl Sideband {
     pub unsafe fn gpio(&self, port: u8, pad: u8) -> u64 {
         let padbar: u32 = self.read(port, REG_PCH_GPIO_PADBAR);
 
-        let dw0: u32 = self.read(port, padbar + pad as u32 * 8);
-        let dw1: u32 = self.read(port, padbar + pad as u32 * 8 + 4);
+        let dw0: u32 = self.read(port, padbar + u32::from(pad) * 8);
+        let dw1: u32 = self.read(port, padbar + u32::from(pad) * 8 + 4);
 
-        dw0 as u64 | (dw1 as u64) << 32
+        u64::from(dw0) | u64::from(dw1) << 32
     }
 }
 
@@ -89,7 +89,7 @@ impl HotPlugDetect {
     pub unsafe fn new() -> Result<HotPlugDetect, String> {
         match read_file("/sys/class/dmi/id/product_version").map_err(err_str)?.trim() {
             "oryp4" | "oryp4-b" => Ok(HotPlugDetect {
-                sideband: Sideband::new(0xFD000000)?,
+                sideband: Sideband::new(0xFD00_0000)?,
                 port: 0x6A,
                 pins: [40, 42, 44],
             }),
