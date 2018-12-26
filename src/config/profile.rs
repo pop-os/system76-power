@@ -1,4 +1,5 @@
 use super::*;
+use std::collections::HashMap;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, SmartDefault)]
 pub struct Profiles {
@@ -13,6 +14,9 @@ pub struct Profiles {
     #[default = "Profile::performance()"]
     #[serde(default)]
     pub performance: Profile,
+
+    #[serde(flatten)]
+    pub custom: HashMap<String, Profile>
 }
 
 impl Profiles {
@@ -44,6 +48,11 @@ impl Profiles {
         set_or_default(out, "battery", &self.battery, &Profile::battery());
         set_or_default(out, "balanced", &self.balanced, &Profile::balanced());
         set_or_default(out, "performance", &self.performance, &Profile::performance());
+
+        for (key, value) in &self.custom {
+            out.extend_from_slice(format!("[profiles.{}]\n", key).as_bytes());
+            value.serialize_toml(out);
+        }
     }
 }
 
