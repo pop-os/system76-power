@@ -29,6 +29,7 @@ impl Profiles {
             } else {
                 let backlight = default.backlight.as_ref().unwrap();
                 let pstate = default.pstate.as_ref().unwrap();
+                let radeon = default.radeon.as_ref().unwrap();
                 out.extend_from_slice(
                     format!(
                         "# [profiles.{}]\n\
@@ -36,6 +37,7 @@ impl Profiles {
                          # laptop_mode = {}\n\
                          # max_lost_work = {}\n\
                          # pstate = {{ min = {}, max = {}, turbo = {} }}\n\
+                         # radeon = {{ profile = '{}', dpm_state = '{}', dpm_perf = '{}' }}\n\
                          # script = '$PATH'\n\n",
                          profile,
                          backlight.keyboard,
@@ -44,7 +46,10 @@ impl Profiles {
                          default.max_lost_work,
                          pstate.min,
                          pstate.max,
-                         pstate.turbo
+                         pstate.turbo,
+                         radeon.profile,
+                         radeon.dpm_state,
+                         radeon.dpm_perf,
                     ).as_bytes()
                 )
             }
@@ -67,6 +72,7 @@ pub struct Profile {
     pub laptop_mode: u8,
     pub max_lost_work: u32,
     pub pstate: Option<ConfigPState>,
+    pub radeon: Option<ConfigRadeon>,
     pub script: Option<PathBuf>,
 }
 
@@ -77,6 +83,7 @@ impl Profile {
             laptop_mode: 2,
             max_lost_work: 15,
             pstate: Some(ConfigPState::battery()),
+            radeon: Some(ConfigRadeon::battery()),
             script: None,
         }
     }
@@ -87,6 +94,7 @@ impl Profile {
             laptop_mode: 0,
             max_lost_work: 15,
             pstate: Some(ConfigPState::balanced()),
+            radeon: Some(ConfigRadeon::balanced()),
             script: None,
         }
     }
@@ -97,6 +105,7 @@ impl Profile {
             laptop_mode: 0,
             max_lost_work: 15,
             pstate: Some(ConfigPState::performance()),
+            radeon: Some(ConfigRadeon::performance()),
             script: None,
         }
     }

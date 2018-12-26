@@ -77,13 +77,15 @@ fn apply_profile(
             dev.set_power_save(params.sound_power_save.0, params.sound_power_save.1)
         });
 
-        RadeonDevice::get_devices().for_each(|dev| {
-            dev.set_profiles(
-                params.radeon_profile,
-                params.radeon_dpm_state,
-                params.radeon_dpm_perf,
-            )
-        });
+        if let Some(ref radeon) = config.radeon {
+            RadeonDevice::get_devices().for_each(|dev| {
+                dev.set_profiles(
+                    &radeon.profile,
+                    &radeon.dpm_state,
+                    &radeon.dpm_perf,
+                )
+            });
+        }
 
         try(
             errors,
@@ -121,11 +123,11 @@ fn apply_profile(
                 let new = config
                     .backlight
                     .as_ref()
-                    .map_or(default_brightness, |b| b.screen) as u64;
+                    .map_or(default_brightness, |b| b.screen);
 
                 let max_brightness = backlight.max_brightness()?;
                 let current = backlight.brightness()?;
-                let new = max_brightness * new / 100;
+                let new = max_brightness * u64::from(new) / 100;
 
                 if new < current {
                     backlight.set_brightness(new)?;
@@ -144,11 +146,11 @@ fn apply_profile(
                 let new = config
                     .backlight
                     .as_ref()
-                    .map_or(default_brightness, |b| b.keyboard) as u64;
+                    .map_or(default_brightness, |b| b.keyboard);
 
                 let max_brightness = backlight.max_brightness()?;
                 let current = backlight.brightness()?;
-                let new = max_brightness * new / 100;
+                let new = max_brightness * u64::from(new) / 100;
 
                 if new < current {
                     backlight.set_brightness(new)?;
@@ -230,9 +232,6 @@ impl Power for PowerDaemon {
             disk_autosuspend_delay: -1,
             scsi_profiles: &["med_power_with_dipm", "max_performance"],
             sound_power_save: (0, false),
-            radeon_profile: "high",
-            radeon_dpm_state: "performance",
-            radeon_dpm_perf: "auto",
             pci_runtime_pm: RuntimePowerManagement::Off,
             pstate_defaults: ConfigPState {
                 min: 50,
@@ -260,9 +259,6 @@ impl Power for PowerDaemon {
             disk_autosuspend_delay: -1,
             scsi_profiles: &["med_power_with_dipm", "medium_power"],
             sound_power_save: (0, false),
-            radeon_profile: "auto",
-            radeon_dpm_state: "performance",
-            radeon_dpm_perf: "auto",
             pci_runtime_pm: RuntimePowerManagement::On,
             pstate_defaults: ConfigPState {
                 min: 0,
@@ -290,9 +286,6 @@ impl Power for PowerDaemon {
             disk_autosuspend_delay: 15000,
             scsi_profiles: &["min_power", "min_power"],
             sound_power_save: (1, true),
-            radeon_profile: "low",
-            radeon_dpm_state: "battery",
-            radeon_dpm_perf: "low",
             pci_runtime_pm: RuntimePowerManagement::On,
             pstate_defaults: ConfigPState {
                 min: 0,
