@@ -316,7 +316,7 @@ impl Into<PStateValues> for ConfigPState {
         PStateValues {
             min_perf_pct: self.min,
             max_perf_pct: self.max,
-            set_no_turbo: self.turbo
+            no_turbo: self.turbo
         }
     }
 }

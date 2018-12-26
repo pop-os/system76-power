@@ -112,8 +112,6 @@ fn apply_profile(
                 let current = backlight.brightness()?;
                 let new = max_brightness * new / 100;
 
-                eprintln!("{} < {}", new, current);
-
                 if new < current {
                     backlight.set_brightness(new)?;
                 }
@@ -186,7 +184,6 @@ impl PowerDaemon {
 
 impl Power for PowerDaemon {
     fn performance(&mut self) -> Result<(), String> {
-        info!("setting performance profile");
         static PARAMETERS: ProfileParameters = ProfileParameters {
             profile: Profile::Performance,
             disk_apm: 254,
@@ -219,7 +216,6 @@ impl Power for PowerDaemon {
     }
 
     fn balanced(&mut self) -> Result<(), String> {
-        info!("setting balanced profile");
         static PARAMETERS: ProfileParameters = ProfileParameters {
             profile: Profile::Balanced,
             disk_apm: 254,
@@ -252,7 +248,6 @@ impl Power for PowerDaemon {
     }
 
     fn battery(&mut self) -> Result<(), String> {
-        info!("setting battery profile");
         static PARAMETERS: ProfileParameters = ProfileParameters {
             profile: Profile::Battery,
             disk_apm: 128,
