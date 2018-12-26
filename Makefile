@@ -38,7 +38,7 @@ vendor: .cargo/config
 	cargo vendor
 	touch vendor
 
-target/release/$(BIN): Cargo.lock Cargo.toml src/*.rs
+target/release/$(BIN): Cargo.lock Cargo.toml src/*.rs src/**/*.rs
 	if [ -d vendor ]; \
 	then \
 		cargo build --release --frozen; \

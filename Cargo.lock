@@ -204,6 +204,7 @@ dependencies = [
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.82 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_derive 1.0.82 (registry+https://github.com/rust-lang/crates.io-index)",
+ "smart-default 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sysfs-class 0.1.1 (git+https://github.com/pop-os/sysfs-class?branch=extra-derives)",
  "toml 0.4.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "vergen 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",

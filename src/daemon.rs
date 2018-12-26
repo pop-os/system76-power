@@ -1,16 +1,15 @@
-use dbus::{Connection, BusType, NameFlag};
 use dbus::tree::{Factory, MethodErr};
+use dbus::{BusType, Connection, NameFlag};
 use std::cell::RefCell;
 use std::io;
 use std::path::Path;
 use std::process::Command;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering, ATOMIC_BOOL_INIT};
 use std::sync::Arc;
-use std::sync::atomic::{ATOMIC_BOOL_INIT, AtomicBool, Ordering};
 
-use {DBUS_NAME, DBUS_PATH, DBUS_IFACE, Power, err_str};
-use config::{Config, ConfigProfile, ConfigPState, Profile, ProfileParameters};
-use disks::{Disks, DiskPower};
+use config::{Config, ConfigPState, Profile, ProfileKind, ProfileParameters};
+use disks::{DiskPower, Disks};
 use fan::FanDaemon;
 use graphics::Graphics;
 use hotplug::HotPlugDetect;
@@ -18,7 +17,10 @@ use kernel_parameters::{DeviceList, Dirty, KernelParameter, LaptopMode, NmiWatch
 use pstate::PState;
 use radeon::RadeonDevice;
 use snd::SoundDevice;
-use sysfs_class::{Backlight, Leds, PciDevice, RuntimePM, RuntimePowerManagement, ScsiHost, SysClass};
+use sysfs_class::{
+    Backlight, Leds, PciDevice, RuntimePM, RuntimePowerManagement, ScsiHost, SysClass,
+};
+use {err_str, Power, DBUS_IFACE, DBUS_NAME, DBUS_PATH};
 // use wifi::WifiDevice;
 
 static EXPERIMENTAL: AtomicBool = ATOMIC_BOOL_INIT;
@@ -30,9 +32,9 @@ fn experimental_is_enabled() -> bool {
 /// Executes an external script that is defined for a given profile.
 fn execute_script(script: &Path) {
     match Command::new(script).status() {
-        Ok(status) => if ! status.success() {
+        Ok(status) => if !status.success() {
             warn!("balance script failed with status: {:?}", status);
-        }
+        },
         Err(why) => {
             warn!("balance script failed to execute: {}", why);
         }
@@ -44,21 +46,25 @@ fn try<F: FnMut() -> io::Result<()>>(errors: &mut Vec<io::Error>, msg: &str, mut
     if let Err(why) = func() {
         errors.push(io::Error::new(
             io::ErrorKind::Other,
-            format!("{}: {}", msg, why)
+            format!("{}: {}", msg, why),
         ));
     }
 }
 
 fn apply_profile(
-    profile: &mut Profile,
+    profile: &mut ProfileKind,
     errors: &mut Vec<io::Error>,
-    config: &ConfigProfile,
-    params: &ProfileParameters
+    config: &Profile,
+    params: &ProfileParameters,
 ) {
     if experimental_is_enabled() {
         let disks = Disks::new();
-        try(errors, "failed to set disk apm level", || disks.set_apm_level(params.disk_apm));
-        try(errors, "failed to set disk autosuspend delay", || disks.set_autosuspend_delay(params.disk_autosuspend_delay));
+        try(errors, "failed to set disk apm level", || {
+            disks.set_apm_level(params.disk_apm)
+        });
+        try(errors, "failed to set disk autosuspend delay", || {
+            disks.set_autosuspend_delay(params.disk_autosuspend_delay)
+        });
         try(errors, "failed to set SCSI power management policy", || {
             for host in ScsiHost::iter() {
                 host?.set_link_power_management_policy(params.scsi_profiles)?;
@@ -67,35 +73,42 @@ fn apply_profile(
             Ok(())
         });
 
-        SoundDevice::get_devices().for_each(|dev| dev.set_power_save(
-            params.sound_power_save.0,
-            params.sound_power_save.1
-        ));
-
-        RadeonDevice::get_devices().for_each(|dev| dev.set_profiles(
-            params.radeon_profile,
-            params.radeon_dpm_state,
-            params.radeon_dpm_perf
-        ));
-
-        try(errors, "failed to change PCI device runtime power management", || {
-            for device in PciDevice::all()?  {
-                device.set_runtime_pm(params.pci_runtime_pm)?;
-            }
-
-            Ok(())
+        SoundDevice::get_devices().for_each(|dev| {
+            dev.set_power_save(params.sound_power_save.0, params.sound_power_save.1)
         });
 
-        Dirty::new().set_max_lost_work(params.max_lost_work);
-        LaptopMode::new().set(params.laptop_mode);
+        RadeonDevice::get_devices().for_each(|dev| {
+            dev.set_profiles(
+                params.radeon_profile,
+                params.radeon_dpm_state,
+                params.radeon_dpm_perf,
+            )
+        });
+
+        try(
+            errors,
+            "failed to change PCI device runtime power management",
+            || {
+                for device in PciDevice::all()? {
+                    device.set_runtime_pm(params.pci_runtime_pm)?;
+                }
+
+                Ok(())
+            },
+        );
     }
+
+    Dirty::new().set_max_lost_work(params.max_lost_work);
+    LaptopMode::new().set(params.laptop_mode);
 
     if let Ok(pstate) = PState::new() {
         try(errors, "failed to set Intel PState settings", || {
             pstate.set_values(
-                config.pstate.clone()
+                config
+                    .pstate
+                    .clone()
                     .unwrap_or_else(|| params.pstate_defaults.clone())
-                    .into()
+                    .into(),
             )
         });
     }
@@ -105,7 +118,9 @@ fn apply_profile(
             for mut backlight in Backlight::iter() {
                 let backlight = backlight?;
 
-                let new = config.backlight.as_ref()
+                let new = config
+                    .backlight
+                    .as_ref()
                     .map_or(default_brightness, |b| b.screen) as u64;
 
                 let max_brightness = backlight.max_brightness()?;
@@ -126,7 +141,9 @@ fn apply_profile(
             for mut backlight in Leds::keyboard_backlights() {
                 let backlight = backlight?;
 
-                let new = config.backlight.as_ref()
+                let new = config
+                    .backlight
+                    .as_ref()
                     .map_or(default_brightness, |b| b.keyboard) as u64;
 
                 let max_brightness = backlight.max_brightness()?;
@@ -160,7 +177,11 @@ impl PowerDaemon {
         let graphics = Graphics::new().map_err(err_str)?;
         let config = Config::new();
         let errors = Vec::new();
-        Ok(PowerDaemon { graphics, config, errors })
+        Ok(PowerDaemon {
+            graphics,
+            config,
+            errors,
+        })
     }
 
     fn set_profile_and_then(&mut self, func: fn(&mut Self)) -> Result<(), String> {
@@ -185,7 +206,7 @@ impl PowerDaemon {
 impl Power for PowerDaemon {
     fn performance(&mut self) -> Result<(), String> {
         static PARAMETERS: ProfileParameters = ProfileParameters {
-            profile: Profile::Performance,
+            profile: ProfileKind::Performance,
             disk_apm: 254,
             disk_autosuspend_delay: -1,
             scsi_profiles: &["med_power_with_dipm", "max_performance"],
@@ -199,7 +220,7 @@ impl Power for PowerDaemon {
             pstate_defaults: ConfigPState {
                 min: 50,
                 max: 100,
-                turbo: true
+                turbo: true,
             },
             backlight_screen: None,
             backlight_keyboard: None,
@@ -210,14 +231,14 @@ impl Power for PowerDaemon {
                 &mut d.config.defaults.last_profile,
                 &mut d.errors,
                 &d.config.profiles.performance,
-                &PARAMETERS
+                &PARAMETERS,
             )
         })
     }
 
     fn balanced(&mut self) -> Result<(), String> {
         static PARAMETERS: ProfileParameters = ProfileParameters {
-            profile: Profile::Balanced,
+            profile: ProfileKind::Balanced,
             disk_apm: 254,
             disk_autosuspend_delay: -1,
             scsi_profiles: &["med_power_with_dipm", "medium_power"],
@@ -229,9 +250,9 @@ impl Power for PowerDaemon {
             max_lost_work: 15,
             laptop_mode: b"0",
             pstate_defaults: ConfigPState {
-                min: 0, 
+                min: 0,
                 max: 100,
-                turbo: true
+                turbo: true,
             },
             backlight_screen: Some(80),
             backlight_keyboard: Some(50),
@@ -242,14 +263,14 @@ impl Power for PowerDaemon {
                 &mut d.config.defaults.last_profile,
                 &mut d.errors,
                 &d.config.profiles.balanced,
-                &PARAMETERS
+                &PARAMETERS,
             )
         })
     }
 
     fn battery(&mut self) -> Result<(), String> {
         static PARAMETERS: ProfileParameters = ProfileParameters {
-            profile: Profile::Battery,
+            profile: ProfileKind::Battery,
             disk_apm: 128,
             disk_autosuspend_delay: 15000,
             scsi_profiles: &["min_power", "min_power"],
@@ -263,7 +284,7 @@ impl Power for PowerDaemon {
             pstate_defaults: ConfigPState {
                 min: 0,
                 max: 50,
-                turbo: false
+                turbo: false,
             },
             backlight_screen: Some(10),
             backlight_keyboard: Some(0),
@@ -274,7 +295,7 @@ impl Power for PowerDaemon {
                 &mut d.config.defaults.last_profile,
                 &mut d.errors,
                 &d.config.profiles.battery,
-                &PARAMETERS
+                &PARAMETERS,
             )
         })
     }
@@ -307,7 +328,14 @@ impl Power for PowerDaemon {
 pub fn daemon(experimental: bool) -> Result<(), String> {
     let daemon = Rc::new(RefCell::new(PowerDaemon::new()?));
     let experimental = experimental || daemon.borrow().config.defaults.experimental;
-    info!("Starting daemon{}", if experimental { " with experimental enabled" } else { "" });
+    info!(
+        "Starting daemon{}",
+        if experimental {
+            " with experimental enabled"
+        } else {
+            ""
+        }
+    );
     EXPERIMENTAL.store(experimental, Ordering::SeqCst);
 
     info!("Disabling NMI Watchdog (for kernel debugging only)");
@@ -321,11 +349,14 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
     let res = {
         let mut daemon = daemon.borrow_mut();
         let last_profile = daemon.config.defaults.last_profile;
-        info!("Initializing with previously-set profile: {}", <&'static str>::from(last_profile));
+        info!(
+            "Initializing with previously-set profile: {}",
+            <&'static str>::from(last_profile)
+        );
         match last_profile {
-            Profile::Battery => daemon.battery(),
-            Profile::Balanced => daemon.balanced(),
-            Profile::Performance => daemon.performance()
+            ProfileKind::Battery => daemon.battery(),
+            ProfileKind::Balanced => daemon.balanced(),
+            ProfileKind::Performance => daemon.performance(),
         }
     };
 
@@ -337,14 +368,19 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
     let c = Connection::get_private(BusType::System).map_err(err_str)?;
 
     info!("Registering dbus name {}", DBUS_NAME);
-    c.register_name(DBUS_NAME, NameFlag::ReplaceExisting as u32).map_err(err_str)?;
+    c.register_name(DBUS_NAME, NameFlag::ReplaceExisting as u32)
+        .map_err(err_str)?;
 
     let f = Factory::new_fn::<()>();
 
     // Defines whether the value returned by the method should be appended.
     macro_rules! append {
-        (true, $m:ident, $value:ident) => { $m.msg.method_return().append1($value) };
-        (false, $m:ident, $value:ident) => { $m.msg.method_return() };
+        (true, $m:ident, $value:ident) => {
+            $m.msg.method_return().append1($value)
+        };
+        (false, $m:ident, $value:ident) => {
+            $m.msg.method_return()
+        };
     }
 
     // Programs the message that should be printed.
@@ -371,7 +407,7 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
                     Ok(_value) => {
                         let mret = append!($append, m, _value);
                         Ok(vec![mret])
-                    },
+                    }
                     Err(err) => {
                         error!("{}", err);
                         Err(MethodErr::failed(&err))
@@ -381,22 +417,43 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
         }};
     }
 
-    let signal = Arc::new(f.signal("HotPlugDetect", ()).sarg::<u64,_>("port"));
+    let signal = Arc::new(f.signal("HotPlugDetect", ()).sarg::<u64, _>("port"));
 
-    info!("Adding dbus path {} with interface {}", DBUS_PATH, DBUS_IFACE);
-    let tree = f.tree(()).add(f.object_path(DBUS_PATH, ()).introspectable().add(
-        f.interface(DBUS_IFACE, ())
-            .add_m(method!(performance, "Performance", false, false))
-            .add_m(method!(balanced, "Balanced", false, false))
-            .add_m(method!(battery, "Battery", false, false))
-            .add_m(method!(get_graphics, "GetGraphics", true, false).outarg::<&str,_>("vendor"))
-            .add_m(method!(set_graphics, "SetGraphics", false, true).inarg::<&str,_>("vendor"))
-            .add_m(method!(get_switchable, "GetSwitchable", true, false).outarg::<bool, _>("switchable"))
-            .add_m(method!(get_graphics_power, "GetGraphicsPower", true, false).outarg::<bool,_>("power"))
-            .add_m(method!(set_graphics_power, "SetGraphicsPower", false, true).inarg::<bool,_>("power"))
-            .add_m(method!(auto_graphics_power, "AutoGraphicsPower", false, false))
-            .add_s(signal.clone())
-    ));
+    info!(
+        "Adding dbus path {} with interface {}",
+        DBUS_PATH, DBUS_IFACE
+    );
+    let tree = f.tree(()).add(
+        f.object_path(DBUS_PATH, ()).introspectable().add(
+            f.interface(DBUS_IFACE, ())
+                .add_m(method!(performance, "Performance", false, false))
+                .add_m(method!(balanced, "Balanced", false, false))
+                .add_m(method!(battery, "Battery", false, false))
+                .add_m(
+                    method!(get_graphics, "GetGraphics", true, false).outarg::<&str, _>("vendor"),
+                )
+                .add_m(method!(set_graphics, "SetGraphics", false, true).inarg::<&str, _>("vendor"))
+                .add_m(
+                    method!(get_switchable, "GetSwitchable", true, false)
+                        .outarg::<bool, _>("switchable"),
+                )
+                .add_m(
+                    method!(get_graphics_power, "GetGraphicsPower", true, false)
+                        .outarg::<bool, _>("power"),
+                )
+                .add_m(
+                    method!(set_graphics_power, "SetGraphicsPower", false, true)
+                        .inarg::<bool, _>("power"),
+                )
+                .add_m(method!(
+                    auto_graphics_power,
+                    "AutoGraphicsPower",
+                    false,
+                    false
+                ))
+                .add_s(signal.clone()),
+        ),
+    );
 
     tree.set_registered(&c, true).map_err(err_str)?;
 
@@ -433,7 +490,9 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
             if hpd[i] != last[i] && hpd[i] {
                 info!("HotPlugDetect {}", i);
                 c.send(
-                    signal.msg(&DBUS_PATH.into(), &DBUS_NAME.into()).append1(i as u64)
+                    signal
+                        .msg(&DBUS_PATH.into(), &DBUS_NAME.into())
+                        .append1(i as u64),
                 ).map_err(|()| "failed to send message".to_string())?;
             }
         }

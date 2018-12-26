@@ -9,6 +9,8 @@ extern crate log;
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
+#[macro_use]
+extern crate smart_default;
 extern crate toml;
 extern crate xdg;
 extern crate sysfs_class;
