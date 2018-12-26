@@ -170,24 +170,41 @@ struct PowerDaemon {
     graphics: Graphics,
     config: Config,
     errors: Vec<io::Error>,
+    overwrite_config: bool,
 }
 
 impl PowerDaemon {
     fn new() -> Result<PowerDaemon, String> {
         let graphics = Graphics::new().map_err(err_str)?;
-        let config = Config::new();
+        let mut overwrite_config = true;
+        let config = match Config::new() {
+            Ok(config) => config,
+            Err(why) => {
+                error!(
+                    "failed to read config file (defaults will be used, instead): {}",
+                    why
+                );
+                overwrite_config = false;
+                Config::default()
+            }
+        };
+
         let errors = Vec::new();
         Ok(PowerDaemon {
             graphics,
             config,
             errors,
+            overwrite_config,
         })
     }
 
     fn set_profile_and_then(&mut self, func: fn(&mut Self)) -> Result<(), String> {
         func(self);
-        if let Err(why) = self.config.write() {
-            error!("errored when writing config: {}", why);
+
+        if self.overwrite_config {
+            if let Err(why) = self.config.write() {
+                error!("errored when writing config: {}", why);
+            }
         }
 
         if self.errors.is_empty() {

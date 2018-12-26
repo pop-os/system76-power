@@ -37,27 +37,19 @@ impl Config {
     ///
     /// If an error occurs, the default config will be used instead, which will
     /// allow the daemon to continue operating with the recommended defaults.
-    pub fn new() -> Config {
+    pub fn new() -> io::Result<Config> {
         let config_path = &Path::new(CONFIG_PATH);
         if !config_path.exists() {
             info!("config file does not exist at {}; creating it", CONFIG_PATH);
             let config = Config::default();
+
             if let Err(why) = config.write() {
                 error!("failed to write config to file system: {}", why);
             }
 
-            config
+            Ok(config)
         } else {
-            match Config::read() {
-                Ok(config) => config,
-                Err(why) => {
-                    error!(
-                        "failed to read config file (defaults will be used, instead): {}",
-                        why
-                    );
-                    Config::default()
-                }
-            }
+            Config::read()
         }
     }
 
