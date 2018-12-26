@@ -1,7 +1,7 @@
 use super::*;
 use std::io::Write;
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct ConfigBacklight {
     pub keyboard: u8,
     pub screen: u8

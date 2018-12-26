@@ -1,6 +1,6 @@
 use super::*;
 
-#[derive(Clone, Debug, Deserialize, Serialize, SmartDefault)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, SmartDefault)]
 pub struct Profiles {
     #[default = "Profile::battery()"]
     #[serde(default)]
@@ -17,18 +17,37 @@ pub struct Profiles {
 
 impl Profiles {
     pub(crate) fn serialize_toml(&self, out: &mut Vec<u8>) {
-        out.extend_from_slice(b"[profiles.battery]\n");
-        self.battery.serialize_toml(out);
+        fn set_or_default(out: &mut Vec<u8>, profile: &str, current: &Profile, default: &Profile) {
+            if current != default {
+                out.extend_from_slice(format!("[profiles.{}]\n", profile).as_bytes());
+                current.serialize_toml(out);
+            } else {
+                let backlight = default.backlight.as_ref().unwrap();
+                let pstate = default.pstate.as_ref().unwrap();
+                out.extend_from_slice(
+                    format!(
+                        "# [profiles.{}]\n\
+                         # backlight = {{ keyboard = {}, screen = {} }}\n\
+                         # pstate = {{ min = {}, max = {}, turbo = {} }}\n\
+                         # script = '$PATH'\n\n",
+                         profile,
+                         backlight.keyboard,
+                         backlight.screen,
+                         pstate.min,
+                         pstate.max,
+                         pstate.turbo
+                    ).as_bytes()
+                )
+            }
+        }
 
-        out.extend_from_slice(b"[profiles.balanced]\n");
-        self.balanced.serialize_toml(out);
-
-        out.extend_from_slice(b"[profiles.performance]\n");
-        self.performance.serialize_toml(out);
+        set_or_default(out, "battery", &self.battery, &Profile::battery());
+        set_or_default(out, "balanced", &self.balanced, &Profile::balanced());
+        set_or_default(out, "performance", &self.performance, &Profile::performance());
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize, SmartDefault)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, SmartDefault)]
 pub struct Profile {
     pub backlight: Option<ConfigBacklight>,
     pub pstate: Option<ConfigPState>,

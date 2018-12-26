@@ -1,7 +1,7 @@
 use pstate::PStateValues;
 use std::io::Write;
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct ConfigPState {
     pub min: u8,
     pub max: u8,
