@@ -36,6 +36,7 @@ impl Profiles {
                          # backlight = {{ keyboard = {}, screen = {} }}\n\
                          # laptop_mode = {}\n\
                          # max_lost_work = {}\n\
+                         # pci = {{ runtime_pm = {} }}\n\
                          # pstate = {{ min = {}, max = {}, turbo = {} }}\n\
                          # radeon = {{ profile = '{}', dpm_state = '{}', dpm_perf = '{}' }}\n\
                          # script = '$PATH'\n\n",
@@ -44,6 +45,7 @@ impl Profiles {
                          backlight.screen,
                          default.laptop_mode,
                          default.max_lost_work,
+                         default.pci.as_ref().unwrap().runtime_pm,
                          pstate.min,
                          pstate.max,
                          pstate.turbo,
@@ -71,6 +73,7 @@ pub struct Profile {
     pub backlight: Option<ConfigBacklight>,
     pub laptop_mode: u8,
     pub max_lost_work: u32,
+    pub pci: Option<ConfigPci>,
     pub pstate: Option<ConfigPState>,
     pub radeon: Option<ConfigRadeon>,
     pub script: Option<PathBuf>,
@@ -82,6 +85,7 @@ impl Profile {
             backlight: Some(ConfigBacklight::battery()),
             laptop_mode: 2,
             max_lost_work: 15,
+            pci: Some(ConfigPci::battery()),
             pstate: Some(ConfigPState::battery()),
             radeon: Some(ConfigRadeon::battery()),
             script: None,
@@ -93,6 +97,7 @@ impl Profile {
             backlight: Some(ConfigBacklight::balanced()),
             laptop_mode: 0,
             max_lost_work: 15,
+            pci: Some(ConfigPci::balanced()),
             pstate: Some(ConfigPState::balanced()),
             radeon: Some(ConfigRadeon::balanced()),
             script: None,
@@ -104,6 +109,7 @@ impl Profile {
             backlight: Some(ConfigBacklight::performance()),
             laptop_mode: 0,
             max_lost_work: 15,
+            pci: Some(ConfigPci::performance()),
             pstate: Some(ConfigPState::performance()),
             radeon: Some(ConfigRadeon::performance()),
             script: None,

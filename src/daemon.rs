@@ -87,17 +87,25 @@ fn apply_profile(
             });
         }
 
-        try(
-            errors,
-            "failed to change PCI device runtime power management",
-            || {
-                for device in PciDevice::all()? {
-                    device.set_runtime_pm(params.pci_runtime_pm)?;
-                }
+        if let Some(ref pci) = config.pci {
+            let pm = if pci.runtime_pm {
+                RuntimePowerManagement::On
+            } else {
+                RuntimePowerManagement::Off
+            };
 
-                Ok(())
-            },
-        );
+            try(
+                errors,
+                "failed to change PCI device runtime power management",
+                || {
+                    for device in PciDevice::all()? {
+                        device.set_runtime_pm(pm)?;
+                    }
+
+                    Ok(())
+                },
+            );
+        }
     }
 
     Dirty::new().set_max_lost_work(config.max_lost_work);
@@ -232,7 +240,6 @@ impl Power for PowerDaemon {
             disk_autosuspend_delay: -1,
             scsi_profiles: &["med_power_with_dipm", "max_performance"],
             sound_power_save: (0, false),
-            pci_runtime_pm: RuntimePowerManagement::Off,
             pstate_defaults: ConfigPState {
                 min: 50,
                 max: 100,
@@ -259,7 +266,6 @@ impl Power for PowerDaemon {
             disk_autosuspend_delay: -1,
             scsi_profiles: &["med_power_with_dipm", "medium_power"],
             sound_power_save: (0, false),
-            pci_runtime_pm: RuntimePowerManagement::On,
             pstate_defaults: ConfigPState {
                 min: 0,
                 max: 100,
@@ -286,7 +292,6 @@ impl Power for PowerDaemon {
             disk_autosuspend_delay: 15000,
             scsi_profiles: &["min_power", "min_power"],
             sound_power_save: (1, true),
-            pci_runtime_pm: RuntimePowerManagement::On,
             pstate_defaults: ConfigPState {
                 min: 0,
                 max: 50,

@@ -1,5 +1,6 @@
 mod backlight;
 mod defaults;
+mod pci;
 mod profile;
 mod pstate;
 mod thresholds;
@@ -7,12 +8,12 @@ mod radeon;
 
 pub use self::backlight::*;
 pub use self::defaults::*;
+pub use self::pci::*;
 pub use self::profile::*;
 pub use self::pstate::*;
 pub use self::thresholds::*;
 pub use self::radeon::*;
 
-use sysfs_class::RuntimePowerManagement;
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
@@ -109,7 +110,6 @@ pub struct ProfileParameters {
     pub disk_autosuspend_delay: i32,
     pub scsi_profiles: &'static [&'static str],
     pub sound_power_save: (u32, bool),
-    pub pci_runtime_pm: RuntimePowerManagement,
     pub pstate_defaults: ConfigPState,
     pub backlight_screen: Option<u8>,
     pub backlight_keyboard: Option<u8>,
