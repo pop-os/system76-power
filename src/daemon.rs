@@ -98,8 +98,8 @@ fn apply_profile(
         );
     }
 
-    Dirty::new().set_max_lost_work(params.max_lost_work);
-    LaptopMode::new().set(params.laptop_mode);
+    Dirty::new().set_max_lost_work(config.max_lost_work);
+    LaptopMode::new().set(config.laptop_mode.to_string().as_bytes());
 
     if let Ok(pstate) = PState::new() {
         try(errors, "failed to set Intel PState settings", || {
@@ -234,8 +234,6 @@ impl Power for PowerDaemon {
             radeon_dpm_state: "performance",
             radeon_dpm_perf: "auto",
             pci_runtime_pm: RuntimePowerManagement::Off,
-            max_lost_work: 15,
-            laptop_mode: b"0",
             pstate_defaults: ConfigPState {
                 min: 50,
                 max: 100,
@@ -266,8 +264,6 @@ impl Power for PowerDaemon {
             radeon_dpm_state: "performance",
             radeon_dpm_perf: "auto",
             pci_runtime_pm: RuntimePowerManagement::On,
-            max_lost_work: 15,
-            laptop_mode: b"0",
             pstate_defaults: ConfigPState {
                 min: 0,
                 max: 100,
@@ -298,8 +294,6 @@ impl Power for PowerDaemon {
             radeon_dpm_state: "battery",
             radeon_dpm_perf: "low",
             pci_runtime_pm: RuntimePowerManagement::On,
-            max_lost_work: 15,
-            laptop_mode: b"2",
             pstate_defaults: ConfigPState {
                 min: 0,
                 max: 50,

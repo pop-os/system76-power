@@ -33,11 +33,15 @@ impl Profiles {
                     format!(
                         "# [profiles.{}]\n\
                          # backlight = {{ keyboard = {}, screen = {} }}\n\
+                         # laptop_mode = {}\n\
+                         # max_lost_work = {}\n\
                          # pstate = {{ min = {}, max = {}, turbo = {} }}\n\
                          # script = '$PATH'\n\n",
                          profile,
                          backlight.keyboard,
                          backlight.screen,
+                         default.laptop_mode,
+                         default.max_lost_work,
                          pstate.min,
                          pstate.max,
                          pstate.turbo
@@ -60,6 +64,8 @@ impl Profiles {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, SmartDefault)]
 pub struct Profile {
     pub backlight: Option<ConfigBacklight>,
+    pub laptop_mode: u8,
+    pub max_lost_work: u32,
     pub pstate: Option<ConfigPState>,
     pub script: Option<PathBuf>,
 }
@@ -68,6 +74,8 @@ impl Profile {
     pub(crate) fn battery() -> Self {
         Self {
             backlight: Some(ConfigBacklight::battery()),
+            laptop_mode: 2,
+            max_lost_work: 15,
             pstate: Some(ConfigPState::battery()),
             script: None,
         }
@@ -76,6 +84,8 @@ impl Profile {
     pub(crate) fn balanced() -> Self {
         Self {
             backlight: Some(ConfigBacklight::balanced()),
+            laptop_mode: 0,
+            max_lost_work: 15,
             pstate: Some(ConfigPState::balanced()),
             script: None,
         }
@@ -84,6 +94,8 @@ impl Profile {
     pub(crate) fn performance() -> Self {
         Self {
             backlight: Some(ConfigBacklight::performance()),
+            laptop_mode: 0,
+            max_lost_work: 15,
             pstate: Some(ConfigPState::performance()),
             script: None,
         }

@@ -111,8 +111,6 @@ pub struct ProfileParameters {
     pub radeon_dpm_state: &'static str,
     pub radeon_dpm_perf: &'static str,
     pub pci_runtime_pm: RuntimePowerManagement,
-    pub max_lost_work: u32,
-    pub laptop_mode: &'static [u8],
     pub pstate_defaults: ConfigPState,
     pub backlight_screen: Option<u8>,
     pub backlight_keyboard: Option<u8>,
