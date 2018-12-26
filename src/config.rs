@@ -1,4 +1,5 @@
 use kernel_parameters::RuntimePowerManagement;
+use pstate::PStateValues;
 use std::path::{Path, PathBuf};
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
@@ -289,6 +290,10 @@ pub struct ConfigPState {
 }
 
 impl ConfigPState {
+    pub fn new(min: u8, max: u8, turbo: bool) -> Self {
+        Self { min, max, turbo }
+    }
+
     fn battery() -> Self {
         Self { min: 0, max: 50, turbo: false }
     }
@@ -303,6 +308,16 @@ impl ConfigPState {
 
     fn serialize_toml(&self, out: &mut Vec<u8>) {
         let _ = writeln!(out, "pstate = {{ min = {}, max = {}, turbo = {} }}", self.min, self.max, self.turbo);
+    }
+}
+
+impl Into<PStateValues> for ConfigPState {
+    fn into(self) -> PStateValues {
+        PStateValues {
+            min_perf_pct: self.min,
+            max_perf_pct: self.max,
+            set_no_turbo: self.turbo
+        }
     }
 }
 
@@ -349,7 +364,7 @@ pub struct ProfileParameters {
     pub pci_runtime_pm: RuntimePowerManagement,
     pub max_lost_work: u32,
     pub laptop_mode: &'static [u8],
-    pub pstate_defaults: (u8, u8, bool),
+    pub pstate_defaults: ConfigPState,
     pub backlight_screen: Option<u8>,
     pub backlight_keyboard: Option<u8>
 }

@@ -55,6 +55,6 @@ impl DeviceList<WifiDevice> for WifiDevice {
     const SUPPORTED: &'static [&'static str] = &["iwlwifi"];
 
     fn get_devices() -> Box<Iterator<Item = WifiDevice>> {
-        Box::new(Self::SUPPORTED.into_iter().flat_map(|dev| WifiDevice::new(dev)))
+        Box::new(Self::SUPPORTED.iter().flat_map(|dev| WifiDevice::new(dev)))
     }
 }

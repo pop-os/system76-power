@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use kernel_parameters::*;
 
 pub struct SoundDevice {
@@ -44,6 +44,6 @@ impl DeviceList<SoundDevice> for SoundDevice {
     const SUPPORTED: &'static [&'static str] = &["snd_hda_intel", "snd_ac97_codec"];
 
     fn get_devices() -> Box<Iterator<Item = SoundDevice>> {
-        Box::new(Self::SUPPORTED.into_iter().flat_map(|dev| SoundDevice::new(dev)))
+        Box::new(Self::SUPPORTED.iter().flat_map(|dev| SoundDevice::new(dev)))
     }
 }

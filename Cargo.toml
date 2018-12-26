@@ -13,7 +13,10 @@ serde = "1.0.78"
 serde_derive = "1.0.78"
 toml = "0.4.6"
 xdg = "2.1.0"
-sysfs-class = "0.1"
+# sysfs-class = "0.1"
+intel-pstate = { path = "../intel-pstate" }
+# sysfs-class = { git = "https://github.com/pop-os/sysfs-class" }
+sysfs-class = { path = "../sysfs-class" }
 
 [build-dependencies]
 vergen = "0.1.1"

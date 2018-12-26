@@ -9,19 +9,16 @@ use std::sync::Arc;
 use std::sync::atomic::{ATOMIC_BOOL_INIT, AtomicBool, Ordering};
 
 use {DBUS_NAME, DBUS_PATH, DBUS_IFACE, Power, err_str};
-use backlight::{Backlight, BacklightExt};
-use config::{Config, ConfigProfile, Profile, ProfileParameters};
+use config::{Config, ConfigProfile, ConfigPState, Profile, ProfileParameters};
 use disks::{Disks, DiskPower};
 use fan::FanDaemon;
 use graphics::Graphics;
 use hotplug::HotPlugDetect;
-use kbd_backlight::KeyboardBacklight;
-use kernel_parameters::{DeviceList, Dirty, KernelParameter, LaptopMode, NmiWatchdog, RuntimePowerManagement};
-use pci::PciBus;
+use kernel_parameters::{DeviceList, Dirty, KernelParameter, LaptopMode, NmiWatchdog};
 use pstate::PState;
 use radeon::RadeonDevice;
-use scsi::{ScsiHosts, ScsiPower};
 use snd::SoundDevice;
+use sysfs_class::{Backlight, Leds, PciDevice, RuntimePM, RuntimePowerManagement, ScsiHost, SysClass};
 // use wifi::WifiDevice;
 
 static EXPERIMENTAL: AtomicBool = ATOMIC_BOOL_INIT;
@@ -63,7 +60,11 @@ fn apply_profile(
         try(errors, "failed to set disk apm level", || disks.set_apm_level(params.disk_apm));
         try(errors, "failed to set disk autosuspend delay", || disks.set_autosuspend_delay(params.disk_autosuspend_delay));
         try(errors, "failed to set SCSI power management policy", || {
-            ScsiHosts::new().set_power_management_policy(params.scsi_profiles)
+            for host in ScsiHost::iter() {
+                host?.set_link_power_management_policy(params.scsi_profiles)?;
+            }
+
+            Ok(())
         });
 
         SoundDevice::get_devices().for_each(|dev| dev.set_power_save(
@@ -78,7 +79,7 @@ fn apply_profile(
         ));
 
         try(errors, "failed to change PCI device runtime power management", || {
-            for device in PciBus::new()?.devices()? {
+            for device in PciDevice::all()?  {
                 device.set_runtime_pm(params.pci_runtime_pm)?;
             }
 
@@ -89,18 +90,33 @@ fn apply_profile(
         LaptopMode::new().set(params.laptop_mode);
     }
 
-    if let Ok(mut pstate) = PState::new() {
+    if let Ok(pstate) = PState::new() {
         try(errors, "failed to set Intel PState settings", || {
-            pstate.set_config(config.pstate.as_ref(), params.pstate_defaults)
+            pstate.set_values(
+                config.pstate.clone()
+                    .unwrap_or_else(|| params.pstate_defaults.clone())
+                    .into()
+            )
         });
     }
 
     if let Some(default_brightness) = params.backlight_screen {
         try(errors, "failed to set screen backlight", || {
-            for mut backlight in Backlight::all()? {
-                backlight.set_if_lower(
-                    config.backlight.as_ref().map_or(default_brightness, |b| b.screen) as u64
-                )?;
+            for mut backlight in Backlight::iter() {
+                let backlight = backlight?;
+
+                let new = config.backlight.as_ref()
+                    .map_or(default_brightness, |b| b.screen) as u64;
+
+                let max_brightness = backlight.max_brightness()?;
+                let current = backlight.brightness()?;
+                let new = max_brightness * new / 100;
+
+                eprintln!("{} < {}", new, current);
+
+                if new < current {
+                    backlight.set_brightness(new)?;
+                }
             }
 
             Ok(())
@@ -109,10 +125,19 @@ fn apply_profile(
 
     if let Some(default_brightness) = params.backlight_keyboard {
         try(errors, "failed to set keyboard backlight", || {
-            for mut backlight in KeyboardBacklight::all()? {
-                backlight.set_if_lower(
-                    config.backlight.as_ref().map_or(default_brightness, |b| b.keyboard) as u64
-                )?;
+            for mut backlight in Leds::keyboard_backlights() {
+                let backlight = backlight?;
+
+                let new = config.backlight.as_ref()
+                    .map_or(default_brightness, |b| b.keyboard) as u64;
+
+                let max_brightness = backlight.max_brightness()?;
+                let current = backlight.brightness()?;
+                let new = max_brightness * new / 100;
+
+                if new < current {
+                    backlight.set_brightness(new)?;
+                }
             }
 
             Ok(())
@@ -161,6 +186,7 @@ impl PowerDaemon {
 
 impl Power for PowerDaemon {
     fn performance(&mut self) -> Result<(), String> {
+        info!("setting performance profile");
         static PARAMETERS: ProfileParameters = ProfileParameters {
             profile: Profile::Performance,
             disk_apm: 254,
@@ -173,7 +199,11 @@ impl Power for PowerDaemon {
             pci_runtime_pm: RuntimePowerManagement::Off,
             max_lost_work: 15,
             laptop_mode: b"0",
-            pstate_defaults: (50, 100, true),
+            pstate_defaults: ConfigPState {
+                min: 50,
+                max: 100,
+                turbo: true
+            },
             backlight_screen: None,
             backlight_keyboard: None,
         };
@@ -189,6 +219,7 @@ impl Power for PowerDaemon {
     }
 
     fn balanced(&mut self) -> Result<(), String> {
+        info!("setting balanced profile");
         static PARAMETERS: ProfileParameters = ProfileParameters {
             profile: Profile::Balanced,
             disk_apm: 254,
@@ -201,7 +232,11 @@ impl Power for PowerDaemon {
             pci_runtime_pm: RuntimePowerManagement::On,
             max_lost_work: 15,
             laptop_mode: b"0",
-            pstate_defaults: (0, 100, true),
+            pstate_defaults: ConfigPState {
+                min: 0, 
+                max: 100,
+                turbo: true
+            },
             backlight_screen: Some(80),
             backlight_keyboard: Some(50),
         };
@@ -217,6 +252,7 @@ impl Power for PowerDaemon {
     }
 
     fn battery(&mut self) -> Result<(), String> {
+        info!("setting battery profile");
         static PARAMETERS: ProfileParameters = ProfileParameters {
             profile: Profile::Battery,
             disk_apm: 128,
@@ -229,7 +265,11 @@ impl Power for PowerDaemon {
             pci_runtime_pm: RuntimePowerManagement::On,
             max_lost_work: 15,
             laptop_mode: b"2",
-            pstate_defaults: (0, 50, false),
+            pstate_defaults: ConfigPState {
+                min: 0,
+                max: 50,
+                turbo: false
+            },
             backlight_screen: Some(10),
             backlight_keyboard: Some(0),
         };
@@ -279,11 +319,8 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
     NmiWatchdog::new().set(b"0");
 
     info!("Setting automatic graphics power");
-    match daemon.borrow_mut().auto_graphics_power() {
-        Ok(()) => (),
-        Err(err) => {
-            error!("Failed to set automatic graphics power: {}", err);
-        }
+    if let Err(err) = daemon.borrow_mut().auto_graphics_power() {
+        error!("Failed to set automatic graphics power: {}", err);
     }
 
     let res = {
@@ -398,13 +435,11 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
 
         let hpd = hpd();
         for i in 0..hpd.len() {
-            if hpd[i] != last[i] {
-                if hpd[i] {
-                    info!("HotPlugDetect {}", i);
-                    c.send(
-                        signal.msg(&DBUS_PATH.into(), &DBUS_NAME.into()).append1(i as u64)
-                    ).map_err(|()| format!("failed to send message"))?;
-                }
+            if hpd[i] != last[i] && hpd[i] {
+                info!("HotPlugDetect {}", i);
+                c.send(
+                    signal.msg(&DBUS_PATH.into(), &DBUS_NAME.into()).append1(i as u64)
+                ).map_err(|()| "failed to send message".to_string())?;
             }
         }
 

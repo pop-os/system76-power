@@ -2,6 +2,7 @@
 extern crate clap;
 extern crate dbus;
 extern crate fern;
+extern crate intel_pstate as pstate;
 extern crate libc;
 #[macro_use]
 extern crate log;
@@ -15,7 +16,6 @@ extern crate sysfs_class;
 use log::LevelFilter;
 use std::process;
 
-mod backlight;
 use clap::{Arg, App, AppSettings, SubCommand};
 mod client;
 mod config;
@@ -24,15 +24,12 @@ mod disks;
 mod fan;
 mod graphics;
 mod hotplug;
-mod kbd_backlight;
 mod kernel_parameters;
 mod logging;
 mod modprobe;
 mod module;
 mod pci;
-mod pstate;
 mod radeon;
-mod scsi;
 mod sdp;
 mod snd;
 mod util;
@@ -70,10 +67,9 @@ fn valid_percent(v: String) -> Result<(), String> {
 }
 
 fn main() {
-    let version = format!("{}", crate_version!());
     let matches = App::new("system76-power")
         .about("Utility for managing graphics and power profiles")
-        .version(version.as_str())
+        .version(env!("CARGO_PKG_VERSION"))
         .global_setting(AppSettings::ColoredHelp)
         .global_setting(AppSettings::UnifiedHelpMessage)
         .global_setting(AppSettings::VersionlessSubcommands)
@@ -159,7 +155,7 @@ fn main() {
             if unsafe { libc::geteuid() } == 0 {
                 daemon::daemon(matches.is_present("experimental"))
             } else {
-                Err(format!("must be run as root"))
+                Err("must be run as root".to_string())
             }
         }
         (subcommand, Some(matches)) => client::client(subcommand, matches),

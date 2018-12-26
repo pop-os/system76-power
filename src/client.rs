@@ -2,13 +2,11 @@ use dbus::{BusType, Connection, Message};
 use dbus::arg::Append;
 use std::cmp::Ordering;
 use std::io;
-
 use {DBUS_NAME, DBUS_PATH, DBUS_IFACE, Power, err_str};
-use backlight::{Backlight, BacklightExt};
 use clap::ArgMatches;
-use kbd_backlight::KeyboardBacklight;
 use pstate::PState;
 use sdp::SettingsDaemonPower;
+use sysfs_class::{Backlight, Leds, SysClass};
 
 static TIMEOUT: i32 = 60 * 1000;
 
@@ -150,20 +148,22 @@ fn profile() -> io::Result<()> {
         println!("CPU: {}% - {}%, {}", min, max, if no_turbo { "No Turbo" } else { "Turbo" });
     }
 
-    for backlight in Backlight::all()? {
+    for backlight in Backlight::iter() {
+        let backlight = backlight?;
         let brightness = backlight.actual_brightness()?;
         let max_brightness = backlight.max_brightness()?;
         let ratio = (brightness as f64)/(max_brightness as f64);
         let percent = (ratio * 100.0) as u64;
-        println!("Backlight {}: {}/{} = {}%", backlight.name(), brightness, max_brightness, percent);
+        println!("Backlight {}: {}/{} = {}%", backlight.id(), brightness, max_brightness, percent);
     }
 
-    for backlight in KeyboardBacklight::all()? {
+    for backlight in Leds::keyboard_backlights() {
+        let backlight = backlight?;
         let brightness = backlight.brightness()?;
         let max_brightness = backlight.max_brightness()?;
         let ratio = (brightness as f64)/(max_brightness as f64);
         let percent = (ratio * 100.0) as u64;
-        println!("Keyboard Backlight {}: {}/{} = {}%", backlight.name(), brightness, max_brightness, percent);
+        println!("Keyboard Backlight {}: {}/{} = {}%", backlight.id(), brightness, max_brightness, percent);
     }
 
     Ok(())
@@ -179,45 +179,46 @@ pub fn client(subcommand: &str, matches: &ArgMatches) -> Result<(), String> {
             Some("performance") => client.performance(),
             _ => profile().map_err(err_str)
         },
-        "brightness" => match (matches.value_of("brightness"), matches.value_of("value")) {
-            (Some("keyboard"), Some(value)) => {
-                let new = value.parse::<i32>().unwrap();
-                let new = if matches.is_present("min") {
-                    client.set_brightness_keyboard_cmp(new, Ordering::Less)?
-                } else if matches.is_present("max") {
-                    client.set_brightness_keyboard_cmp(new, Ordering::Greater)?
-                } else {
-                    client.set_brightness_keyboard(new)?;
-                    new
-                };
+        // TODO: Implement the brightness feature for clients.
+        // "brightness" => match (matches.value_of("brightness"), matches.value_of("value")) {
+        //     (Some("keyboard"), Some(value)) => {
+        //         let new = value.parse::<i32>().unwrap();
+        //         let new = if matches.is_present("min") {
+        //             client.set_brightness_keyboard_cmp(new, Ordering::Less)?
+        //         } else if matches.is_present("max") {
+        //             client.set_brightness_keyboard_cmp(new, Ordering::Greater)?
+        //         } else {
+        //             client.set_brightness_keyboard(new)?;
+        //             new
+        //         };
 
-                println!("keyboard brightness: {}", new);
-                Ok(())
-            },
-            (Some("keyboard"), None) => {
-                println!("keyboard brightness: {}", client.get_brightness_keyboard()?);
-                Ok(())
-            },
-            (Some("screen"), Some(value)) => {
-                let new = value.parse::<i32>().unwrap();
-                let new = if matches.is_present("min") {
-                    client.set_brightness_screen_cmp(new, Ordering::Less)?
-                } else if matches.is_present("max") {
-                    client.set_brightness_screen_cmp(new, Ordering::Greater)?
-                } else {
-                    client.set_brightness_screen(new)?;
-                    new
-                };
+        //         println!("keyboard brightness: {}", new);
+        //         Ok(())
+        //     },
+        //     (Some("keyboard"), None) => {
+        //         println!("keyboard brightness: {}", client.get_brightness_keyboard()?);
+        //         Ok(())
+        //     },
+        //     (Some("screen"), Some(value)) => {
+        //         let new = value.parse::<i32>().unwrap();
+        //         let new = if matches.is_present("min") {
+        //             client.set_brightness_screen_cmp(new, Ordering::Less)?
+        //         } else if matches.is_present("max") {
+        //             client.set_brightness_screen_cmp(new, Ordering::Greater)?
+        //         } else {
+        //             client.set_brightness_screen(new)?;
+        //             new
+        //         };
 
-                println!("screen brightness: {}", new);
-                Ok(())
-            },
-            (Some("screen"), None) => {
-                println!("screen brightness: {}", client.get_brightness_screen()?);
-                Ok(())
-            },
-            _ => unimplemented!()
-        }
+        //         println!("screen brightness: {}", new);
+        //         Ok(())
+        //     },
+        //     (Some("screen"), None) => {
+        //         println!("screen brightness: {}", client.get_brightness_screen()?);
+        //         Ok(())
+        //     },
+        //     _ => unimplemented!()
+        // }
         "graphics" => match matches.subcommand() {
             ("intel", _) => client.set_graphics("intel"),
             ("nvidia", _) => client.set_graphics("nvidia"),
