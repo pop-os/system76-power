@@ -189,6 +189,8 @@ impl PowerDaemon {
             }
         };
 
+        debug!("using this config: {:#?}", config);
+
         let errors = Vec::new();
         Ok(PowerDaemon {
             graphics,
