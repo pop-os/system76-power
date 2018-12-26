@@ -15,13 +15,15 @@ pub struct ConfigThresholds {
 impl ConfigThresholds {
     pub(crate) fn serialize_toml(&self, out: &mut Vec<u8>) {
         let default = Self::default();
+        let disabled = default.critical == self.critical && default.normal == self.normal;
         let _ = writeln!(
             out,
-            "[threshold]\n\
+            "{}[threshold]\n\
              # Defines what percentage of battery is required to set the profile to 'battery'.\n\
              {}\n\n\
              # Defines what percentage of battery is required to revert the critical change.\n\
              {}\n",
+            if disabled { "# " } else { "" },
             comment_if_default(
                 false,
                 "critical",
