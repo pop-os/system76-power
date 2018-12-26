@@ -16,6 +16,7 @@ pub struct Profiles {
     pub performance: Profile,
 
     #[serde(flatten)]
+    #[serde(default)]
     pub custom: HashMap<String, Profile>
 }
 
