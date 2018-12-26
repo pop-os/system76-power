@@ -36,8 +36,7 @@ impl ConfigDefaults {
         let defaults = Self::default();
         let _ = writeln!(
             out,
-            "[defaults]\n\
-             # The default profile that will be set on connecting to AC.\n\
+            "# The default profile that will be set on connecting to AC.\n\
              {}\n\n\
              # The default profile that will be set on disconnecting from AC.\n\
              {}\n\n\

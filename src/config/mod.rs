@@ -23,6 +23,7 @@ const CONFIG_PATH: &str = "/etc/system76-power/config.toml";
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Config {
     #[serde(default)]
+    #[serde(flatten)]
     pub defaults: ConfigDefaults,
 
     #[serde(default)]
