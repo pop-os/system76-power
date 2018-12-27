@@ -48,6 +48,7 @@ pub trait Power {
     fn performance(&mut self) -> Result<(), String>;
     fn balanced(&mut self) -> Result<(), String>;
     fn battery(&mut self) -> Result<(), String>;
+    fn set_fan_curve(&mut self, profile: &str) -> Result<(), String>;
     fn get_graphics(&mut self) -> Result<String, String>;
     fn get_switchable(&mut self) -> Result<bool, String>;
     fn set_graphics(&mut self, vendor: &str) -> Result<(), String>;
@@ -76,6 +77,7 @@ fn main() {
         .global_setting(AppSettings::ColoredHelp)
         .global_setting(AppSettings::UnifiedHelpMessage)
         .global_setting(AppSettings::VersionlessSubcommands)
+        .global_setting(AppSettings::InferSubcommands)
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .arg(Arg::with_name("quiet")
             .short("q")
@@ -103,6 +105,12 @@ fn main() {
         //         .help("sets the maximum brightness between the current and new value")
         //         .requires("value"))
         // )
+        .subcommand(SubCommand::with_name("config"))
+            .about("Display, reset, or verify the system76-power configuration file")
+            .subcommand(SubCommand::with_name("reset")
+                .about("Resets the configuration file to defaults"))
+            .subcommand(SubCommand::with_name("verify")
+                .about("Validate the config, returning a status indicating the result"))
         .subcommand(SubCommand::with_name("daemon")
             .about("Runs the program in daemon mode")
             .long_about("Registers a new DBUS service and starts an event loop\
@@ -110,6 +118,10 @@ fn main() {
             .arg(Arg::with_name("experimental")
                 .long("experimental")
                 .help("enables experimental power-saving features"))
+        )
+        .subcommand(SubCommand::with_name("fan-curve")
+            .about("Set a fan curve profile. Default is 'standard'")
+            .arg(Arg::with_name("profile").required(true))
         )
         .subcommand(SubCommand::with_name("profile")
             .about("Query or set the power profile")
@@ -140,20 +152,22 @@ fn main() {
         )
         .get_matches();
 
+    if let Err(why) = logging::setup_logging(
+        if matches.is_present("verbose") {
+            LevelFilter::Debug
+        } else if matches.is_present("quiet") {
+            LevelFilter::Off
+        } else {
+            LevelFilter::Info
+        }
+    ) {
+        eprintln!("failed to set up logging: {}", why);
+        process::exit(1);
+    }
+
     let res = match matches.subcommand() {
         ("daemon", Some(matches)) => {
-            if let Err(why) = logging::setup_logging(
-                if matches.is_present("verbose") {
-                    LevelFilter::Debug
-                } else if matches.is_present("quiet") {
-                    LevelFilter::Off
-                } else {
-                    LevelFilter::Info
-                }
-            ) {
-                eprintln!("failed to set up logging: {}", why);
-                process::exit(1);
-            }
+
 
             if unsafe { libc::geteuid() } == 0 {
                 daemon::daemon(matches.is_present("experimental"))

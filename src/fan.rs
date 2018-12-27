@@ -39,6 +39,10 @@ impl FanDaemon {
         })
     }
 
+    pub fn set_curve(&mut self, curve: FanCurve) {
+        self.curve = curve;
+    }
+
     pub fn step(&self) {
         let mut duty_opt = None;
         if let Ok(temp) = self.cpu.temp(1) {

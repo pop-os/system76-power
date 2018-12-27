@@ -109,6 +109,12 @@ impl Power for PowerClient {
         Ok(())
     }
 
+    fn set_fan_curve(&mut self, profile: &str) -> Result<(), String> {
+        info!("Setting fan curves to {}", profile);
+        self.call_method::<&str>("SetFanCurve", Some(profile))?;
+        Ok(())
+    }
+
     fn get_graphics(&mut self) -> Result<String, String> {
         let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "GetGraphics")?;
         let r = self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
@@ -179,12 +185,21 @@ pub fn client(subcommand: &str, matches: &ArgMatches) -> Result<(), String> {
     let mut client = PowerClient::new()?;
 
     match subcommand {
+        // "config" => match matches.subcommand() {
+        //     ("reset", _) => unimplemented!(),
+        //     ("verify", _) => unimplemented!(),
+        //     _ => unimplemented!(),
+        // },
         "profile" => match matches.value_of("profile") {
             Some("balanced") => client.balanced(),
             Some("battery") => client.battery(),
             Some("performance") => client.performance(),
             Some(other) => client.custom(other),
             None => profile().map_err(err_str)
+        },
+        "fan-curve" => match matches.value_of("profile") {
+            Some(profile) => client.set_fan_curve(profile),
+            None => Ok(())
         },
         // TODO: Implement the brightness feature for clients.
         // "brightness" => match (matches.value_of("brightness"), matches.value_of("value")) {

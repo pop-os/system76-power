@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use config::{Config, ConfigPState, Profile, ProfileParameters};
 use disks::{DiskPower, Disks};
-use fan::FanDaemon;
+use fan::{FanCurve, FanDaemon};
 use graphics::Graphics;
 use hotplug::HotPlugDetect;
 use kernel_parameters::{DeviceList, Dirty, KernelParameter, LaptopMode, NmiWatchdog};
@@ -178,6 +178,7 @@ fn apply_profile(
 }
 
 struct PowerDaemon {
+    fan_daemon: Rc<RefCell<io::Result<FanDaemon>>>,
     graphics: Graphics,
     config: Config,
     errors: Vec<io::Error>,
@@ -202,8 +203,19 @@ impl PowerDaemon {
 
         debug!("using this config: {:#?}", config);
 
+        let active_curve = config.fan_curves.get_active()
+            .cloned()
+            .unwrap_or_else(FanCurve::standard);
+
+        let fan_daemon = FanDaemon::new(active_curve);
+
+        if let Err(why) = fan_daemon.as_ref() {
+            warn!("fan daemon initialization failed: {}", why);
+        }
+
         let errors = Vec::new();
         Ok(PowerDaemon {
+            fan_daemon: Rc::new(RefCell::new(fan_daemon)),
             graphics,
             config,
             errors,
@@ -342,6 +354,23 @@ impl Power for PowerDaemon {
         })
     }
 
+    fn set_fan_curve(&mut self, profile: &str) -> Result<(), String> {
+        match self.config.fan_curves.get(profile) {
+            Some(profile) => {
+                match *self.fan_daemon.borrow_mut() {
+                    Ok(ref mut fan_daemon) => fan_daemon.set_curve(profile.clone()),
+                    Err(_) => return Err("fan curve cannot be set because the fan daemon \
+                        failed to initialize".into())
+                }
+            },
+            None => return Err("fan curve profile not found".into())
+        }
+
+        self.config.fan_curves.active = Cow::Owned(profile.to_owned());
+
+        Ok(())
+    }
+
     fn get_graphics(&mut self) -> Result<String, String> {
         self.graphics.get_vendor().map_err(err_str)
     }
@@ -473,6 +502,7 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
                 .add_m(method!(performance, "Performance", false, false))
                 .add_m(method!(balanced, "Balanced", false, false))
                 .add_m(method!(battery, "Battery", false, false))
+                .add_m(method!(set_fan_curve, "SetFanCurve", false, true).inarg::<&str, _>("profile"))
                 .add_m(method!(get_graphics, "GetGraphics", true, false).outarg::<&str, _>("vendor"))
                 .add_m(method!(set_graphics, "SetGraphics", false, true).inarg::<&str, _>("vendor"))
                 .add_m(
@@ -501,11 +531,7 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
 
     c.add_handler(tree);
 
-    let fan_daemon_res = FanDaemon::new(daemon.borrow().config.fan_curves.get_active());
-
-    if let Err(ref err) = fan_daemon_res {
-        error!("fan daemon: {}", err);
-    }
+    let fan_daemon = daemon.borrow().fan_daemon.clone();
 
     let hpd_res = unsafe { HotPlugDetect::new() };
 
@@ -523,7 +549,7 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
     loop {
         c.incoming(1000).next();
 
-        if let Ok(ref fan_daemon) = fan_daemon_res {
+        if let Ok(ref fan_daemon) = *fan_daemon.borrow() {
             fan_daemon.step();
         }
 

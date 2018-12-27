@@ -25,13 +25,15 @@ pub struct ConfigFans {
 }
 
 impl ConfigFans {
-    pub fn get_active(&self) -> FanCurve {
-        match self.active.as_ref() {
-            "standard" => self.standard.clone(),
+    pub fn get(&self, profile: &str) -> Option<&FanCurve> {
+        match profile {
+            "standard" => Some(&self.standard),
             other => self.custom.get(other)
-                .cloned()
-                .unwrap_or_else(|| self.standard.clone())
         }
+    }
+
+    pub fn get_active(&self) -> Option<&FanCurve> {
+        self.get(self.active.as_ref())
     }
 
     pub(crate) fn serialize_toml(&self, out: &mut Vec<u8>) {
