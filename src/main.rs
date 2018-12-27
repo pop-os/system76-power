@@ -44,6 +44,7 @@ pub static DBUS_PATH: &'static str = "/com/system76/PowerDaemon";
 pub static DBUS_IFACE: &'static str = "com.system76.PowerDaemon";
 
 pub trait Power {
+    fn custom(&mut self, profile: &str) -> Result<(), String>;
     fn performance(&mut self) -> Result<(), String>;
     fn balanced(&mut self) -> Result<(), String>;
     fn battery(&mut self) -> Result<(), String>;
@@ -117,7 +118,6 @@ fn main() {
                 - Otherwise, that profile will be set, if it is a valid profile")
             .arg(Arg::with_name("profile")
                 .help("set the power profile")
-                .possible_values(&["battery", "balanced", "performance"])
                 .required(false))
         )
         .subcommand(SubCommand::with_name("graphics")

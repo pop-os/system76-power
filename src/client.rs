@@ -85,6 +85,12 @@ impl PowerClient {
 }
 
 impl Power for PowerClient {
+    fn custom(&mut self, profile: &str) -> Result<(), String> {
+        info!("Setting power profile to performance");
+        self.call_method::<&str>("Custom", Some(profile))?;
+        Ok(())
+    }
+
     fn performance(&mut self) -> Result<(), String> {
         info!("Setting power profile to performance");
         self.call_method::<bool>("Performance", None)?;
@@ -177,7 +183,8 @@ pub fn client(subcommand: &str, matches: &ArgMatches) -> Result<(), String> {
             Some("balanced") => client.balanced(),
             Some("battery") => client.battery(),
             Some("performance") => client.performance(),
-            _ => profile().map_err(err_str)
+            Some(other) => client.custom(other),
+            None => profile().map_err(err_str)
         },
         // TODO: Implement the brightness feature for clients.
         // "brightness" => match (matches.value_of("brightness"), matches.value_of("value")) {

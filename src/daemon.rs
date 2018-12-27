@@ -173,7 +173,7 @@ fn apply_profile(
         execute_script(script);
     }
 
-    *profile = params.profile;
+    *profile = params.profile.clone();
 }
 
 struct PowerDaemon {
@@ -210,7 +210,7 @@ impl PowerDaemon {
         })
     }
 
-    fn set_profile_and_then(&mut self, func: fn(&mut Self)) -> Result<(), String> {
+    fn set_profile_and_then<F: FnMut(&mut Self)>(&mut self, mut func: F) -> Result<(), String> {
         func(self);
 
         if self.overwrite_config {
@@ -233,6 +233,36 @@ impl PowerDaemon {
 }
 
 impl Power for PowerDaemon {
+    fn custom(&mut self, profile: &str) -> Result<(), String> {
+        let profile_ = self.config.profiles.custom.get(profile)
+            .cloned()
+            .ok_or_else(|| format!("{} is not a known profile", profile))?;
+
+        let profile_parameters = ProfileParameters {
+            profile: ProfileKind::Custom(profile.into()),
+            disk_apm: 254,
+            disk_autosuspend_delay: -1,
+            scsi_profiles: &["med_power_with_dipm", "medium_power"],
+            sound_power_save: (0, false),
+            pstate_defaults: ConfigPState {
+                min: 0,
+                max: 100,
+                turbo: true,
+            },
+            backlight_screen: Some(80),
+            backlight_keyboard: Some(50),
+        };
+
+        self.set_profile_and_then(|d| {
+            apply_profile(
+                &mut d.config.defaults.last_profile,
+                &mut d.errors,
+                &profile_,
+                &profile_parameters,
+            )
+        })
+    }
+
     fn performance(&mut self) -> Result<(), String> {
         static PARAMETERS: ProfileParameters = ProfileParameters {
             profile: ProfileKind::Performance,
@@ -359,15 +389,16 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
 
     let res = {
         let mut daemon = daemon.borrow_mut();
-        let last_profile = daemon.config.defaults.last_profile;
+        let last_profile = daemon.config.defaults.last_profile.clone();
         info!(
             "Initializing with previously-set profile: {}",
-            <&'static str>::from(last_profile)
+            <&str>::from(&last_profile)
         );
         match last_profile {
             ProfileKind::Battery => daemon.battery(),
             ProfileKind::Balanced => daemon.balanced(),
             ProfileKind::Performance => daemon.performance(),
+            ProfileKind::Custom(ref profile) => daemon.custom(profile)
         }
     };
 
@@ -437,12 +468,11 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
     let tree = f.tree(()).add(
         f.object_path(DBUS_PATH, ()).introspectable().add(
             f.interface(DBUS_IFACE, ())
+                .add_m(method!(custom, "Custom", false, true).inarg::<&str, _>("profile"))
                 .add_m(method!(performance, "Performance", false, false))
                 .add_m(method!(balanced, "Balanced", false, false))
                 .add_m(method!(battery, "Battery", false, false))
-                .add_m(
-                    method!(get_graphics, "GetGraphics", true, false).outarg::<&str, _>("vendor"),
-                )
+                .add_m(method!(get_graphics, "GetGraphics", true, false).outarg::<&str, _>("vendor"))
                 .add_m(method!(set_graphics, "SetGraphics", false, true).inarg::<&str, _>("vendor"))
                 .add_m(
                     method!(get_switchable, "GetSwitchable", true, false)

@@ -41,22 +41,26 @@ impl ConfigDefaults {
              # The default profile that will be set on disconnecting from AC.\n\
              {}\n\n\
              # The last profile that was activated\n\
-             last_profile = '{}'\n",
+             last_profile = {}\n",
              comment_if_default(
                  true,
                  "ac",
-                 defaults.ac,
-                 self.ac,
-                 <&'static str>::from(self.ac)
+                 &defaults.ac,
+                 &self.ac,
+                 <&str>::from(&self.ac)
              ),
             comment_if_default(
                 true,
                 "battery",
-                defaults.battery,
-                self.battery,
-                <&'static str>::from(self.battery)
+                &defaults.battery,
+                &self.battery,
+                <&str>::from(&self.battery)
             ),
-            <&'static str>::from(self.last_profile)
+            if let ProfileKind::Custom(_) = self.last_profile {
+                format!("{{ custom = '{}' }}", <&str>::from(&self.last_profile))
+            } else {
+                format!("'{}'", <&str>::from(&self.last_profile))
+            }
         );
 
         let exp: &[u8] = if self.experimental {

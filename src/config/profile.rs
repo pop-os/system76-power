@@ -71,7 +71,9 @@ impl Profiles {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, SmartDefault)]
 pub struct Profile {
     pub backlight: Option<ConfigBacklight>,
+    #[serde(default)]
     pub laptop_mode: u8,
+    #[serde(default)]
     pub max_lost_work: u32,
     pub pci: Option<ConfigPci>,
     pub pstate: Option<ConfigPState>,
@@ -134,7 +136,7 @@ impl Profile {
     }
 }
 
-#[derive(Copy, Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub enum ProfileKind {
     #[serde(rename = "battery")]
     Battery,
@@ -142,14 +144,17 @@ pub enum ProfileKind {
     Balanced,
     #[serde(rename = "performance")]
     Performance,
+    #[serde(rename = "custom")]
+    Custom(String)
 }
 
-impl From<ProfileKind> for &'static str {
-    fn from(profile: ProfileKind) -> Self {
+impl<'a> From<&'a ProfileKind> for &'a str {
+    fn from(profile: &'a ProfileKind) -> Self {
         match profile {
-            ProfileKind::Balanced => "balanced",
-            ProfileKind::Battery => "battery",
-            ProfileKind::Performance => "performance",
+            ProfileKind::Balanced     => "balanced",
+            ProfileKind::Battery      => "battery",
+            ProfileKind::Performance  => "performance",
+            ProfileKind::Custom(prof) => prof.as_str()
         }
     }
 }
