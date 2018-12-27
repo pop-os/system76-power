@@ -14,7 +14,7 @@ serde_derive = "1.0.78"
 toml = "0.4.6"
 xdg = "2.1.0"
 intel-pstate = "0.1.1"
-sysfs-class = { git = "https://github.com/pop-os/sysfs-class", branch = "extra-derives" }
+sysfs-class = { git = "https://github.com/pop-os/sysfs-class" }
 smart-default = "=0.2.0"
 
 [build-dependencies]

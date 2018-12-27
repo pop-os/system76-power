@@ -3,7 +3,7 @@ replace-with = "vendor"
 
 [source."https://github.com/pop-os/sysfs-class"]
 git = "https://github.com/pop-os/sysfs-class"
-branch = "extra-derives"
+branch = "master"
 replace-with = "vendored-sources"
 
 [source.vendor]
