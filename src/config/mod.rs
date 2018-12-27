@@ -79,7 +79,7 @@ impl Config {
     }
 
     /// Attempt to read the configuration file at the `CONFIG_PATH`.
-    fn read() -> io::Result<Config> {
+    pub fn read() -> io::Result<Config> {
         let config_path = &Path::new(CONFIG_PATH);
         let mut file = File::open(config_path)?;
         let mut buffer = Vec::new();

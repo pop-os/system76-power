@@ -1,3 +1,4 @@
+use config::Config;
 use dbus::{BusType, Connection, Message};
 use dbus::arg::Append;
 use std::cmp::Ordering;
@@ -185,11 +186,11 @@ pub fn client(subcommand: &str, matches: &ArgMatches) -> Result<(), String> {
     let mut client = PowerClient::new()?;
 
     match subcommand {
-        // "config" => match matches.subcommand() {
-        //     ("reset", _) => unimplemented!(),
-        //     ("verify", _) => unimplemented!(),
-        //     _ => unimplemented!(),
-        // },
+        "config" => {
+            let config = Config::read().map_err(|why| format!("{}", why))?;
+            println!("{:#?}", config);
+            Ok(())
+        },
         "profile" => match matches.value_of("profile") {
             Some("balanced") => client.balanced(),
             Some("battery") => client.battery(),
