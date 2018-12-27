@@ -1,5 +1,6 @@
 mod backlight;
 mod defaults;
+mod fans;
 mod pci;
 mod profile;
 mod pstate;
@@ -8,6 +9,7 @@ mod radeon;
 
 pub use self::backlight::*;
 pub use self::defaults::*;
+pub use self::fans::*;
 pub use self::pci::*;
 pub use self::profile::*;
 pub use self::pstate::*;
@@ -32,6 +34,9 @@ pub struct Config {
 
     #[serde(default)]
     pub thresholds: ConfigThresholds,
+
+    #[serde(default)]
+    pub fan_curves: ConfigFans,
 
     #[serde(default)]
     pub profiles: Profiles,
@@ -98,6 +103,7 @@ impl Config {
             );
             self.defaults.serialize_toml(out);
             self.thresholds.serialize_toml(out);
+            self.fan_curves.serialize_toml(out);
             self.profiles.serialize_toml(out);
         }
         out

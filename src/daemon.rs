@@ -501,7 +501,7 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
 
     c.add_handler(tree);
 
-    let fan_daemon_res = FanDaemon::new();
+    let fan_daemon_res = FanDaemon::new(daemon.borrow().config.fan_curves.get_active());
 
     if let Err(ref err) = fan_daemon_res {
         error!("fan daemon: {}", err);

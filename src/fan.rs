@@ -8,7 +8,7 @@ pub struct FanDaemon {
 }
 
 impl FanDaemon {
-    pub fn new() -> io::Result<FanDaemon> {
+    pub fn new(curve: FanCurve) -> io::Result<FanDaemon> {
         //TODO: Support multiple hwmons for platform and cpu
         let mut platform_opt = None;
         let mut cpu_opt = None;
@@ -27,7 +27,7 @@ impl FanDaemon {
         }
 
         Ok(FanDaemon {
-            curve: FanCurve::standard(),
+            curve,
             platform: platform_opt.ok_or_else(|| io::Error::new(
                 io::ErrorKind::NotFound,
                 "platform hwmon not found"
@@ -68,12 +68,12 @@ impl Drop for FanDaemon {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
 pub struct FanPoint {
     // Temperature in hundredths of a degree, 10000 = 100C
-    temp: i16,
+    pub temp: i16,
     // duty in hundredths of a percent, 10000 = 100%
-    duty: u16,
+    pub duty: u16,
 }
 
 impl FanPoint {
@@ -119,9 +119,10 @@ impl FanPoint {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[serde(transparent)]
 pub struct FanCurve {
-    points: Vec<FanPoint>
+    pub points: Vec<FanPoint>
 }
 
 impl FanCurve {
