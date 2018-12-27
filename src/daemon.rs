@@ -256,7 +256,7 @@ impl Power for PowerDaemon {
 
         self.set_profile_and_then(|d| {
             apply_profile(
-                &mut d.config.defaults.last_profile,
+                &mut d.config.profiles.active,
                 &mut d.errors,
                 &profile_,
                 &profile_parameters,
@@ -282,7 +282,7 @@ impl Power for PowerDaemon {
 
         self.set_profile_and_then(|d| {
             apply_profile(
-                &mut d.config.defaults.last_profile,
+                &mut d.config.profiles.active,
                 &mut d.errors,
                 &d.config.profiles.performance,
                 &PARAMETERS,
@@ -292,7 +292,7 @@ impl Power for PowerDaemon {
 
     fn balanced(&mut self) -> Result<(), String> {
         static PARAMETERS: ProfileParameters = ProfileParameters {
-            profile: Cow::Borrowed("battery"),
+            profile: Cow::Borrowed("balanced"),
             disk_apm: 254,
             disk_autosuspend_delay: -1,
             scsi_profiles: &["med_power_with_dipm", "medium_power"],
@@ -308,7 +308,7 @@ impl Power for PowerDaemon {
 
         self.set_profile_and_then(|d| {
             apply_profile(
-                &mut d.config.defaults.last_profile,
+                &mut d.config.profiles.active,
                 &mut d.errors,
                 &d.config.profiles.balanced,
                 &PARAMETERS,
@@ -334,7 +334,7 @@ impl Power for PowerDaemon {
 
         self.set_profile_and_then(|d| {
             apply_profile(
-                &mut d.config.defaults.last_profile,
+                &mut d.config.profiles.active,
                 &mut d.errors,
                 &d.config.profiles.battery,
                 &PARAMETERS,
@@ -390,7 +390,7 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
 
     let res = {
         let mut daemon = daemon.borrow_mut();
-        let last_profile = daemon.config.defaults.last_profile.clone();
+        let last_profile = daemon.config.profiles.active.clone();
         info!(
             "Initializing with previously-set profile: {}",
             last_profile

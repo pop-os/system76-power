@@ -10,10 +10,6 @@ fn batt() -> Cow<'static, str> {
     "battery".into()
 }
 
-fn bala() -> Cow<'static, str> {
-    "balanced".into()
-}
-
 #[derive(Clone, Debug, Deserialize, Serialize, SmartDefault)]
 pub struct ConfigDefaults {
     #[default = "perf()"]
@@ -23,10 +19,6 @@ pub struct ConfigDefaults {
     #[default = "batt()"]
     #[serde(default = "batt")]
     pub battery: Cow<'static, str>,
-
-    #[default = "bala()"]
-    #[serde(default = "bala")]
-    pub last_profile: Cow<'static, str>,
 
     #[serde(default)]
     pub experimental: bool,
@@ -40,9 +32,7 @@ impl ConfigDefaults {
             "# The default profile that will be set on connecting to AC.\n\
              {}\n\n\
              # The default profile that will be set on disconnecting from AC.\n\
-             {}\n\n\
-             # The last profile that was activated\n\
-             last_profile = {}\n",
+             {}\n",
             comment_if_default(
                 true,
                 "ac",
@@ -56,8 +46,7 @@ impl ConfigDefaults {
                 &defaults.battery,
                 &self.battery,
                 self.battery.as_ref(),
-            ),
-            format!("'{}'", self.last_profile)
+            )
         );
 
         let exp: &[u8] = if self.experimental {

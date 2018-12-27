@@ -1,8 +1,13 @@
 use super::*;
+use std::borrow::Cow;
 use std::collections::HashMap;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, SmartDefault)]
 pub struct Profiles {
+    #[default = "\"balanced\".into()"]
+    #[serde(default)]
+    pub active: Cow<'static, str>,
+
     #[default = "Profile::battery()"]
     #[serde(default)]
     pub battery: Profile,
@@ -21,6 +26,21 @@ pub struct Profiles {
 }
 
 impl Profiles {
+    pub fn get_active(&self) -> &Profile {
+        match self.active.as_ref() {
+            "battery" => &self.battery,
+            "balanced" => &self.balanced,
+            "performance" => &self.performance,
+            other => match self.custom.get(other) {
+                Some(profile) => profile,
+                None => {
+                    error!("power profile '{}' not found -- using 'balanced'", other);
+                    &self.balanced
+                }
+            }
+        }
+    }
+
     pub(crate) fn serialize_toml(&self, out: &mut Vec<u8>) {
         fn set_or_default(out: &mut Vec<u8>, profile: &str, current: &Profile, default: &Profile) {
             if current != default {
@@ -56,6 +76,14 @@ impl Profiles {
                 )
             }
         }
+
+        let _ = writeln!(
+            out,
+            "[profiles]\n\
+             # The last profile that was activated.\n\
+             active = '{}'\n",
+             self.active
+        );
 
         set_or_default(out, "battery", &self.battery, &Profile::battery());
         set_or_default(out, "balanced", &self.balanced, &Profile::balanced());
