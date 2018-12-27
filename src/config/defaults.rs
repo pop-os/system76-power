@@ -1,31 +1,32 @@
 use super::*;
+use std::borrow::Cow;
 use std::io::Write;
 
-fn perf() -> ProfileKind {
-    ProfileKind::Performance
+fn perf() -> Cow<'static, str> {
+    "performance".into()
 }
 
-fn batt() -> ProfileKind {
-    ProfileKind::Battery
+fn batt() -> Cow<'static, str> {
+    "battery".into()
 }
 
-fn bala() -> ProfileKind {
-    ProfileKind::Balanced
+fn bala() -> Cow<'static, str> {
+    "balanced".into()
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, SmartDefault)]
 pub struct ConfigDefaults {
-    #[default = "ProfileKind::Performance"]
+    #[default = "perf()"]
     #[serde(default = "perf")]
-    pub ac: ProfileKind,
+    pub ac: Cow<'static, str>,
 
-    #[default = "ProfileKind::Battery"]
+    #[default = "batt()"]
     #[serde(default = "batt")]
-    pub battery: ProfileKind,
+    pub battery: Cow<'static, str>,
 
-    #[default = "ProfileKind::Balanced"]
+    #[default = "bala()"]
     #[serde(default = "bala")]
-    pub last_profile: ProfileKind,
+    pub last_profile: Cow<'static, str>,
 
     #[serde(default)]
     pub experimental: bool,
@@ -42,33 +43,21 @@ impl ConfigDefaults {
              {}\n\n\
              # The last profile that was activated\n\
              last_profile = {}\n",
-            if let ProfileKind::Custom(_) = self.ac {
-                format!("{{ custom = '{}' }}", <&str>::from(&self.ac))
-            } else {
-                comment_if_default(
-                    true,
-                    "ac",
-                    &defaults.ac,
-                    &self.ac,
-                    <&str>::from(&self.ac)
-                )
-            },
-            if let ProfileKind::Custom(_) = self.battery {
-                format!("{{ custom = '{}' }}", <&str>::from(&self.ac))
-            } else {
-                comment_if_default(
-                    true,
-                    "battery",
-                    &defaults.battery,
-                    &self.battery,
-                    <&str>::from(&self.battery)
-                )
-            },
-            if let ProfileKind::Custom(_) = self.last_profile {
-                format!("{{ custom = '{}' }}", <&str>::from(&self.last_profile))
-            } else {
-                format!("'{}'", <&str>::from(&self.last_profile))
-            }
+            comment_if_default(
+                true,
+                "ac",
+                &defaults.ac,
+                &self.ac,
+                self.ac.as_ref()
+            ),
+            comment_if_default(
+                true,
+                "battery",
+                &defaults.battery,
+                &self.battery,
+                self.battery.as_ref(),
+            ),
+            format!("'{}'", self.last_profile)
         );
 
         let exp: &[u8] = if self.experimental {

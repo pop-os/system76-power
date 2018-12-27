@@ -1,5 +1,6 @@
 use dbus::tree::{Factory, MethodErr};
 use dbus::{BusType, Connection, NameFlag};
+use std::borrow::Cow;
 use std::cell::RefCell;
 use std::io;
 use std::path::Path;
@@ -8,7 +9,7 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering, ATOMIC_BOOL_INIT};
 use std::sync::Arc;
 
-use config::{Config, ConfigPState, Profile, ProfileKind, ProfileParameters};
+use config::{Config, ConfigPState, Profile, ProfileParameters};
 use disks::{DiskPower, Disks};
 use fan::FanDaemon;
 use graphics::Graphics;
@@ -52,7 +53,7 @@ fn try<F: FnMut() -> io::Result<()>>(errors: &mut Vec<io::Error>, msg: &str, mut
 }
 
 fn apply_profile(
-    profile: &mut ProfileKind,
+    profile: &mut Cow<'static, str>,
     errors: &mut Vec<io::Error>,
     config: &Profile,
     params: &ProfileParameters,
@@ -239,7 +240,7 @@ impl Power for PowerDaemon {
             .ok_or_else(|| format!("{} is not a known profile", profile))?;
 
         let profile_parameters = ProfileParameters {
-            profile: ProfileKind::Custom(profile.into()),
+            profile: Cow::Owned(profile.to_owned()),
             disk_apm: 254,
             disk_autosuspend_delay: -1,
             scsi_profiles: &["med_power_with_dipm", "medium_power"],
@@ -265,7 +266,7 @@ impl Power for PowerDaemon {
 
     fn performance(&mut self) -> Result<(), String> {
         static PARAMETERS: ProfileParameters = ProfileParameters {
-            profile: ProfileKind::Performance,
+            profile: Cow::Borrowed("performance"),
             disk_apm: 254,
             disk_autosuspend_delay: -1,
             scsi_profiles: &["med_power_with_dipm", "max_performance"],
@@ -291,7 +292,7 @@ impl Power for PowerDaemon {
 
     fn balanced(&mut self) -> Result<(), String> {
         static PARAMETERS: ProfileParameters = ProfileParameters {
-            profile: ProfileKind::Balanced,
+            profile: Cow::Borrowed("battery"),
             disk_apm: 254,
             disk_autosuspend_delay: -1,
             scsi_profiles: &["med_power_with_dipm", "medium_power"],
@@ -317,7 +318,7 @@ impl Power for PowerDaemon {
 
     fn battery(&mut self) -> Result<(), String> {
         static PARAMETERS: ProfileParameters = ProfileParameters {
-            profile: ProfileKind::Battery,
+            profile: Cow::Borrowed("battery"),
             disk_apm: 128,
             disk_autosuspend_delay: 15000,
             scsi_profiles: &["min_power", "min_power"],
@@ -392,13 +393,13 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
         let last_profile = daemon.config.defaults.last_profile.clone();
         info!(
             "Initializing with previously-set profile: {}",
-            <&str>::from(&last_profile)
+            last_profile
         );
-        match last_profile {
-            ProfileKind::Battery => daemon.battery(),
-            ProfileKind::Balanced => daemon.balanced(),
-            ProfileKind::Performance => daemon.performance(),
-            ProfileKind::Custom(ref profile) => daemon.custom(profile)
+        match last_profile.as_ref() {
+            "battery" => daemon.battery(),
+            "balanced" => daemon.balanced(),
+            "performance" => daemon.performance(),
+            profile => daemon.custom(profile)
         }
     };
 

@@ -14,6 +14,7 @@ pub use self::pstate::*;
 pub use self::thresholds::*;
 pub use self::radeon::*;
 
+use std::borrow::Cow;
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
@@ -105,7 +106,7 @@ impl Config {
 
 // TODO: Make this configurable.
 pub struct ProfileParameters {
-    pub profile: ProfileKind,
+    pub profile: Cow<'static, str>,
     pub disk_apm: u8,
     pub disk_autosuspend_delay: i32,
     pub scsi_profiles: &'static [&'static str],

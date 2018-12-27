@@ -135,26 +135,3 @@ impl Profile {
         out.push(b'\n');
     }
 }
-
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-pub enum ProfileKind {
-    #[serde(rename = "battery")]
-    Battery,
-    #[serde(rename = "balanced")]
-    Balanced,
-    #[serde(rename = "performance")]
-    Performance,
-    #[serde(rename = "custom")]
-    Custom(String)
-}
-
-impl<'a> From<&'a ProfileKind> for &'a str {
-    fn from(profile: &'a ProfileKind) -> Self {
-        match profile {
-            ProfileKind::Balanced     => "balanced",
-            ProfileKind::Battery      => "battery",
-            ProfileKind::Performance  => "performance",
-            ProfileKind::Custom(prof) => prof.as_str()
-        }
-    }
-}
