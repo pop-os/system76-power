@@ -42,20 +42,28 @@ impl ConfigDefaults {
              {}\n\n\
              # The last profile that was activated\n\
              last_profile = {}\n",
-             comment_if_default(
-                 true,
-                 "ac",
-                 &defaults.ac,
-                 &self.ac,
-                 <&str>::from(&self.ac)
-             ),
-            comment_if_default(
-                true,
-                "battery",
-                &defaults.battery,
-                &self.battery,
-                <&str>::from(&self.battery)
-            ),
+            if let ProfileKind::Custom(_) = self.ac {
+                format!("{{ custom = '{}' }}", <&str>::from(&self.ac))
+            } else {
+                comment_if_default(
+                    true,
+                    "ac",
+                    &defaults.ac,
+                    &self.ac,
+                    <&str>::from(&self.ac)
+                )
+            },
+            if let ProfileKind::Custom(_) = self.battery {
+                format!("{{ custom = '{}' }}", <&str>::from(&self.ac))
+            } else {
+                comment_if_default(
+                    true,
+                    "battery",
+                    &defaults.battery,
+                    &self.battery,
+                    <&str>::from(&self.battery)
+                )
+            },
             if let ProfileKind::Custom(_) = self.last_profile {
                 format!("{{ custom = '{}' }}", <&str>::from(&self.last_profile))
             } else {
