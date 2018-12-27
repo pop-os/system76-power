@@ -41,6 +41,45 @@ impl Profiles {
         }
     }
 
+    /// Fix missing data in default profiles.
+    pub(crate) fn repair(&mut self) {
+        use std::iter;
+
+        let profiles = iter::once((&mut self.battery, Profile::battery()))
+            .chain(iter::once((&mut self.balanced, Profile::balanced())))
+            .chain(iter::once((&mut self.performance, Profile::performance())));
+
+        macro_rules! validate {
+            ($profile:ident, $default:ident, opt $field:ident) => (
+                if $profile.$field.is_none() {
+                    $profile.$field = $default.$field.take();
+                }
+            );
+
+            ($profile:ident, $default:ident, int $field:ident) => (
+                if $profile.$field == 0 {
+                    $profile.$field = $default.$field;
+                }
+            );
+
+            ($profile:ident, $default:ident { $($kind:tt $field:ident),* }) => (
+                $(validate!($profile, $default, $kind $field);)*
+            );
+        }
+
+        for (profile, mut default) in profiles {
+            validate!(profile, default {
+                opt backlight,
+                int laptop_mode,
+                int max_lost_work,
+                opt pci,
+                opt pstate,
+                opt radeon,
+                opt script
+            });
+        }
+    }
+
     pub(crate) fn serialize_toml(&self, out: &mut Vec<u8>) {
         fn set_or_default(out: &mut Vec<u8>, profile: &str, current: &Profile, default: &Profile) {
             if current != default {

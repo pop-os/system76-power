@@ -85,12 +85,17 @@ impl Config {
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer)?;
 
-        toml::from_slice(&buffer).map_err(|why| {
+        let mut config: Config = toml::from_slice(&buffer).map_err(|why| {
             io::Error::new(
                 io::ErrorKind::Other,
                 format!("failed to deserialize config: {}", why),
             )
-        })
+        })?;
+
+        // Fix missing data in default profiles
+        config.profiles.repair();
+
+        Ok(config)
     }
 
     /// Custom serialization to a more readable format.
