@@ -246,7 +246,7 @@ impl PowerDaemon {
 }
 
 impl Power for PowerDaemon {
-    fn custom(&mut self, profile: &str) -> Result<(), String> {
+    fn set_profile(&mut self, profile: &str) -> Result<(), String> {
         let profile_ = self.config.profiles.custom.get(profile)
             .cloned()
             .ok_or_else(|| format!("{} is not a known profile", profile))?;
@@ -432,7 +432,7 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
             "battery" => daemon.battery(),
             "balanced" => daemon.balanced(),
             "performance" => daemon.performance(),
-            profile => daemon.custom(profile)
+            profile => daemon.set_profile(profile)
         }
     };
 
@@ -451,86 +451,99 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
 
     // Defines whether the value returned by the method should be appended.
     macro_rules! append {
-        (true, $m:ident, $value:ident) => {
+        (has_out, $m:ident, $value:ident) => {
             $m.msg.method_return().append1($value)
         };
-        (false, $m:ident, $value:ident) => {
+        (no_out, $m:ident, $value:ident) => {
             $m.msg.method_return()
         };
     }
 
     // Programs the message that should be printed.
     macro_rules! get_value {
-        (true, $name:expr, $daemon:ident, $m:ident, $method:tt) => {{
+        (has_in, $name:expr, $daemon:ident, $m:ident, $method:tt) => {{
             let value = $m.msg.read1()?;
             info!("DBUS Received {}({}) method", $name, value);
             $daemon.borrow_mut().$method(value)
         }};
 
-        (false, $name:expr, $daemon:ident, $m:ident, $method:tt) => {{
+        (no_in, $name:expr, $daemon:ident, $m:ident, $method:tt) => {{
             info!("DBUS Received {} method", $name);
             $daemon.borrow_mut().$method()
         }};
     }
 
-    // Creates a new dbus method from an existing method in the daemon.
-    macro_rules! method {
-        ($method:tt, $name:expr, $append:tt, $print:tt) => {{
-            let daemon = daemon.clone();
-            f.method($name, (), move |m| {
-                let result = get_value!($print, $name, daemon, m, $method);
-                match result {
-                    Ok(_value) => {
-                        let mret = append!($append, m, _value);
-                        Ok(vec![mret])
-                    }
-                    Err(err) => {
-                        error!("{}", err);
-                        Err(MethodErr::failed(&err))
-                    }
-                }
-            })
-        }};
-    }
-
-    let signal = Arc::new(f.signal("HotPlugDetect", ()).sarg::<u64, _>("port"));
+    let signal_hotplug = Arc::new(f.signal("HotPlugDetect", ()).sarg::<u64, _>("port"));
 
     info!(
         "Adding dbus path {} with interface {}",
         DBUS_PATH, DBUS_IFACE
     );
-    let tree = f.tree(()).add(
-        f.object_path(DBUS_PATH, ()).introspectable().add(
-            f.interface(DBUS_IFACE, ())
-                .add_m(method!(custom, "Custom", false, true).inarg::<&str, _>("profile"))
-                .add_m(method!(performance, "Performance", false, false))
-                .add_m(method!(balanced, "Balanced", false, false))
-                .add_m(method!(battery, "Battery", false, false))
-                .add_m(method!(set_fan_curve, "SetFanCurve", false, true).inarg::<&str, _>("profile"))
-                .add_m(method!(get_graphics, "GetGraphics", true, false).outarg::<&str, _>("vendor"))
-                .add_m(method!(set_graphics, "SetGraphics", false, true).inarg::<&str, _>("vendor"))
-                .add_m(
-                    method!(get_switchable, "GetSwitchable", true, false)
-                        .outarg::<bool, _>("switchable"),
-                )
-                .add_m(
-                    method!(get_graphics_power, "GetGraphicsPower", true, false)
-                        .outarg::<bool, _>("power"),
-                )
-                .add_m(
-                    method!(set_graphics_power, "SetGraphicsPower", false, true)
-                        .inarg::<bool, _>("power"),
-                )
-                .add_m(method!(
-                    auto_graphics_power,
-                    "AutoGraphicsPower",
-                    false,
-                    false
-                ))
-                .add_m(method!(get_profile, "GetProfile", true, false).outarg::<&str, _>("profile"))
-                .add_s(signal.clone()),
-        ),
-    );
+
+    macro_rules! dbus_impl {
+        (
+            $(
+                fn $method:tt<$name:tt, $append:tt, $hasvalue:tt>(
+                    $( $inarg_name:tt : $inarg_type:ty ),*
+                ) $( -> $($outarg_name:tt: $outarg_type:ty ),* )*;
+            )*
+
+            $(
+                signal $signal:ident;
+            )*
+        ) => {{
+            let interface = f.interface(DBUS_IFACE, ())
+                $(
+                    .add_m({
+                        let daemon = daemon.clone();
+                        f.method($name, (), move |m| {
+                            let result = get_value!($hasvalue, $name, daemon, m, $method);
+                            match result {
+                                Ok(_value) => {
+                                    let mret = append!($append, m, _value);
+                                    Ok(vec![mret])
+                                }
+                                Err(err) => {
+                                    error!("{}", err);
+                                    Err(MethodErr::failed(&err))
+                                }
+                            }
+                        })
+                        $(.inarg::<$inarg_type, _>(stringify!($inarg_name)))*
+                        $($(.outarg::<$outarg_type, _>(stringify!($outarg_name)))*)*
+                    })
+                )*
+                $(
+                    .add_s($signal.clone())
+                )*;
+
+            f.tree(()).add(f.object_path(DBUS_PATH, ()).introspectable().add(interface))
+        }}
+    }
+
+    let tree = dbus_impl! {
+        // Power Profiles
+        fn battery<"Battery", no_out, no_in>();
+        fn balanced<"Balanced", no_out, no_in>();
+        fn performance<"Performance", no_out, no_in>();
+        fn get_profile<"GetProfile", has_out, no_in>() -> profile: &str;
+        fn set_profile<"SetProfile", no_out, has_in>(profile: &str);
+
+        // Fans
+        fn set_fan_curve<"SetFanCurve", no_out, has_in>(profile: &str);
+
+        // Graphics
+        fn get_graphics<"GetGraphics", has_out, no_in>() -> vendor: &str;
+        fn set_graphics<"SetGraphics", no_out, has_in>(vendor: &str);
+        fn get_graphics_power<"GetGraphicsPower", has_out, no_in>() -> power: bool;
+        fn set_graphics_power<"SetGraphicsPower", no_out, has_in>(power: bool);
+        fn auto_graphics_power<"AutoGraphicsPower", no_out, no_in>();
+
+        // Switchable graphics detection
+        fn get_switchable<"GetSwitchable", has_out, no_in>() -> switchable: bool;
+
+        signal signal_hotplug;
+    };
 
     tree.set_registered(&c, true).map_err(err_str)?;
 
@@ -563,7 +576,7 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
             if hpd[i] != last[i] && hpd[i] {
                 info!("HotPlugDetect {}", i);
                 c.send(
-                    signal
+                    signal_hotplug
                         .msg(&DBUS_PATH.into(), &DBUS_NAME.into())
                         .append1(i as u64),
                 ).map_err(|()| "failed to send message".to_string())?;

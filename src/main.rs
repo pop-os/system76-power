@@ -44,18 +44,22 @@ pub static DBUS_PATH: &'static str = "/com/system76/PowerDaemon";
 pub static DBUS_IFACE: &'static str = "com.system76.PowerDaemon";
 
 pub trait Power {
-    fn custom(&mut self, profile: &str) -> Result<(), String>;
     fn performance(&mut self) -> Result<(), String>;
     fn balanced(&mut self) -> Result<(), String>;
     fn battery(&mut self) -> Result<(), String>;
+
+    fn get_profile(&self) -> Result<String, String>;
+    fn set_profile(&mut self, profile: &str) -> Result<(), String>;
+
     fn set_fan_curve(&mut self, profile: &str) -> Result<(), String>;
+
     fn get_graphics(&mut self) -> Result<String, String>;
-    fn get_switchable(&mut self) -> Result<bool, String>;
     fn set_graphics(&mut self, vendor: &str) -> Result<(), String>;
     fn get_graphics_power(&mut self) -> Result<bool, String>;
     fn set_graphics_power(&mut self, power: bool) -> Result<(), String>;
     fn auto_graphics_power(&mut self) -> Result<(), String>;
-    fn get_profile(&self) -> Result<String, String>;
+
+    fn get_switchable(&mut self) -> Result<bool, String>;
 }
 
 // Helper function for errors

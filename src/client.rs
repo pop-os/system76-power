@@ -86,9 +86,9 @@ impl PowerClient {
 }
 
 impl Power for PowerClient {
-    fn custom(&mut self, profile: &str) -> Result<(), String> {
+    fn set_profile(&mut self, profile: &str) -> Result<(), String> {
         info!("Setting power profile to performance");
-        self.call_method::<&str>("Custom", Some(profile))?;
+        self.call_method::<&str>("SetProfile", Some(profile))?;
         Ok(())
     }
 
@@ -205,7 +205,7 @@ pub fn client(subcommand: &str, matches: &ArgMatches) -> Result<(), String> {
             Some("balanced") => client.balanced(),
             Some("battery") => client.battery(),
             Some("performance") => client.performance(),
-            Some(other) => client.custom(other),
+            Some(other) => client.set_profile(other),
             None => profile(client.get_profile()).map_err(err_str)
         },
         "fan-curve" => match matches.value_of("profile") {
