@@ -3,6 +3,7 @@ extern crate clap;
 extern crate dbus;
 extern crate fern;
 extern crate intel_pstate as pstate;
+extern crate itertools;
 extern crate libc;
 #[macro_use]
 extern crate log;
@@ -49,6 +50,7 @@ pub trait Power {
     fn battery(&mut self) -> Result<(), String>;
 
     fn get_profile(&self) -> Result<String, String>;
+    fn get_profiles(&self) -> Result<String, String>;
     fn set_profile(&mut self, profile: &str) -> Result<(), String>;
 
     fn set_fan_curve(&mut self, profile: &str) -> Result<(), String>;
@@ -132,6 +134,10 @@ fn main() {
             .arg(Arg::with_name("profile")
                 .help("set the power profile")
                 .required(false))
+            .arg(Arg::with_name("list")
+                .help("list available power profiles")
+                .long("list")
+                .short("l"))
         )
         .subcommand(SubCommand::with_name("graphics")
             .about("Query or set the graphics mode")

@@ -1,5 +1,6 @@
 use dbus::tree::{Factory, MethodErr};
 use dbus::{BusType, Connection, NameFlag};
+use itertools::Itertools;
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::io;
@@ -398,6 +399,10 @@ impl Power for PowerDaemon {
     fn get_profile(&self) -> Result<String, String> {
         Ok(self.config.profiles.active.to_string())
     }
+
+    fn get_profiles(&self) -> Result<String, String> {
+        Ok(self.config.profiles.get_profiles().join(" "))
+    }
 }
 
 pub fn daemon(experimental: bool) -> Result<(), String> {
@@ -454,6 +459,7 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
         (has_out, $m:ident, $value:ident) => {
             $m.msg.method_return().append1($value)
         };
+
         (no_out, $m:ident, $value:ident) => {
             $m.msg.method_return()
         };
@@ -526,6 +532,8 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
         fn battery<"Battery", no_out, no_in>();
         fn balanced<"Balanced", no_out, no_in>();
         fn performance<"Performance", no_out, no_in>();
+
+        fn get_profiles<"GetProfiles", has_out, no_in>() -> profiles: &str;
         fn get_profile<"GetProfile", has_out, no_in>() -> profile: &str;
         fn set_profile<"SetProfile", no_out, has_in>(profile: &str);
 

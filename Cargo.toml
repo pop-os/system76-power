@@ -16,6 +16,7 @@ xdg = "2.1.0"
 intel-pstate = "0.1.1"
 sysfs-class = { git = "https://github.com/pop-os/sysfs-class" }
 smart-default = "=0.2.0"
+itertools = "0.8.0"
 
 [build-dependencies]
 vergen = "0.1.1"

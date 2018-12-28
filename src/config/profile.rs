@@ -41,6 +41,17 @@ impl Profiles {
         }
     }
 
+    pub fn get_profiles<'a>(&'a self) -> Box<dyn Iterator<Item = &'a str> + 'a> {
+        use std::iter;
+
+        Box::new(
+            iter::once("battery")
+                .chain(iter::once("balanced"))
+                .chain(iter::once("performance"))
+                .chain(self.custom.keys().map(|x| x.as_ref()))
+        )
+    }
+
     /// Fix missing data in default profiles.
     pub(crate) fn repair(&mut self) {
         use std::iter;

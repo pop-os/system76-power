@@ -1,6 +1,7 @@
 use config::Config;
 use dbus::{BusType, Connection, Message};
 use dbus::arg::Append;
+use itertools::Itertools;
 use std::cmp::Ordering;
 use std::io;
 use {DBUS_NAME, DBUS_PATH, DBUS_IFACE, Power, err_str};
@@ -157,6 +158,12 @@ impl Power for PowerClient {
         let r = self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
         r.get1().ok_or_else(|| "return value not found".to_string())
     }
+
+    fn get_profiles(&self) -> Result<String, String> {
+        let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "GetProfiles")?;
+        let r = self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
+        r.get1().ok_or_else(|| "return value not found".to_string())
+    }
 }
 
 fn profile(profile: Result<String, String>) -> io::Result<()> {
@@ -201,12 +208,19 @@ pub fn client(subcommand: &str, matches: &ArgMatches) -> Result<(), String> {
             println!("{:#?}", config);
             Ok(())
         },
-        "profile" => match matches.value_of("profile") {
-            Some("balanced") => client.balanced(),
-            Some("battery") => client.battery(),
-            Some("performance") => client.performance(),
-            Some(other) => client.set_profile(other),
-            None => profile(client.get_profile()).map_err(err_str)
+        "profile" => if matches.is_present("list") {
+            let profiles = client.get_profiles()?;
+
+            println!("{}", profiles.split(' ').join("\n"));
+            Ok(())
+        } else {
+            match matches.value_of("profile") {
+                Some("balanced") => client.balanced(),
+                Some("battery") => client.battery(),
+                Some("performance") => client.performance(),
+                Some(other) => client.set_profile(other),
+                None => profile(client.get_profile()).map_err(err_str)
+            }
         },
         "fan-curve" => match matches.value_of("profile") {
             Some(profile) => client.set_fan_curve(profile),
