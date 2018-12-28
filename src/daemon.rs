@@ -394,6 +394,10 @@ impl Power for PowerDaemon {
     fn auto_graphics_power(&mut self) -> Result<(), String> {
         self.graphics.auto_power().map_err(err_str)
     }
+
+    fn get_profile(&self) -> Result<String, String> {
+        Ok(self.config.profiles.active.to_string())
+    }
 }
 
 pub fn daemon(experimental: bool) -> Result<(), String> {
@@ -523,6 +527,7 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
                     false,
                     false
                 ))
+                .add_m(method!(get_profile, "GetProfile", true, false).outarg::<&str, _>("profile"))
                 .add_s(signal.clone()),
         ),
     );

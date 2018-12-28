@@ -151,9 +151,19 @@ impl Power for PowerClient {
         self.call_method::<bool>("AutoGraphicsPower", None)?;
         Ok(())
     }
+
+    fn get_profile(&self) -> Result<String, String> {
+        let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "GetProfile")?;
+        let r = self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
+        r.get1().ok_or_else(|| "return value not found".to_string())
+    }
 }
 
-fn profile() -> io::Result<()> {
+fn profile(profile: Result<String, String>) -> io::Result<()> {
+    if let Ok(profile) = profile {
+        println!("Profile: {}", profile);
+    }
+
     if let Ok(pstate) = PState::new() {
         let min = pstate.min_perf_pct()?;
         let max = pstate.max_perf_pct()?;
@@ -196,7 +206,7 @@ pub fn client(subcommand: &str, matches: &ArgMatches) -> Result<(), String> {
             Some("battery") => client.battery(),
             Some("performance") => client.performance(),
             Some(other) => client.custom(other),
-            None => profile().map_err(err_str)
+            None => profile(client.get_profile()).map_err(err_str)
         },
         "fan-curve" => match matches.value_of("profile") {
             Some(profile) => client.set_fan_curve(profile),

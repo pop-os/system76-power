@@ -55,6 +55,7 @@ pub trait Power {
     fn get_graphics_power(&mut self) -> Result<bool, String>;
     fn set_graphics_power(&mut self, power: bool) -> Result<(), String>;
     fn auto_graphics_power(&mut self) -> Result<(), String>;
+    fn get_profile(&self) -> Result<String, String>;
 }
 
 // Helper function for errors
