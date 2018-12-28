@@ -41,7 +41,7 @@ impl Profiles {
         }
     }
 
-    pub fn get_profiles<'a>(&'a self) -> Box<dyn Iterator<Item = &'a str> + 'a> {
+    pub fn get_profiles<'a>(&'a self) -> Box<Iterator<Item = &'a str> + 'a> {
         use std::iter;
 
         Box::new(
