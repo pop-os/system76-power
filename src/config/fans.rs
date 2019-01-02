@@ -28,6 +28,10 @@ impl ConfigFans {
         }
     }
 
+    pub fn get_profiles<'a>(&'a self) -> Box<Iterator<Item = &'a str> + 'a> {
+        Box::new(iter::once("standard").chain(self.custom.keys().map(|x| x.as_str())))
+    }
+
     pub(crate) fn serialize_toml(&self, out: &mut Vec<u8>) {
         let defaults = Self::default();
 

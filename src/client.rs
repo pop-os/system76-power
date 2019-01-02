@@ -25,38 +25,42 @@ impl PowerClient {
         if let Some(arg) = append {
             m = m.append1(arg);
         }
-        let r = self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
+
+        let r = self.bus
+            .send_with_reply_and_block(m, TIMEOUT)
+            .map_err(|why| format!("daemon returned an error message: {}", err_str(why)))?;
+
         Ok(r)
     }
 }
 
 impl Power for PowerClient {
     fn set_profile(&mut self, profile: &str) -> Result<(), String> {
-        info!("Setting power profile to {}", profile);
+        println!("setting power profile to {}", profile);
         self.call_method::<&str>("SetProfile", Some(profile))?;
         Ok(())
     }
 
     fn performance(&mut self) -> Result<(), String> {
-        info!("Setting power profile to performance");
+        println!("setting power profile to performance");
         self.call_method::<bool>("Performance", None)?;
         Ok(())
     }
 
     fn balanced(&mut self) -> Result<(), String> {
-        info!("Setting power profile to balanced");
+        println!("setting power profile to balanced");
         self.call_method::<bool>("Balanced", None)?;
         Ok(())
     }
 
     fn battery(&mut self) -> Result<(), String> {
-        info!("Setting power profile to battery");
+        println!("setting power profile to battery");
         self.call_method::<bool>("Battery", None)?;
         Ok(())
     }
 
     fn set_fan_curve(&mut self, profile: &str) -> Result<(), String> {
-        info!("Setting fan curves to {}", profile);
+        println!("setting fan curves to {}", profile);
         self.call_method::<&str>("SetFanCurve", Some(profile))?;
         Ok(())
     }
@@ -74,7 +78,7 @@ impl Power for PowerClient {
     }
 
     fn set_graphics(&mut self, vendor: &str) -> Result<(), String> {
-        info!("Setting graphics to {}", vendor);
+        println!("setting graphics to {}", vendor);
         self.call_method::<&str>("SetGraphics", Some(vendor))?;
         Ok(())
     }
@@ -86,13 +90,13 @@ impl Power for PowerClient {
     }
 
     fn set_graphics_power(&mut self, power: bool) -> Result<(), String> {
-        info!("Turning discrete graphics {}", if power { "on" } else { "off "});
+        println!("turning discrete graphics {}", if power { "on" } else { "off "});
         self.call_method::<bool>("SetGraphicsPower", Some(power))?;
         Ok(())
     }
 
     fn auto_graphics_power(&mut self) -> Result<(), String> {
-        info!("Setting discrete graphics to turn off when not in use");
+        println!("setting discrete graphics to turn off when not in use");
         self.call_method::<bool>("AutoGraphicsPower", None)?;
         Ok(())
     }

@@ -285,7 +285,11 @@ impl Power for PowerDaemon {
     fn set_profile(&mut self, profile: &str) -> Result<(), String> {
         let profile_ = self.config.profiles.custom.get(profile)
             .cloned()
-            .ok_or_else(|| format!("{} is not a known profile", profile))?;
+            .ok_or_else(|| format!(
+                "{} is not a known profile; available profiles: [{}]",
+                profile,
+                self.config.profiles.get_profiles().join(", ")
+            ))?;
 
         let profile_parameters = ProfileParameters {
             profile: Cow::Owned(profile.to_owned()),
@@ -399,7 +403,10 @@ impl Power for PowerDaemon {
                         failed to initialize".into())
                 }
             },
-            None => return Err("fan curve profile not found".into())
+            None => return Err(format!(
+                "fan curve profile not found; available profiles: [{}]",
+                self.config.fan_curves.get_profiles().join(", ")
+            ))
         }
 
         self.active_state.fan_curve = Cow::Owned(profile.to_owned());

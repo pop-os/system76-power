@@ -177,7 +177,7 @@ fn main() {
     match res {
         Ok(()) => (),
         Err(err) => {
-            error!("{}", err);
+            eprintln!("{}", err);
             process::exit(1);
         }
     }
