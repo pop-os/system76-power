@@ -113,14 +113,15 @@ fn main() {
                 .help("enables experimental power-saving features"))
         )
         .subcommand(SubCommand::with_name("fan-curve")
-            .about("Set a fan curve profile. Default is 'standard'")
+            .about("Set a fan curve profile. The default is 'standard'")
             .arg(Arg::with_name("profile").required(true))
         )
         .subcommand(SubCommand::with_name("profile")
             .about("Query or set the power profile")
             .long_about("Queries or sets the power profile.\n\n \
                 - If an argument is not provided, the power profile will be queried\n \
-                - Otherwise, that profile will be set, if it is a valid profile")
+                - Otherwise, that profile will be set, if it is a valid profile\n \
+                - Default profiles are [battery, balanced, performance]")
             .arg(Arg::with_name("profile")
                 .help("set the power profile")
                 .required(false))
