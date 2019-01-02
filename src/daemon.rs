@@ -4,20 +4,19 @@ use itertools::Itertools;
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering, ATOMIC_BOOL_INIT};
 use std::sync::Arc;
 
-use config::{Config, ConfigPState, Profile, ProfileParameters};
+use config::{ActiveState, Config, ConfigPState, Profile, ProfileParameters};
 use disks::{DiskPower, Disks};
 use fan::{FanCurve, FanDaemon};
 use graphics::Graphics;
 use hotplug::HotPlugDetect;
 use kernel_parameters::{DeviceList, Dirty, KernelParameter, LaptopMode, NmiWatchdog};
 use pstate::PState;
-use radeon::RadeonDevice;
 use snd::SoundDevice;
 use sysfs_class::{
     Backlight, Leds, PciDevice, RuntimePM, RuntimePowerManagement, ScsiHost, SysClass,
@@ -34,11 +33,13 @@ fn experimental_is_enabled() -> bool {
 /// Executes an external script that is defined for a given profile.
 fn execute_script(script: &Path) {
     match Command::new(script).status() {
-        Ok(status) => if !status.success() {
-            warn!("balance script failed with status: {:?}", status);
+        Ok(status) => if status.success() {
+            info!("script at {:?} successfully executed", script);
+        } else {
+            warn!("script at {:?} failed with status: {:?}", script, status);
         },
         Err(why) => {
-            warn!("balance script failed to execute: {}", why);
+            warn!("script at {:?} failed to execute: {}", script, why);
         }
     }
 }
@@ -47,7 +48,7 @@ fn execute_script(script: &Path) {
 fn try<F: FnMut() -> io::Result<()>>(errors: &mut Vec<io::Error>, msg: &str, mut func: F) {
     if let Err(why) = func() {
         errors.push(io::Error::new(
-            io::ErrorKind::Other,
+            why.kind(),
             format!("{}: {}", msg, why),
         ));
     }
@@ -79,16 +80,6 @@ fn apply_profile(
             dev.set_power_save(params.sound_power_save.0, params.sound_power_save.1)
         });
 
-        if let Some(ref radeon) = config.radeon {
-            RadeonDevice::get_devices().for_each(|dev| {
-                dev.set_profiles(
-                    &radeon.profile,
-                    &radeon.dpm_state,
-                    &radeon.dpm_perf,
-                )
-            });
-        }
-
         if let Some(ref pci) = config.pci {
             let pm = if pci.runtime_pm {
                 RuntimePowerManagement::On
@@ -112,6 +103,23 @@ fn apply_profile(
 
     Dirty::new().set_max_lost_work(config.max_lost_work);
     LaptopMode::new().set(config.laptop_mode.to_string().as_bytes());
+
+    if let Some(ref graphics_profile) = config.graphics {
+        match Graphics::new() {
+            Ok(graphics) => try(errors, "failed to set graphics profile", || {
+                graphics.set_power_profile(match graphics_profile.as_ref() {
+                    "battery" => 0,
+                    "balanced" => 1,
+                    "performance" => 2,
+                    profile => {
+                        warn!("unknown graphics power profile: '{}'. Using 'balanced' instead.", profile);
+                        1
+                    }
+                })
+            }),
+            Err(why) => errors.push(why)
+        }
+    }
 
     if let Ok(pstate) = PState::new() {
         try(errors, "failed to set Intel PState settings", || {
@@ -171,8 +179,14 @@ fn apply_profile(
         });
     }
 
-    if let Some(ref script) = config.script {
-        execute_script(script);
+    // A possibly-defined script to execute for this profile. For the "balannced" profile, this
+    // would be at `/etc/system76-power/scripts/balanced`.
+    let possible_script = PathBuf::from(
+        [::config::CONFIG_PARENT, "scripts/", params.profile.as_ref()].concat()
+    );
+
+    if possible_script.exists() {
+        execute_script(&possible_script)
     }
 
     *profile = params.profile.clone();
@@ -182,31 +196,54 @@ struct PowerDaemon {
     fan_daemon: Rc<RefCell<io::Result<FanDaemon>>>,
     graphics: Graphics,
     config: Config,
+    active_state: ActiveState,
     errors: Vec<io::Error>,
-    overwrite_config: bool,
 }
 
 impl PowerDaemon {
     fn new() -> Result<PowerDaemon, String> {
         let graphics = Graphics::new().map_err(err_str)?;
-        let mut overwrite_config = true;
+
         let config = match Config::new() {
             Ok(config) => config,
             Err(why) => {
                 error!(
-                    "failed to read config file (defaults will be used, instead): {}",
+                    "failed to read config file \
+                    (defaults will be used, instead): {}",
                     why
                 );
-                overwrite_config = false;
                 Config::default()
             }
         };
 
         debug!("using this config: {:#?}", config);
 
-        let active_curve = config.fan_curves.get_active()
-            .cloned()
-            .unwrap_or_else(FanCurve::standard);
+        let mut active_state = match ActiveState::new() {
+            Ok(config) => config,
+            Err(why) => {
+                error!(
+                    "failed to read active profile config file \
+                    (defaults will be used, instead): {}",
+                    why
+                );
+                ActiveState::default()
+            }
+        };
+
+        let active_curve = match config.fan_curves.get(&active_state.fan_curve).cloned() {
+            Some(curve) => curve,
+            None => {
+                error!(
+                    "fan curve profile, {}, was not found. Using the \
+                    standard profile instead.",
+                    &active_state.fan_curve
+                );
+
+                active_state.fan_curve = "default".into();
+
+                FanCurve::standard()
+            }
+        };
 
         let fan_daemon = FanDaemon::new(active_curve);
 
@@ -219,18 +256,16 @@ impl PowerDaemon {
             fan_daemon: Rc::new(RefCell::new(fan_daemon)),
             graphics,
             config,
+            active_state,
             errors,
-            overwrite_config,
         })
     }
 
     fn set_profile_and_then<F: FnMut(&mut Self)>(&mut self, mut func: F) -> Result<(), String> {
         func(self);
 
-        if self.overwrite_config {
-            if let Err(why) = self.config.write() {
-                error!("errored when writing config: {}", why);
-            }
+        if let Err(why) = self.active_state.write() {
+            error!("errored when writing config: {}", why);
         }
 
         if self.errors.is_empty() {
@@ -269,7 +304,7 @@ impl Power for PowerDaemon {
 
         self.set_profile_and_then(|d| {
             apply_profile(
-                &mut d.config.profiles.active,
+                &mut d.active_state.power_profile,
                 &mut d.errors,
                 &profile_,
                 &profile_parameters,
@@ -295,7 +330,7 @@ impl Power for PowerDaemon {
 
         self.set_profile_and_then(|d| {
             apply_profile(
-                &mut d.config.profiles.active,
+                &mut d.active_state.power_profile,
                 &mut d.errors,
                 &d.config.profiles.performance,
                 &PARAMETERS,
@@ -321,7 +356,7 @@ impl Power for PowerDaemon {
 
         self.set_profile_and_then(|d| {
             apply_profile(
-                &mut d.config.profiles.active,
+                &mut d.active_state.power_profile,
                 &mut d.errors,
                 &d.config.profiles.balanced,
                 &PARAMETERS,
@@ -347,7 +382,7 @@ impl Power for PowerDaemon {
 
         self.set_profile_and_then(|d| {
             apply_profile(
-                &mut d.config.profiles.active,
+                &mut d.active_state.power_profile,
                 &mut d.errors,
                 &d.config.profiles.battery,
                 &PARAMETERS,
@@ -367,8 +402,7 @@ impl Power for PowerDaemon {
             None => return Err("fan curve profile not found".into())
         }
 
-        self.config.fan_curves.active = Cow::Owned(profile.to_owned());
-
+        self.active_state.fan_curve = Cow::Owned(profile.to_owned());
         Ok(())
     }
 
@@ -397,7 +431,7 @@ impl Power for PowerDaemon {
     }
 
     fn get_profile(&self) -> Result<String, String> {
-        Ok(self.config.profiles.active.to_string())
+        Ok(self.active_state.power_profile.to_string())
     }
 
     fn get_profiles(&self) -> Result<String, String> {
@@ -428,7 +462,7 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
 
     let res = {
         let mut daemon = daemon.borrow_mut();
-        let last_profile = daemon.config.profiles.active.clone();
+        let last_profile = daemon.active_state.power_profile.clone();
         info!(
             "Initializing with previously-set profile: {}",
             last_profile

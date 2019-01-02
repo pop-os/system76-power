@@ -3,8 +3,11 @@ use std::io::Write;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct ConfigPState {
+    #[serde(rename = "pstate_min")]
     pub min: u8,
+    #[serde(rename = "pstate_max")]
     pub max: u8,
+    #[serde(rename = "pstate_murbo")]
     pub turbo: bool,
 }
 
@@ -40,7 +43,9 @@ impl ConfigPState {
     pub(crate) fn serialize_toml(&self, out: &mut Vec<u8>) {
         let _ = writeln!(
             out,
-            "pstate = {{ min = {}, max = {}, turbo = {} }}",
+            "pstate_min = {}\n\
+            pstate_max = {}\n\
+            pstate_turbo = {}",
             self.min, self.max, self.turbo
         );
     }

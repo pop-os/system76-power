@@ -3,7 +3,9 @@ use std::io::Write;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct ConfigBacklight {
+    #[serde(rename = "backlight_keyboard")]
     pub keyboard: u8,
+    #[serde(rename = "backlight_screen")]
     pub screen: u8
 }
 
@@ -21,6 +23,12 @@ impl ConfigBacklight {
     }
 
     pub(crate) fn serialize_toml(&self, out: &mut Vec<u8>) {
-        let _ = writeln!(out, "backlight = {{ keyboard = {}, screen = {} }}", self.keyboard, self.screen);
+        let _ = writeln!(
+            out,
+            "backlight_keyboard = '{}'\n\
+            backlight_screen = '{}'",
+            self.keyboard,
+            self.screen
+        );
     }
 }

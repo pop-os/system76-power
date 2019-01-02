@@ -1,6 +1,7 @@
 use std::{fs, io, process};
 use std::io::Write;
 
+use config::AmdSettings;
 use module::Module;
 use pci::PciBus;
 use sysfs_class::{PciDevice, SysClass};
@@ -21,6 +22,7 @@ alias nvidia-modeset off
 
 pub struct Graphics {
     pub bus: PciBus,
+    pub amd: Vec<PciDevice>,
     pub intel: Vec<PciDevice>,
     pub nvidia: Vec<PciDevice>,
     pub nvidia_hda: Vec<PciDevice>,
@@ -34,6 +36,7 @@ impl Graphics {
         info!("Rescanning PCI bus");
         bus.rescan()?;
 
+        let mut amd = Vec::new();
         let mut intel = Vec::new();
         let mut nvidia = Vec::new();
         let mut nvidia_hda = Vec::new();
@@ -43,6 +46,10 @@ impl Graphics {
             let c = dev.class()?;
             match (c >> 16) & 0xFF {
                 0x03 => match dev.vendor()? {
+                    0x1002 => {
+                        info!("{}: AMD graphics", dev.id());
+                        amd.push(dev);
+                    }
                     0x10DE => {
                         info!("{}: NVIDIA graphics", dev.id());
                         nvidia.push(dev);
@@ -72,6 +79,7 @@ impl Graphics {
 
         Ok(Graphics {
             bus,
+            amd,
             intel,
             nvidia,
             nvidia_hda,
@@ -218,5 +226,53 @@ impl Graphics {
 
     pub fn auto_power(&self) -> io::Result<()> {
         self.set_power(self.get_vendor()? == "nvidia")
+    }
+
+    pub fn set_power_profile(&self, profile: u8) -> io::Result<()> {
+        let mut errored = false;
+
+        macro_rules! try {
+            ($path:expr, $value:expr) => (
+                match fs::OpenOptions::new().write(true).open($path) {
+                    Ok(mut file) => {
+                        if let Err(why) = file.write_all($value.as_bytes()) {
+                            warn!("failed to write {} to {}: {}", $value, $path.display(), why);
+                            errored = true;
+                        }
+                    }
+                    Err(why) => {
+                        warn!("failed to open {} for writing: {}", $path.display(), why);
+                        errored = true;
+                    }
+                }
+            )
+        }
+
+        let amd_profile = match profile {
+            0 => AmdSettings::battery(),
+            1 => AmdSettings::balanced(),
+            _ => AmdSettings::performance()
+        };
+
+        for amd_gpu in &self.amd {
+            info!("Setting graphics power profile ({}) for {}", profile, amd_gpu.path().display());
+            let dpm_state = amd_gpu.path().join("power_dpm_state");
+            let dpm_force_perf = amd_gpu.path().join("power_dpm_force_performance_level");
+            let power_method = amd_gpu.path().join("power_method");
+            let power_profile = amd_gpu.path().join("power_profile");
+
+            try!(&dpm_state, amd_profile.dpm_state);
+            try!(&dpm_force_perf, amd_profile.dpm_perf);
+            try!(&power_method, "profile");
+            try!(&power_profile, amd_profile.profile);
+        }
+
+        // TODO: Support NVIDIA, Nouveau, and AMDGPU Pro.
+
+        if errored {
+            Err(io::Error::new(io::ErrorKind::Other, "failures occurred when setting parameters"))
+        } else {
+            Ok(())
+        }
     }
 }

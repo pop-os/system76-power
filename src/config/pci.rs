@@ -1,5 +1,6 @@
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct ConfigPci {
+    #[serde(rename = "pci_runtime_pm")]
     pub runtime_pm: bool
 }
 

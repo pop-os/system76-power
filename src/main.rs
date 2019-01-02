@@ -32,8 +32,6 @@ mod logging;
 mod modprobe;
 mod module;
 mod pci;
-mod radeon;
-mod sdp;
 mod snd;
 mod util;
 mod wifi;
@@ -67,14 +65,6 @@ pub trait Power {
 // Helper function for errors
 pub (crate) fn err_str<E: ::std::fmt::Display>(err: E) -> String {
     format!("{}", err)
-}
-
-fn valid_percent(v: String) -> Result<(), String> {
-    let v = v.parse::<usize>().map_err(|why| format!("{}", why))?;
-    if v > 100 {
-        return Err(format!("{} is not within range (0-100)", v));
-    }
-    Ok(())
 }
 
 fn main() {
@@ -174,8 +164,6 @@ fn main() {
 
     let res = match matches.subcommand() {
         ("daemon", Some(matches)) => {
-
-
             if unsafe { libc::geteuid() } == 0 {
                 daemon::daemon(matches.is_present("experimental"))
             } else {

@@ -4,9 +4,6 @@ use std::collections::HashMap;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, SmartDefault)]
 pub struct Profiles {
-    #[default = "\"balanced\".into()"]
-    #[serde(default)]
-    pub active: Cow<'static, str>,
 
     #[default = "Profile::battery()"]
     #[serde(default)]
@@ -26,8 +23,8 @@ pub struct Profiles {
 }
 
 impl Profiles {
-    pub fn get_active(&self) -> &Profile {
-        match self.active.as_ref() {
+    pub fn get(&self, profile: &str) -> &Profile {
+        match profile {
             "battery" => &self.battery,
             "balanced" => &self.balanced,
             "performance" => &self.performance,
@@ -85,59 +82,70 @@ impl Profiles {
                 int max_lost_work,
                 opt pci,
                 opt pstate,
-                opt radeon,
-                opt script
+                opt graphics
             });
         }
     }
 
     pub(crate) fn serialize_toml(&self, out: &mut Vec<u8>) {
-        fn set_or_default(out: &mut Vec<u8>, profile: &str, current: &Profile, default: &Profile) {
+        fn set_or_default(out: &mut Vec<u8>, profile: &str, current: &Profile, default: &Profile, document: bool) {
+            macro_rules! document {
+                ($description:expr) => (
+                    if document { $description } else { "" }
+                )
+            }
+
             if current != default {
                 out.extend_from_slice(format!("[profiles.{}]\n", profile).as_bytes());
                 current.serialize_toml(out);
             } else {
                 let backlight = default.backlight.as_ref().unwrap();
                 let pstate = default.pstate.as_ref().unwrap();
-                let radeon = default.radeon.as_ref().unwrap();
                 out.extend_from_slice(
                     format!(
                         "# [profiles.{}]\n\
-                         # backlight = {{ keyboard = {}, screen = {} }}\n\
-                         # laptop_mode = {}\n\
-                         # max_lost_work = {}\n\
-                         # pci = {{ runtime_pm = {} }}\n\
-                         # pstate = {{ min = {}, max = {}, turbo = {} }}\n\
-                         # radeon = {{ profile = '{}', dpm_state = '{}', dpm_perf = '{}' }}\n\
-                         # script = '$PATH'\n\n",
+                         {}# backlight_keyboard = {}\n\
+                         {}# backlight_screen = {}\n\
+                         {}# laptop_mode = {}\n\
+                         {}# max_lost_work = {}\n\
+                         {}# pci_runtime_pm = {}\n\
+                         {}# pstate_min = {}\n\
+                         {}# pstate_max = {}\n\
+                         {}# pstate_turbo = {}\n\
+                         {}# graphics = '{}'\n\n",
                          profile,
+                         document!("# Set the backlight brightness for each keyboard.\n"),
                          backlight.keyboard,
+                         document!("\n# Set the backlight brightness for each screen.\n"),
                          backlight.screen,
+                         document!("\n# Enables laptop mode in the kernel if greater than 0.\n\
+                            # Laptop mode schedules and batches disk I/O requests to keep\n\
+                            # the system in a low power state for greater periods of time.\n"),
                          default.laptop_mode,
+                         document!(
+                             "\n# Configures the kernel to keep up to N seconds of state stored in memory\n\
+                             # before writing it to the disk. This means that sudden power loss could lose\n\
+                             # up to N seconds of work, but power is saved by batching writes together.\n"
+                         ),
                          default.max_lost_work,
+                         document!("\n# Configure runtime power management for PCI devices.\n"),
                          default.pci.as_ref().unwrap().runtime_pm,
+                         document!("\n# The minimum clock speed of an Intel CPU, as a percent.\n"),
                          pstate.min,
+                         document!("\n# The maximum clock speed of an Intel CPU, as a percent.\n"),
                          pstate.max,
+                         document!("\n# Whether an Intel CPU should have turbo enabled or disabled.\n"),
                          pstate.turbo,
-                         radeon.profile,
-                         radeon.dpm_state,
-                         radeon.dpm_perf,
+                         document!("\n# Set a power profile for graphics cards.\n"),
+                         default.graphics.as_ref().unwrap()
                     ).as_bytes()
                 )
             }
         }
 
-        let _ = writeln!(
-            out,
-            "[profiles]\n\
-             # The last profile that was activated.\n\
-             active = '{}'\n",
-             self.active
-        );
-
-        set_or_default(out, "battery", &self.battery, &Profile::battery());
-        set_or_default(out, "balanced", &self.balanced, &Profile::balanced());
-        set_or_default(out, "performance", &self.performance, &Profile::performance());
+        set_or_default(out, "battery", &self.battery, &Profile::battery(), true);
+        set_or_default(out, "balanced", &self.balanced, &Profile::balanced(), false);
+        set_or_default(out, "performance", &self.performance, &Profile::performance(), false);
 
         for (key, value) in &self.custom {
             out.extend_from_slice(format!("[profiles.{}]\n", key).as_bytes());
@@ -148,15 +156,18 @@ impl Profiles {
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, SmartDefault)]
 pub struct Profile {
+    #[serde(flatten)]
     pub backlight: Option<ConfigBacklight>,
     #[serde(default)]
     pub laptop_mode: u8,
     #[serde(default)]
     pub max_lost_work: u32,
+    #[serde(flatten)]
     pub pci: Option<ConfigPci>,
+    #[serde(flatten)]
     pub pstate: Option<ConfigPState>,
-    pub radeon: Option<ConfigRadeon>,
-    pub script: Option<PathBuf>,
+    #[serde(default)]
+    pub graphics: Option<Cow<'static, str>>
 }
 
 impl Profile {
@@ -167,8 +178,7 @@ impl Profile {
             max_lost_work: 15,
             pci: Some(ConfigPci::battery()),
             pstate: Some(ConfigPState::battery()),
-            radeon: Some(ConfigRadeon::battery()),
-            script: None,
+            graphics: Some("low".into())
         }
     }
 
@@ -179,8 +189,7 @@ impl Profile {
             max_lost_work: 15,
             pci: Some(ConfigPci::balanced()),
             pstate: Some(ConfigPState::balanced()),
-            radeon: Some(ConfigRadeon::balanced()),
-            script: None,
+            graphics: Some("balanced".into())
         }
     }
 
@@ -191,8 +200,7 @@ impl Profile {
             max_lost_work: 15,
             pci: Some(ConfigPci::performance()),
             pstate: Some(ConfigPState::performance()),
-            radeon: Some(ConfigRadeon::performance()),
-            script: None,
+            graphics: Some("performance".into())
         }
     }
 
@@ -204,11 +212,6 @@ impl Profile {
         if let Some(ref pstate) = self.pstate {
             pstate.serialize_toml(out);
         }
-
-        let _ = match self.script {
-            Some(ref script) => writeln!(out, "script = '{}'", script.display()),
-            None => writeln!(out, "# script = '$PATH'"),
-        };
 
         out.push(b'\n');
     }

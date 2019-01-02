@@ -11,10 +11,6 @@ fn standard() -> Cow<'static, str> {
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, SmartDefault)]
 pub struct ConfigFans {
-    #[default = "standard()"]
-    #[serde(default = "standard")]
-    pub active: Cow<'static, str>,
-
     #[default = "FanCurve::standard()"]
     #[serde(default = "FanCurve::standard")]
     pub standard: FanCurve,
@@ -32,10 +28,6 @@ impl ConfigFans {
         }
     }
 
-    pub fn get_active(&self) -> Option<&FanCurve> {
-        self.get(self.active.as_ref())
-    }
-
     pub(crate) fn serialize_toml(&self, out: &mut Vec<u8>) {
         let defaults = Self::default();
 
@@ -43,23 +35,28 @@ impl ConfigFans {
             .chain(self.custom.iter().map(|(k, v)| (k.as_str(), v)));
 
         let mut values = String::new();
+        let default_is_standard = defaults.standard == self.standard;
 
         for (name, curve) in curves {
-            let should_comment = name == "standard" && curve == &defaults.standard;
+            let should_comment = name == "standard" && default_is_standard;
             let comment = if should_comment { "# " } else { "" };
             toml_curve(&mut values, name, curve, comment);
         }
 
+        let comment = if default_is_standard && self.custom.is_empty() { "# " } else { "" };
+
         let _ = write!(
             out,
-            "# Settings for controlling fan curves\n\
-             [fan_curves]\n\
-             # The fan curve to set when starting the daemon. Default is 'standard'.\n\
-             active = '{}'\n\n\
-             # The default fan curve.\n\
-             {}",
-             self.active.as_ref(),
-             values
+            "# Configurations for available fan curve profiles.\n\
+            #\n\
+            # A curve is defined as a collection of points, each point containing a:\n\
+            #   - `temp`: System temperature, in hundredths of a degree.\n\
+            #   - `duty`: Fan speed, in hundredths of a percent.\n\
+            {}[fan_curves]\n\
+            # The default fan curve.\n\
+            {}",
+            comment,
+            values
         );
     }
 }

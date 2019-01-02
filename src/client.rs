@@ -2,26 +2,22 @@ use config::Config;
 use dbus::{BusType, Connection, Message};
 use dbus::arg::Append;
 use itertools::Itertools;
-use std::cmp::Ordering;
 use std::io;
 use {DBUS_NAME, DBUS_PATH, DBUS_IFACE, Power, err_str};
 use clap::ArgMatches;
 use pstate::PState;
-use sdp::SettingsDaemonPower;
 use sysfs_class::{Backlight, Leds, SysClass};
 
 static TIMEOUT: i32 = 60 * 1000;
 
 struct PowerClient {
     bus: Connection,
-    sdp: Option<SettingsDaemonPower>,
 }
 
 impl PowerClient {
     fn new() -> Result<PowerClient, String> {
         let bus = Connection::get_private(BusType::System).map_err(err_str)?;
-        let sdp = SettingsDaemonPower::new().ok();
-        Ok(PowerClient { bus, sdp })
+        Ok(PowerClient { bus })
     }
 
     fn call_method<A: Append>(&mut self, method: &str, append: Option<A>) -> Result<Message, String> {
@@ -32,63 +28,11 @@ impl PowerClient {
         let r = self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
         Ok(r)
     }
-
-    fn get_brightness_keyboard(&mut self) -> Result<i32, String> {
-        if let Some(ref mut sdp) = self.sdp {
-            return sdp.get_brightness_keyboard().map_err(err_str);
-        }
-
-        Ok(0)
-    }
-
-    fn get_brightness_screen(&mut self) -> Result<i32, String> {
-        if let Some(ref mut sdp) = self.sdp {
-            return sdp.get_brightness_screen().map_err(err_str);
-        }
-
-        Ok(0)
-    }
-
-    fn set_brightness_keyboard(&mut self, new: i32) -> Result<(), String> {
-        if let Some(ref mut sdp) = self.sdp {
-            sdp.set_brightness_keyboard(new).map_err(err_str)?;
-        }
-
-        Ok(())
-    }
-
-    fn set_brightness_keyboard_cmp(&mut self, new: i32, ordering: Ordering) -> Result<i32, String> {
-        let brightness = self.get_brightness_keyboard()?;
-        if new.cmp(&brightness) == ordering {
-            self.set_brightness_keyboard(new)?;
-            Ok(new)
-        } else {
-            Ok(brightness)
-        }
-    }
-
-    fn set_brightness_screen(&mut self, new: i32) -> Result<(), String> {
-        if let Some(ref mut sdp) = self.sdp {
-            sdp.set_brightness_screen(new).map_err(err_str)?;
-        }
-
-        Ok(())
-    }
-
-    fn set_brightness_screen_cmp(&mut self, new: i32, ordering: Ordering) -> Result<i32, String> {
-        let brightness = self.get_brightness_screen()?;
-        if new.cmp(&brightness) == ordering {
-            self.set_brightness_screen(new)?;
-            Ok(new)
-        } else {
-            Ok(brightness)
-        }
-    }
 }
 
 impl Power for PowerClient {
     fn set_profile(&mut self, profile: &str) -> Result<(), String> {
-        info!("Setting power profile to performance");
+        info!("Setting power profile to {}", profile);
         self.call_method::<&str>("SetProfile", Some(profile))?;
         Ok(())
     }
@@ -205,8 +149,13 @@ pub fn client(subcommand: &str, matches: &ArgMatches) -> Result<(), String> {
     match subcommand {
         "config" => {
             let config = Config::read().map_err(|why| format!("{}", why))?;
-            println!("{:#?}", config);
-            Ok(())
+            match ::toml::to_string_pretty(&config) {
+                Ok(serialized) => {
+                    println!("{}", serialized);
+                    Ok(())
+                },
+                Err(why) => Err(format!("failed to serialize config: {}", why))
+            }
         },
         "profile" => if matches.is_present("list") {
             let profiles = client.get_profiles()?;

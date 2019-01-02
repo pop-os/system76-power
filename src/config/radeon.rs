@@ -1,32 +1,32 @@
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-pub struct ConfigRadeon {
-    pub profile: String,
-    pub dpm_state: String,
-    pub dpm_perf: String
+pub struct AmdSettings {
+    pub profile: &'static str,
+    pub dpm_state: &'static str,
+    pub dpm_perf: &'static str
 }
 
-impl ConfigRadeon {
+impl AmdSettings {
     pub fn battery() -> Self {
         Self {
-            profile: "low".into(),
-            dpm_state: "battery".into(),
-            dpm_perf: "low".into()
+            profile: "low",
+            dpm_state: "battery",
+            dpm_perf: "low"
         }
     }
 
     pub fn balanced() -> Self {
         Self {
-            profile: "auto".into(),
-            dpm_state: "performance".into(),
-            dpm_perf: "auto".into()
+            profile: "auto",
+            dpm_state: "performance",
+            dpm_perf: "auto"
         }
     }
 
     pub fn performance() -> Self {
         Self {
-            profile: "high".into(),
-            dpm_state: "performance".into(),
-            dpm_perf: "auto".into()
+            profile: "high",
+            dpm_state: "performance",
+            dpm_perf: "auto"
         }
     }
 }
