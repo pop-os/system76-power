@@ -40,7 +40,7 @@ impl ActiveState {
         let mut buffer = Vec::new();
         file.read_to_end(&mut buffer)?;
 
-        let config: ActiveState = toml::from_slice(&buffer).map_err(|why| {
+        let config: ActiveState = ::toml::from_slice(&buffer).map_err(|why| {
             io::Error::new(
                 io::ErrorKind::Other,
                 format!("failed to deserialize active profiles: {}", why),
