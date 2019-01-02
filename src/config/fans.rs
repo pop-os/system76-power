@@ -51,12 +51,12 @@ impl ConfigFans {
 
         let _ = write!(
             out,
-            "# Configurations for available fan curve profiles.\n\
+            "{}[fan_curves]\n\
+            # Configurations for available fan curve profiles.\n\
             #\n\
             # A curve is defined as a collection of points, each point containing a:\n\
             #   - `temp`: System temperature, in hundredths of a degree.\n\
-            #   - `duty`: Fan speed, in hundredths of a percent.\n\
-            {}[fan_curves]\n\
+            #   - `duty`: Fan speed, in hundredths of a percent.\n\n\
             # The default fan curve.\n\
             {}",
             comment,

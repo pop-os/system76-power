@@ -114,29 +114,29 @@ impl Profiles {
                          {}# pstate_turbo = {}\n\
                          {}# graphics = '{}'\n\n",
                          profile,
-                         document!("# Set the backlight brightness for each keyboard.\n"),
+                         document!("# Set the backlight brightness for each keyboard.\n#\n"),
                          backlight.keyboard,
-                         document!("\n# Set the backlight brightness for each screen.\n"),
+                         document!("\n# Set the backlight brightness for each screen.\n#\n"),
                          backlight.screen,
                          document!("\n# Enables laptop mode in the kernel if greater than 0.\n\
                             # Laptop mode schedules and batches disk I/O requests to keep\n\
-                            # the system in a low power state for greater periods of time.\n"),
+                            # the system in a low power state for greater periods of time.\n#\n"),
                          default.laptop_mode,
                          document!(
                              "\n# Configures the kernel to keep up to N seconds of state stored in memory\n\
                              # before writing it to the disk. This means that sudden power loss could lose\n\
-                             # up to N seconds of work, but power is saved by batching writes together.\n"
+                             # up to N seconds of work, but power is saved by batching writes together.\n#\n"
                          ),
                          default.max_lost_work,
-                         document!("\n# Configure runtime power management for PCI devices.\n"),
+                         document!("\n# Configure runtime power management for PCI devices.\n#\n"),
                          default.pci.as_ref().unwrap().runtime_pm,
-                         document!("\n# The minimum clock speed of an Intel CPU, as a percent.\n"),
+                         document!("\n# The minimum clock speed of an Intel CPU, as a percent.\n#\n"),
                          pstate.min,
-                         document!("\n# The maximum clock speed of an Intel CPU, as a percent.\n"),
+                         document!("\n# The maximum clock speed of an Intel CPU, as a percent.\n#\n"),
                          pstate.max,
-                         document!("\n# Whether an Intel CPU should have turbo enabled or disabled.\n"),
+                         document!("\n# Whether an Intel CPU should have turbo enabled or disabled.\n#\n"),
                          pstate.turbo,
-                         document!("\n# Set a power profile for graphics cards.\n"),
+                         document!("\n# Set a power profile for graphics cards.\n#\n"),
                          default.graphics.as_ref().unwrap()
                     ).as_bytes()
                 )
