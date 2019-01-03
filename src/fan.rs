@@ -2,7 +2,8 @@ use std::io;
 use sysfs_class::{SysClass, HwMon};
 
 pub struct FanDaemon {
-    curve: FanCurve,
+    cpu_curve: FanCurve,
+    intake_curve: FanCurve,
     platform: HwMon,
     cpu: HwMon,
 }
@@ -27,7 +28,8 @@ impl FanDaemon {
         }
 
         Ok(FanDaemon {
-            curve: FanCurve::standard(),
+            cpu_curve: FanCurve::cpu(),
+            intake_curve: FanCurve::intake(),
             platform: platform_opt.ok_or_else(|| io::Error::new(
                 io::ErrorKind::NotFound,
                 "platform hwmon not found"
@@ -40,24 +42,36 @@ impl FanDaemon {
     }
 
     pub fn step(&self) {
-        let mut duty_opt = None;
+        let mut cpu_duty_opt = None;
+        let mut intake_duty_opt = None;
         if let Ok(temp) = self.cpu.temp(1) {
             if let Ok(input) = temp.input() {
                 let c = f64::from(input) / 1000.0;
-                duty_opt = self.curve.get_duty((c * 100.0) as i16);
+                cpu_duty_opt = self.cpu_curve.get_duty((c * 100.0) as i16);
+                intake_duty_opt = self.intake_curve.get_duty((c * 100.0) as i16);
             }
         }
 
-        if let Some(duty) = duty_opt {
+        if let Some(duty) = cpu_duty_opt {
             //TODO: Implement in system76-io-dkms
             //let _ = self.platform.write_file("pwm1_enable", "1");
 
             let duty_str = format!("{}", (u32::from(duty) * 255)/10000);
             let _ = self.platform.write_file("pwm1", &duty_str);
-            let _ = self.platform.write_file("pwm2", &duty_str);
         } else {
             //TODO: Implement in system76-io-dkms
             //let _ = self.platform.write_file("pwm1_enable", "2");
+        }
+
+        if let Some(duty) = intake_duty_opt {
+            //TODO: Implement in system76-io-dkms
+            //let _ = self.platform.write_file("pwm2_enable", "1");
+
+            let duty_str = format!("{}", (u32::from(duty) * 255)/10000);
+            let _ = self.platform.write_file("pwm2", &duty_str);
+        } else {
+            //TODO: Implement in system76-io-dkms
+            //let _ = self.platform.write_file("pwm2_enable", "2");
         }
     }
 }
@@ -121,7 +135,9 @@ impl FanPoint {
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct FanCurve {
-    points: Vec<FanPoint>
+    points: Vec<FanPoint>,
+    // Turn off if temperature lower than curve
+    turn_off: bool,
 }
 
 impl FanCurve {
@@ -131,21 +147,35 @@ impl FanCurve {
         self
     }
 
-    /// The standard fan curve
-    pub fn standard() -> Self {
+    /// The standard CPU curve
+    pub fn cpu() -> Self {
         Self::default()
             .append(20_00, 30_00)
             .append(30_00, 35_00)
             .append(40_00, 42_50)
             .append(50_00, 52_50)
-            .append(65_00, 10_000)
+            .append(65_00, 100_00)
+    }
+
+    /// Intake fan curve
+    pub fn intake() -> Self {
+        let mut curve = Self::default()
+            .append(40_00, 42_50)
+            .append(50_00, 52_50)
+            .append(65_00, 100_00);
+        curve.turn_off = true;
+        curve
     }
 
     pub fn get_duty(&self, temp: i16) -> Option<u16> {
         // If the temp is less than the first point, return the first point duty
         if let Some(first) = self.points.first() {
             if temp < first.temp {
-                return Some(first.duty);
+                if self.turn_off {
+                    return Some(0);
+                } else {
+                    return Some(first.duty);
+                }
             }
         }
 
@@ -190,7 +220,7 @@ mod tests {
 
     #[test]
     fn standard_points() {
-        let standard = FanCurve::standard();
+        let standard = FanCurve::cpu();
 
         assert_eq!(standard.get_duty(0), Some(3000));
         assert_eq!(standard.get_duty(1000), Some(3000));
