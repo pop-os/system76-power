@@ -1,5 +1,6 @@
-use std::{fs, io, process};
+use std::{fs, io};
 use std::io::Write;
+use std::process::{Command, Stdio};
 
 use module::Module;
 use pci::PciBus;
@@ -118,14 +119,14 @@ impl Graphics {
 
             if vendor == "nvidia" {
                 info!("Enabling nvidia-fallback.service");
-                let status = process::Command::new("systemctl").arg("enable").arg("nvidia-fallback.service").status()?;
+                let status = Command::new("systemctl").arg("enable").arg("nvidia-fallback.service").status()?;
                 if ! status.success() {
                     // Error is ignored in case this service is removed
                     error!("systemctl: failed with {}", status);
                 }
             } else {
                 info!("Disabling nvidia-fallback.service");
-                let status = process::Command::new("systemctl").arg("disable").arg("nvidia-fallback.service").status()?;
+                let status = Command::new("systemctl").arg("disable").arg("nvidia-fallback.service").status()?;
                 if ! status.success() {
                     // Error is ignored in case this service is removed
                     error!("systemctl: failed with {}", status);
@@ -134,23 +135,22 @@ impl Graphics {
 
             info!("Updating initramfs");            
             
-            // Use Dracut or uprate-initramfs and return status
-
+            // Use Dracut or update-initramfs and return status
             let status;
 
-            if process::Command::new("command").arg("-v").arg("dracut").status()?.success() {
+            if Command::new("command").arg("-v").arg("dracut").stdout(Stdio::null()).status()?.success() {
 
-                status = process::Command::new("dracut").arg("--force").status()?;
+                status = Command::new("dracut").arg("--force").status()?;
 
-            } else if process::Command::new("command").arg("-v").arg("update-initramfs").status()?.success() {
+            } else if Command::new("command").arg("-v").arg("update-initramfs").stdout(Stdio::null()).status()?.success() {
 
-                status = process::Command::new("update-initramfs").arg("-u").status()?;
+                status = Command::new("update-initramfs").arg("-u").status()?;
 
             } else {
                 // Tools not found. Raise an error.
                 return Err(io::Error::new(
                     io::ErrorKind::Other,
-                    format!("update-initramfs: failed. Nor Dracut nor update-initfamfs found.")
+                    format!("update-initramfs: failed. No Dracut nor update-initfamfs found.")
                 ));
             }
 
@@ -160,7 +160,7 @@ impl Graphics {
                     io::ErrorKind::Other,
                     format!("update-initramfs: failed with {}", status)
                 ));
-                }
+            }
 
             Ok(())
         } else {
