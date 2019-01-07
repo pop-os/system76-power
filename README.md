@@ -2,8 +2,8 @@
 # system76-power
 System76 Power Management
 
-Repository for automatic RPM creation (for Fedora).
+Repository for automatic RPM creation.
 
-You can find installable package here: https://copr.fedorainfracloud.org/coprs/szydell/system76/
+Repo is available here: https://copr.fedorainfracloud.org/coprs/szydell/system76/
 
 
