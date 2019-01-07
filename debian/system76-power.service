@@ -1,7 +1,9 @@
 [Unit]
 Description=System76 Power Daemon
+After=network.target
 
 [Service]
+Type=simple
 ExecStart=/usr/bin/system76-power daemon
 Restart=on-failure
 
