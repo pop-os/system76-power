@@ -1,5 +1,5 @@
 use fern::{Dispatch, InitError};
-use log::{Level, LevelFilter};
+use log::LevelFilter;
 use std::io;
 
 pub fn setup_logging(filter: LevelFilter) -> Result<(), InitError> {
