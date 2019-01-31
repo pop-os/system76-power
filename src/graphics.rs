@@ -22,12 +22,73 @@ alias nvidia-drm off
 alias nvidia-modeset off
 "#;
 
+pub struct GraphicsDevice {
+    functions: Vec<PciDevice>,
+}
+
+impl GraphicsDevice {
+    pub fn new(functions: Vec<PciDevice>) -> GraphicsDevice {
+        GraphicsDevice {
+            functions
+        }
+    }
+
+    pub fn exists(&self) -> bool {
+        self.functions.iter().any(|func| func.path().exists())
+    }
+
+    pub unsafe fn unbind(&self) -> io::Result<()> {
+        for func in self.functions.iter() {
+            if func.path().exists() {
+                match func.driver() {
+                    Ok(driver) => {
+                        info!("{}: Unbinding {}", driver.id(), func.id());
+                        driver.unbind(&func)?;
+                    },
+                    Err(err) => match err.kind() {
+                        io::ErrorKind::NotFound => (),
+                        _ => return Err(err),
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    pub unsafe fn remove(&self) -> io::Result<()> {
+        for func in self.functions.iter() {
+            if func.path().exists() {
+                match func.driver() {
+                    Ok(driver) => {
+                        error!("{}: in use by {}", func.id(), driver.id());
+                        return Err(io::Error::new(
+                            io::ErrorKind::Other,
+                            "device in use"
+                        ));
+                    },
+                    Err(err) => match err.kind() {
+                        io::ErrorKind::NotFound => {
+                            info!("{}: Removing", func.id());
+                            func.remove()?;
+                        },
+                        _ => return Err(err),
+                    }
+                }
+            } else {
+                warn!("{}: Already removed", func.id());
+            }
+        }
+
+        Ok(())
+    }
+}
+
 pub struct Graphics {
     pub bus: PciBus,
-    pub intel: Vec<PciDevice>,
-    pub nvidia: Vec<PciDevice>,
-    pub nvidia_hda: Vec<PciDevice>,
-    pub other: Vec<PciDevice>,
+    pub intel: Vec<GraphicsDevice>,
+    pub nvidia: Vec<GraphicsDevice>,
+    pub other: Vec<GraphicsDevice>,
 }
 
 impl Graphics {
@@ -37,37 +98,42 @@ impl Graphics {
         info!("Rescanning PCI bus");
         bus.rescan()?;
 
+        let devs = PciDevice::all()?;
+
+        let functions = |parent: &PciDevice| -> Vec<PciDevice> {
+            let mut functions = Vec::new();
+            if let Some(parent_slot) = parent.id().split(".").next() {
+                for func in devs.iter() {
+                    if let Some(func_slot) = func.id().split(".").next() {
+                        if func_slot == parent_slot {
+                            info!("{}: Function for {}", func.id(), parent.id());
+                            functions.push(func.clone());
+                        }
+                    }
+                }
+            }
+            functions
+        };
+
         let mut intel = Vec::new();
         let mut nvidia = Vec::new();
-        let mut nvidia_hda = Vec::new();
         let mut other = Vec::new();
-
-        for dev in PciDevice::all()? {
+        for dev in devs.iter() {
             let c = dev.class()?;
             match (c >> 16) & 0xFF {
                 0x03 => match dev.vendor()? {
                     0x10DE => {
                         info!("{}: NVIDIA graphics", dev.id());
-                        nvidia.push(dev);
+                        nvidia.push(GraphicsDevice::new(functions(&dev)));
                     },
                     0x8086 => {
                         info!("{}: Intel graphics", dev.id());
-                        intel.push(dev);
+                        intel.push(GraphicsDevice::new(functions(&dev)));
                     },
                     vendor => {
                         info!("{}: Other({:X}) graphics", dev.id(), vendor);
-                        other.push(dev);
+                        other.push(GraphicsDevice::new(functions(&dev)));
                     },
-                },
-                0x04 => match (c >> 8) & 0xff {
-                    0x03 => match dev.vendor()? {
-                        0x10DE => {
-                            info!("{}: NVIDIA audio", dev.id());
-                            nvidia_hda.push(dev);
-                        },
-                        _ => ()
-                    },
-                    _ => ()
                 },
                 _ => ()
             }
@@ -77,7 +143,6 @@ impl Graphics {
             bus,
             intel,
             nvidia,
-            nvidia_hda,
             other,
         })
     }
@@ -173,7 +238,7 @@ impl Graphics {
 
     pub fn get_power(&self) -> io::Result<bool> {
         if self.can_switch() {
-            Ok(self.nvidia.iter().chain(self.nvidia_hda.iter()).any(|dev| dev.path().exists()))
+            Ok(self.nvidia.iter().any(|dev| dev.exists()))
         } else {
             Err(io::Error::new(
                 io::ErrorKind::Other,
@@ -190,44 +255,14 @@ impl Graphics {
             } else {
                 info!("Disabling graphics power");
 
-                // Unbind NVIDIA audio devices
-                for dev in self.nvidia_hda.iter() {
-                    if dev.path().exists() {
-                        match dev.driver() {
-                            Ok(driver) => {
-                                info!("{}: Unbinding {}", driver.id(), dev.id());
-                                unsafe { driver.unbind(&dev) };
-                            },
-                            Err(err) => match err.kind() {
-                                io::ErrorKind::NotFound => (),
-                                _ => return Err(err),
-                            }
-                        }
-                    }
+                // Unbind NVIDIA graphics devices and their functions
+                for dev in self.nvidia.iter() {
+                    unsafe { dev.unbind()?; }
                 }
 
-                // Remove NVIDIA graphics and audio devices
-                for dev in self.nvidia.iter().chain(self.nvidia_hda.iter()) {
-                    if dev.path().exists() {
-                        match dev.driver() {
-                            Ok(driver) => {
-                                error!("{}: in use by {}", dev.id(), driver.id());
-                                return Err(io::Error::new(
-                                    io::ErrorKind::Other,
-                                    "device in use"
-                                ));
-                            },
-                            Err(err) => match err.kind() {
-                                io::ErrorKind::NotFound => {
-                                    info!("{}: Removing", dev.id());
-                                    unsafe { dev.remove() }?;
-                                },
-                                _ => return Err(err),
-                            }
-                        }
-                    } else {
-                        warn!("{}: Already removed", dev.id());
-                    }
+                // Remove NVIDIA graphics devices and their functions
+                for dev in self.nvidia.iter() {
+                    unsafe { dev.remove()?; }
                 }
             }
             Ok(())
