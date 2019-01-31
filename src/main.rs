@@ -1,55 +1,12 @@
-#[macro_use]
 extern crate clap;
-extern crate dbus;
-extern crate fern;
-extern crate intel_pstate as pstate;
-extern crate libc;
 #[macro_use]
 extern crate log;
-extern crate sysfs_class;
-
-use log::LevelFilter;
-use std::process;
+extern crate system76_power;
 
 use clap::{Arg, App, AppSettings, SubCommand};
-mod client;
-mod daemon;
-mod disks;
-mod fan;
-mod graphics;
-mod hotplug;
-mod kernel_parameters;
-mod logging;
-mod modprobe;
-mod module;
-mod pci;
-mod radeon;
-mod snd;
-mod util;
-mod wifi;
-
-include!(concat!(env!("OUT_DIR"), "/version.rs"));
-
-pub static DBUS_NAME: &'static str = "com.system76.PowerDaemon";
-pub static DBUS_PATH: &'static str = "/com/system76/PowerDaemon";
-pub static DBUS_IFACE: &'static str = "com.system76.PowerDaemon";
-
-pub trait Power {
-    fn performance(&mut self) -> Result<(), String>;
-    fn balanced(&mut self) -> Result<(), String>;
-    fn battery(&mut self) -> Result<(), String>;
-    fn get_graphics(&mut self) -> Result<String, String>;
-    fn get_switchable(&mut self) -> Result<bool, String>;
-    fn set_graphics(&mut self, vendor: &str) -> Result<(), String>;
-    fn get_graphics_power(&mut self) -> Result<bool, String>;
-    fn set_graphics_power(&mut self, power: bool) -> Result<(), String>;
-    fn auto_graphics_power(&mut self) -> Result<(), String>;
-}
-
-// Helper function for errors
-pub (crate) fn err_str<E: ::std::fmt::Display>(err: E) -> String {
-    format!("{}", err)
-}
+use log::LevelFilter;
+use std::process;
+use system76_power::{client, daemon, logging};
 
 fn main() {
     let matches = App::new("system76-power")
