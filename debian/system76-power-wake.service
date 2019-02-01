@@ -1,0 +1,11 @@
+[Unit]
+Description=Restart system76-power daemon after the suspend
+After=suspend.target
+
+[Service]
+User=root
+Type=oneshot
+ExecStart=/usr/bin/systemctl restart system76-power
+
+[Install]
+WantedBy=suspend.target

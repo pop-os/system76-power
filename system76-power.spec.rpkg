@@ -47,6 +47,7 @@ make all
 
 make install DESTDIR=%{buildroot}
 install -D -m 0644 "debian/{{{ git_dir_name }}}.service" "%{buildroot}/usr/lib/systemd/system/{{{ git_dir_name }}}.service"
+install -D -m 0644 "debian/{{{ git_dir_name }}}-wake.service" "%{buildroot}/usr/lib/systemd/system/{{{ git_dir_name }}}-wake.service"
 install -D -m 0644 "completion/completion.sh" "%{buildroot}/etc/bash_completion.d/system76-power"
 
 # do after installation
@@ -70,6 +71,7 @@ rm -f /etc/modules-load.d/system76-power.conf
 /etc/dbus-1/system.d/system76-power.conf
 /etc/bash_completion.d/system76-power
 /usr/lib/systemd/system/{{{ git_dir_name }}}.service
+/usr/lib/systemd/system/{{{ git_dir_name }}}-wake.service
 
 # Changelog
 %changelog
