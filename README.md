@@ -6,4 +6,5 @@ Repository for automatic RPM creation.
 
 Repo is available here: https://copr.fedorainfracloud.org/coprs/szydell/system76/
 
-
+# enchancements
++ bash completion 
