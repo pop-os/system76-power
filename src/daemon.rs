@@ -146,31 +146,51 @@ fn battery() -> io::Result<()> {
 }
 
 struct PowerDaemon {
-    graphics: Graphics
+    graphics: Graphics,
+    power_profile: String,
 }
 
 impl PowerDaemon {
     fn new() -> Result<PowerDaemon, String> {
         let graphics = Graphics::new().map_err(err_str)?;
-        Ok(PowerDaemon { graphics })
+        Ok(PowerDaemon {
+            graphics,
+            power_profile: String::new()
+        })
+    }
+
+    fn apply_profile<F, S>(&mut self, func: F, name: S) -> Result<(), String>
+    where F: Fn() -> io::Result<()>,
+          S: Into<String>
+    {
+        let res = func().map_err(err_str);
+        if res.is_ok() {
+            self.power_profile = name.into();
+        }
+
+        res
     }
 }
 
 impl Power for PowerDaemon {
-    fn performance(&mut self) -> Result<(), String> {
-        performance().map_err(err_str)
+    fn battery(&mut self) -> Result<(), String> {
+        self.apply_profile(battery, "Battery")
     }
 
     fn balanced(&mut self) -> Result<(), String> {
-        balanced().map_err(err_str)
+        self.apply_profile(balanced, "Balanced")
     }
 
-    fn battery(&mut self) -> Result<(), String> {
-        battery().map_err(err_str)
+    fn performance(&mut self) -> Result<(), String> {
+        self.apply_profile(performance, "Performance")
     }
 
     fn get_graphics(&mut self) -> Result<String, String> {
         self.graphics.get_vendor().map_err(err_str)
+    }
+
+    fn get_profile(&mut self) -> Result<String, String> {
+        Ok(self.power_profile.clone())
     }
 
     fn get_switchable(&mut self) -> Result<bool, String> {
@@ -211,7 +231,7 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
     }
 
     info!("Initializing with the balanced profile");
-    balanced().map_err(|why| format!("failed to set initial profile: {}", why))?;
+    daemon.borrow_mut().balanced().map_err(|why| format!("failed to set initial profile: {}", why))?;
 
     info!("Connecting to dbus system bus");
     let c = Connection::get_private(BusType::System).map_err(err_str)?;
@@ -270,6 +290,7 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
             .add_m(method!(balanced, "Balanced", false, false))
             .add_m(method!(battery, "Battery", false, false))
             .add_m(method!(get_graphics, "GetGraphics", true, false).outarg::<&str,_>("vendor"))
+            .add_m(method!(get_profile, "GetProfile", true, false).outarg::<&str,_>("vendor"))
             .add_m(method!(set_graphics, "SetGraphics", false, true).inarg::<&str,_>("vendor"))
             .add_m(method!(get_switchable, "GetSwitchable", true, false).outarg::<bool, _>("switchable"))
             .add_m(method!(get_graphics_power, "GetGraphicsPower", true, false).outarg::<bool,_>("power"))
