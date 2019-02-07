@@ -7,6 +7,9 @@ extern crate libc;
 extern crate log;
 extern crate sysfs_class;
 
+#[macro_use]
+mod daemon_macro;
+
 pub mod client;
 pub mod daemon;
 pub mod disks;

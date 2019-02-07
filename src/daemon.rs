@@ -219,64 +219,33 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
     info!("Registering dbus name {}", DBUS_NAME);
     c.register_name(DBUS_NAME, NameFlag::ReplaceExisting as u32).map_err(err_str)?;
 
+    info!(
+        "Adding dbus path {} with interface {}",
+        DBUS_PATH, DBUS_IFACE
+    );
+
     let f = Factory::new_fn::<()>();
 
-    // Defines whether the value returned by the method should be appended.
-    macro_rules! append {
-        (true, $m:ident, $value:ident) => { $m.msg.method_return().append1($value) };
-        (false, $m:ident, $value:ident) => { $m.msg.method_return() };
-    }
+    let signal_hotplug = Arc::new(f.signal("HotPlugDetect", ()).sarg::<u64, _>("port"));
 
-    // Programs the message that should be printed.
-    macro_rules! get_value {
-        (true, $name:expr, $daemon:ident, $m:ident, $method:tt) => {{
-            let value = $m.msg.read1()?;
-            info!("DBUS Received {}({}) method", $name, value);
-            $daemon.borrow_mut().$method(value)
-        }};
+    let tree = dbus_impl!(daemon, f {
+        // Power Profiles
+        fn battery<Battery, no_out, no_in>();
+        fn balanced<Balanced, no_out, no_in>();
+        fn performance<Performance, no_out, no_in>();
 
-        (false, $name:expr, $daemon:ident, $m:ident, $method:tt) => {{
-            info!("DBUS Received {} method", $name);
-            $daemon.borrow_mut().$method()
-        }};
-    }
+        // Graphics
+        fn get_graphics<GetGraphics, has_out, no_in>() -> vendor: &str;
+        fn set_graphics<SetGraphics, no_out, has_in>(vendor: &str);
+        fn get_graphics_power<GetGraphicsPower, has_out, no_in>() -> power: bool;
+        fn set_graphics_power<SetGraphicsPower, no_out, has_in>(power: bool);
+        fn auto_graphics_power<AutoGraphicsPower, no_out, no_in>();
 
-    // Creates a new dbus method from an existing method in the daemon.
-    macro_rules! method {
-        ($method:tt, $name:expr, $append:tt, $print:tt) => {{
-            let daemon = daemon.clone();
-            f.method($name, (), move |m| {
-                let result = get_value!($print, $name, daemon, m, $method);
-                match result {
-                    Ok(_value) => {
-                        let mret = append!($append, m, _value);
-                        Ok(vec![mret])
-                    },
-                    Err(err) => {
-                        error!("{}", err);
-                        Err(MethodErr::failed(&err))
-                    }
-                }
-            })
-        }};
-    }
+        // Switchable graphics detection
+        fn get_switchable<GetSwitchable, has_out, no_in>() -> switchable: bool;
 
-    let signal = Arc::new(f.signal("HotPlugDetect", ()).sarg::<u64,_>("port"));
-
-    info!("Adding dbus path {} with interface {}", DBUS_PATH, DBUS_IFACE);
-    let tree = f.tree(()).add(f.object_path(DBUS_PATH, ()).introspectable().add(
-        f.interface(DBUS_IFACE, ())
-            .add_m(method!(performance, "Performance", false, false))
-            .add_m(method!(balanced, "Balanced", false, false))
-            .add_m(method!(battery, "Battery", false, false))
-            .add_m(method!(get_graphics, "GetGraphics", true, false).outarg::<&str,_>("vendor"))
-            .add_m(method!(set_graphics, "SetGraphics", false, true).inarg::<&str,_>("vendor"))
-            .add_m(method!(get_switchable, "GetSwitchable", true, false).outarg::<bool, _>("switchable"))
-            .add_m(method!(get_graphics_power, "GetGraphicsPower", true, false).outarg::<bool,_>("power"))
-            .add_m(method!(set_graphics_power, "SetGraphicsPower", false, true).inarg::<bool,_>("power"))
-            .add_m(method!(auto_graphics_power, "AutoGraphicsPower", false, false))
-            .add_s(signal.clone())
-    ));
+        signal signal_hotplug;
+    });
 
     tree.set_registered(&c, true).map_err(err_str)?;
 
@@ -313,7 +282,7 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
             if hpd[i] != last[i] && hpd[i] {
                 info!("HotPlugDetect {}", i);
                 c.send(
-                    signal.msg(&DBUS_PATH.into(), &DBUS_NAME.into()).append1(i as u64)
+                    signal_hotplug.msg(&DBUS_PATH.into(), &DBUS_NAME.into()).append1(i as u64)
                 ).map_err(|()| "failed to send message".to_string())?;
             }
         }
