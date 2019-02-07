@@ -18,6 +18,7 @@ pub mod logging;
 pub mod modprobe;
 pub mod module;
 pub mod pci;
+pub mod sideband;
 pub mod radeon;
 pub mod snd;
 pub mod util;
