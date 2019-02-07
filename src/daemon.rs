@@ -1,5 +1,5 @@
 use dbus::{Connection, BusType, NameFlag};
-use dbus::tree::{Factory, MethodErr};
+use dbus::tree::{Factory, MethodErr, Signal};
 use std::cell::RefCell;
 use std::io;
 use std::rc::Rc;
@@ -148,23 +148,34 @@ fn battery() -> io::Result<()> {
 struct PowerDaemon {
     graphics: Graphics,
     power_profile: String,
+    dbus_connection: Arc<Connection>,
+    power_switch_signal: Arc<Signal<()>>
 }
 
 impl PowerDaemon {
-    fn new() -> Result<PowerDaemon, String> {
+    fn new(power_switch_signal: Arc<Signal<()>>, dbus_connection: Arc<Connection>) -> Result<PowerDaemon, String> {
         let graphics = Graphics::new().map_err(err_str)?;
         Ok(PowerDaemon {
             graphics,
-            power_profile: String::new()
+            power_profile: String::new(),
+            power_switch_signal,
+            dbus_connection,
         })
     }
 
-    fn apply_profile<F, S>(&mut self, func: F, name: S) -> Result<(), String>
-    where F: Fn() -> io::Result<()>,
-          S: Into<String>
+    fn apply_profile<F>(&mut self, func: F, name: &str) -> Result<(), String>
+        where F: Fn() -> io::Result<()>,
     {
         let res = func().map_err(err_str);
         if res.is_ok() {
+            let message = self.power_switch_signal
+                .msg(&DBUS_PATH.into(), &DBUS_NAME.into())
+                .append1(name);
+
+            if let Err(()) = self.dbus_connection.send(message) {
+                error!("failed to send power profile switch message");
+            }
+
             self.power_profile = name.into();
         }
 
@@ -217,7 +228,16 @@ impl Power for PowerDaemon {
 pub fn daemon(experimental: bool) -> Result<(), String> {
     info!("Starting daemon{}", if experimental { " with experimental enabled" } else { "" });
     EXPERIMENTAL.store(experimental, Ordering::SeqCst);
-    let daemon = Rc::new(RefCell::new(PowerDaemon::new()?));
+
+    info!("Connecting to dbus system bus");
+    let c = Arc::new(Connection::get_private(BusType::System).map_err(err_str)?);
+
+    let f = Factory::new_fn::<()>();
+    let hotplug_signal = Arc::new(f.signal("HotPlugDetect", ()).sarg::<u64,_>("port"));
+    let power_switch_signal = Arc::new(f.signal("PowerProfileSwitch", ()).sarg::<&str,_>("profile"));
+
+    let daemon = PowerDaemon::new(power_switch_signal.clone(), c.clone())?;
+    let daemon = Rc::new(RefCell::new(daemon));
 
     info!("Disabling NMI Watchdog (for kernel debugging only)");
     NmiWatchdog::new().set(b"0");
@@ -233,13 +253,8 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
     info!("Initializing with the balanced profile");
     daemon.borrow_mut().balanced().map_err(|why| format!("failed to set initial profile: {}", why))?;
 
-    info!("Connecting to dbus system bus");
-    let c = Connection::get_private(BusType::System).map_err(err_str)?;
-
     info!("Registering dbus name {}", DBUS_NAME);
     c.register_name(DBUS_NAME, NameFlag::ReplaceExisting as u32).map_err(err_str)?;
-
-    let f = Factory::new_fn::<()>();
 
     // Defines whether the value returned by the method should be appended.
     macro_rules! append {
@@ -281,8 +296,6 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
         }};
     }
 
-    let signal = Arc::new(f.signal("HotPlugDetect", ()).sarg::<u64,_>("port"));
-
     info!("Adding dbus path {} with interface {}", DBUS_PATH, DBUS_IFACE);
     let tree = f.tree(()).add(f.object_path(DBUS_PATH, ()).introspectable().add(
         f.interface(DBUS_IFACE, ())
@@ -296,7 +309,8 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
             .add_m(method!(get_graphics_power, "GetGraphicsPower", true, false).outarg::<bool,_>("power"))
             .add_m(method!(set_graphics_power, "SetGraphicsPower", false, true).inarg::<bool,_>("power"))
             .add_m(method!(auto_graphics_power, "AutoGraphicsPower", false, false))
-            .add_s(signal.clone())
+            .add_s(hotplug_signal.clone())
+            .add_s(power_switch_signal.clone())
     ));
 
     tree.set_registered(&c, true).map_err(err_str)?;
@@ -334,7 +348,7 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
             if hpd[i] != last[i] && hpd[i] {
                 info!("HotPlugDetect {}", i);
                 c.send(
-                    signal.msg(&DBUS_PATH.into(), &DBUS_NAME.into()).append1(i as u64)
+                    hotplug_signal.msg(&DBUS_PATH.into(), &DBUS_NAME.into()).append1(i as u64)
                 ).map_err(|()| "failed to send message".to_string())?;
             }
         }
