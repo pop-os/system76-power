@@ -15,17 +15,17 @@ _system76-power ()
     prev="${COMP_WORDS[COMP_CWORD-1]}"
 
     # 1st level options
-    opts="daemon graphics help profile --version -V --help -h"
+    opts="daemon graphics help profile --version --help"
 
-    # 2nd level options
+    # 2nd/3rd level options
     case "${prev}" in
         graphics)
-            local _opts="intel nvidia switchable --help"
+            local _opts="intel nvidia power switchable --help"
             COMPREPLY=( $(compgen -W "${_opts}" -- ${cur}) )
             return 0
             ;;
 
-        battery|balanced|daemon|intel|nvidia|performance|switchable)
+        battery|balanced|daemon|intel|nvidia|performance|switchable|on|off|auto)
             local _opts="--help"
             COMPREPLY=( $(compgen -W "${_opts}" -- ${cur}) )
             return 0
@@ -41,7 +41,13 @@ _system76-power ()
             COMPREPLY=( $(compgen -W "${_opts}" -- ${cur}) )
             return 0
             ;;
-        	
+
+	power)
+	    local _opts="auto on off --help"
+            COMPREPLY=( $(compgen -W "${_opts}" -- ${cur}) )
+            return 0
+            ;;
+
         *)
         ;;
     esac
