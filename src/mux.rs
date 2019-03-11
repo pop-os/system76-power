@@ -13,11 +13,15 @@ impl DisplayPortMux {
         let model_line = read_file("/sys/class/dmi/id/product_version").map_err(err_str)?;
         let model = model_line.trim();
         match model {
-            "galp2" | "galp3" | "galp3-b" => Err(format!("{} needs GPIO settings", model)),
+            "galp2" | "galp3" | "galp3-b" => Ok(DisplayPortMux {
+                sideband: Sideband::new(0xFD00_0000)?,
+                hpd: (0xAE, 0x31), // GPP_E13
+                mux: (0xAF, 0x16), // GPP_A22
+            }),
             "darp5" | "galp3-c" => Ok(DisplayPortMux {
                 sideband: Sideband::new(0xFD00_0000)?,
-                hpd: (0x6A, 0x4A),
-                mux: (0x6E, 0x2C),
+                hpd: (0x6A, 0x4A), // GPP_E13
+                mux: (0x6E, 0x2C), // GPP_A22
             }),
             _ => Err(format!("{} does not support hotplug detection", model))
         }
