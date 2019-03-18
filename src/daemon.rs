@@ -211,7 +211,9 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
     }
 
     info!("Initializing with the balanced profile");
-    balanced().map_err(|why| format!("failed to set initial profile: {}", why))?;
+    if let Err(why) = balanced() {
+        error!("Failed to set initial profile: {}", why);
+    }
 
     info!("Connecting to dbus system bus");
     let c = Connection::get_private(BusType::System).map_err(err_str)?;
