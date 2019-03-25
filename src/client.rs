@@ -48,6 +48,12 @@ impl Power for PowerClient {
         r.get1().ok_or_else(|| "return value not found".to_string())
     }
 
+    fn get_profile(&mut self) -> Result<String, String> {
+        let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "GetProfile")?;
+        let r = self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
+        r.get1().ok_or_else(|| "return value not found".to_string())
+    }
+
     fn get_switchable(&mut self) -> Result<bool, String> {
         let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "GetSwitchable")?;
         let r = self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
@@ -84,7 +90,11 @@ impl Power for PowerClient {
     }
 }
 
-fn profile() -> io::Result<()> {
+fn profile(client: &mut PowerClient) -> io::Result<()> {
+    let profile = client.get_profile().ok();
+    let profile = profile.as_ref().map_or("?", |s| s.as_str());
+    println!("Power Profile: {}", profile);
+
     if let Ok(pstate) = PState::new() {
         let min = pstate.min_perf_pct()?;
         let max = pstate.max_perf_pct()?;
@@ -121,7 +131,7 @@ pub fn client(subcommand: &str, matches: &ArgMatches) -> Result<(), String> {
             Some("balanced") => client.balanced(),
             Some("battery") => client.battery(),
             Some("performance") => client.performance(),
-            _ => profile().map_err(err_str)
+            _ => profile(&mut client).map_err(err_str)
         },
         "graphics" => match matches.subcommand() {
             ("intel", _) => client.set_graphics("intel"),
