@@ -83,6 +83,7 @@ impl GraphicsDevice {
 
 pub struct Graphics {
     pub bus: PciBus,
+    pub amd: Vec<GraphicsDevice>,
     pub intel: Vec<GraphicsDevice>,
     pub nvidia: Vec<GraphicsDevice>,
     pub other: Vec<GraphicsDevice>,
@@ -112,6 +113,7 @@ impl Graphics {
             functions
         };
 
+        let mut amd = Vec::new();
         let mut intel = Vec::new();
         let mut nvidia = Vec::new();
         let mut other = Vec::new();
@@ -119,6 +121,10 @@ impl Graphics {
             let c = dev.class()?;
             match (c >> 16) & 0xFF {
                 0x03 => match dev.vendor()? {
+                    0x1002 => {
+                        info!("{}: AMD graphics", dev.id());
+                        amd.push(GraphicsDevice::new(functions(&dev)));
+                    }
                     0x10DE => {
                         info!("{}: NVIDIA graphics", dev.id());
                         nvidia.push(GraphicsDevice::new(functions(&dev)));
@@ -138,6 +144,7 @@ impl Graphics {
 
         Ok(Graphics {
             bus,
+            amd,
             intel,
             nvidia,
             other,
