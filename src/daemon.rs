@@ -251,7 +251,9 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
     }
 
     info!("Initializing with the balanced profile");
-    daemon.borrow_mut().balanced().map_err(|why| format!("failed to set initial profile: {}", why))?;
+    if let Err(why) = daemon.borrow_mut().balanced() {
+        error!("Failed to set initial profile: {}", why);
+    }
 
     info!("Registering dbus name {}", DBUS_NAME);
     c.register_name(DBUS_NAME, NameFlag::ReplaceExisting as u32).map_err(err_str)?;
