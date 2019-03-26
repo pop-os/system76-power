@@ -1,4 +1,5 @@
 use dbus::{BusType, Connection, Message};
+use dbus::arg::Append;
 use std::io;
 use {DBUS_NAME, DBUS_PATH, DBUS_IFACE, Power, err_str};
 use clap::ArgMatches;
@@ -18,73 +19,79 @@ impl PowerClient {
             bus: bus
         })
     }
+
+    fn call_method<A: Append>(&mut self, method: &str, append: Option<A>) -> Result<Message, String> {
+        let mut m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, method)?;
+        if let Some(arg) = append {
+            m = m.append1(arg);
+        }
+
+        let r = self.bus
+            .send_with_reply_and_block(m, TIMEOUT)
+            .map_err(|why| format!("daemon returned an error message: {}", err_str(why)))?;
+
+        Ok(r)
+    }
 }
 
 impl Power for PowerClient {
     fn performance(&mut self) -> Result<(), String> {
-        info!("Setting power profile to performance");
-        let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "Performance")?;
-        self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
-        Ok(())
+        println!("setting power profile to performance");
+        self.call_method::<bool>("Performance", None).map(|_|())
     }
 
     fn balanced(&mut self) -> Result<(), String> {
-        info!("Setting power profile to balanced");
-        let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "Balanced")?;
-        self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
-        Ok(())
+        println!("setting power profile to balanced");
+        self.call_method::<bool>("Balanced", None).map(|_|())
     }
 
     fn battery(&mut self) -> Result<(), String> {
-        info!("Setting power profile to battery");
-        let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "Battery")?;
-        self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
-        Ok(())
+        println!("setting power profile to battery");
+        self.call_method::<bool>("Battery", None).map(|_|())
     }
 
     fn get_graphics(&mut self) -> Result<String, String> {
-        let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "GetGraphics")?;
+        let r = self.call_method::<bool>("GetGraphics", None)?;
+        r.get1().ok_or_else(|| "return value not found".to_string())
+    }
+
+    fn get_profile(&mut self) -> Result<String, String> {
+        let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "GetProfile")?;
         let r = self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
         r.get1().ok_or_else(|| "return value not found".to_string())
     }
 
     fn get_switchable(&mut self) -> Result<bool, String> {
-        let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "GetSwitchable")?;
-        let r = self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
+        let r = self.call_method::<bool>("GetSwitchable", None)?;
         r.get1().ok_or_else(|| "return value not found".to_string())
     }
 
     fn set_graphics(&mut self, vendor: &str) -> Result<(), String> {
-        info!("Setting graphics to {}", vendor);
-        let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "SetGraphics")?
-            .append1(vendor);
-        self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
-        Ok(())
+        println!("setting graphics to {}", vendor);
+        self.call_method::<&str>("SetGraphics", Some(vendor)).map(|_|())
     }
 
     fn get_graphics_power(&mut self) -> Result<bool, String> {
-        let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "GetGraphicsPower")?;
-        let r = self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
+        let r = self.call_method::<bool>("GetGraphicsPower", None)?;
         r.get1().ok_or_else(|| "return value not found".to_string())
     }
 
     fn set_graphics_power(&mut self, power: bool) -> Result<(), String> {
-        info!("Turning discrete graphics {}", if power { "on" } else { "off "});
-        let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "SetGraphicsPower")?
-            .append1(power);
-        self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
-        Ok(())
+        println!("turning discrete graphics {}", if power { "on" } else { "off "});
+        self.call_method::<bool>("SetGraphicsPower", Some(power)).map(|_|())
     }
 
     fn auto_graphics_power(&mut self) -> Result<(), String> {
-        info!("Setting discrete graphics to turn off when not in use");
-        let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "AutoGraphicsPower")?;
-        self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
-        Ok(())
+        println!("setting discrete graphics to turn off when not in use");
+        self.call_method::<bool>("AutoGraphicsPower", None).map(|_|())
     }
 }
 
-fn profile() -> io::Result<()> {
+fn profile(client: &mut PowerClient) -> io::Result<()> {
+    let profile = client.get_profile().ok();
+    let profile = profile.as_ref().map_or("?", |s| s.as_str());
+    println!("Power Profile: {}", profile);
+
     if let Ok(pstate) = PState::new() {
         let min = pstate.min_perf_pct()?;
         let max = pstate.max_perf_pct()?;
@@ -121,7 +128,7 @@ pub fn client(subcommand: &str, matches: &ArgMatches) -> Result<(), String> {
             Some("balanced") => client.balanced(),
             Some("battery") => client.battery(),
             Some("performance") => client.performance(),
-            _ => profile().map_err(err_str)
+            _ => profile(&mut client).map_err(err_str)
         },
         "graphics" => match matches.subcommand() {
             ("intel", _) => client.set_graphics("intel"),
