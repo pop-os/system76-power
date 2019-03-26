@@ -17,6 +17,7 @@ pub mod kernel_parameters;
 pub mod logging;
 pub mod modprobe;
 pub mod module;
+pub mod mux;
 pub mod pci;
 pub mod sideband;
 pub mod radeon;
