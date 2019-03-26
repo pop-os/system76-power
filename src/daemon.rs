@@ -12,6 +12,7 @@ use fan::FanDaemon;
 use graphics::Graphics;
 use hotplug::HotPlugDetect;
 use kernel_parameters::{DeviceList, Dirty, KernelParameter, LaptopMode, NmiWatchdog};
+use mux::DisplayPortMux;
 use pstate::PState;
 use radeon::RadeonDevice;
 use snd::SoundDevice;
@@ -327,6 +328,8 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
 
     let hpd_res = unsafe { HotPlugDetect::new() };
 
+    let mux_res = unsafe { DisplayPortMux::new() };
+
     let hpd = || -> [bool; 3] {
         if let Ok(ref hpd) = hpd_res {
             unsafe { hpd.detect() }
@@ -356,5 +359,9 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
         }
 
         last = hpd;
+
+        if let Ok(ref mux) = mux_res {
+            unsafe { mux.step(); }
+        }
     }
 }
