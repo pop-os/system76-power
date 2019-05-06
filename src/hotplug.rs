@@ -11,7 +11,10 @@ pub struct HotPlugDetect {
 impl HotPlugDetect {
     pub unsafe fn new() -> Result<HotPlugDetect, String> {
         match read_file("/sys/class/dmi/id/product_version").map_err(err_str)?.trim() {
-            "oryp4" | "oryp4-b" | "oryp5" => Ok(HotPlugDetect {
+            "gaze14" |
+            "oryp4" |
+            "oryp4-b" |
+            "oryp5" => Ok(HotPlugDetect {
                 sideband: Sideband::new(0xFD00_0000)?,
                 port: 0x6A,
                 pins: [40, 42, 44],
