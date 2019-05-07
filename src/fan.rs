@@ -3,15 +3,15 @@ use sysfs_class::{SysClass, HwMon};
 
 pub struct FanDaemon {
     curve: FanCurve,
-    platform: HwMon,
-    cpu: HwMon,
+    platforms: Vec<HwMon>,
+    cpus: Vec<HwMon>,
 }
 
 impl FanDaemon {
     pub fn new() -> io::Result<FanDaemon> {
         //TODO: Support multiple hwmons for platform and cpu
-        let mut platform_opt = None;
-        let mut cpu_opt = None;
+        let mut platforms = Vec::new();
+        let mut cpus = Vec::new();
 
         for hwmon in HwMon::all()? {
             if let Ok(name) = hwmon.name() {
@@ -19,52 +19,89 @@ impl FanDaemon {
 
                 match name.as_str() {
                     "system76" => (), //TODO: Support laptops
-                    "system76_io" => platform_opt = Some(hwmon),
-                    "coretemp" | "k10temp" => cpu_opt = Some(hwmon),
+                    "system76_io" => platforms.push(hwmon),
+                    "coretemp" | "k10temp" => cpus.push(hwmon),
                     _ => ()
                 }
             }
         }
 
-        Ok(FanDaemon {
-            curve: FanCurve::standard(),
-            platform: platform_opt.ok_or_else(|| io::Error::new(
+        if platforms.is_empty() {
+            return Err(io::Error::new(
                 io::ErrorKind::NotFound,
                 "platform hwmon not found"
-            ))?,
-            cpu: cpu_opt.ok_or_else(|| io::Error::new(
+            ));
+        }
+
+        if cpus.is_empty() {
+            return Err(io::Error::new(
                 io::ErrorKind::NotFound,
                 "cpu hwmon not found"
-            ))?,
+            ));
+        }
+
+        Ok(FanDaemon {
+            curve: FanCurve::standard(),
+            platforms,
+            cpus,
         })
     }
 
-    pub fn step(&self) {
-        let mut duty_opt = None;
-        if let Ok(temp) = self.cpu.temp(1) {
-            if let Ok(input) = temp.input() {
-                let c = f64::from(input) / 1000.0;
-                duty_opt = self.curve.get_duty((c * 100.0) as i16);
+    /// Get the maximum measured temperature from any CPU on the system, in thousandths Celsius
+    /// Thousandths celsius is the standard Linux hwmon temperature unit
+    pub fn get_temp(&self) -> Option<u32> {
+        let mut temp_opt = None;
+        for cpu in self.cpus.iter() {
+            if let Ok(temp) = cpu.temp(1) {
+                if let Ok(input) = temp.input() {
+                    if temp_opt.map_or(true, |x| input > x) {
+                        temp_opt = Some(input);
+                    }
+                }
             }
         }
+        temp_opt
+    }
 
+    /// Get the correct duty cycle for a temperature in thousandths Celsius, from 0 to 255
+    /// Thousandths celsius is the standard Linux hwmon temperature unit
+    /// 0 to 255 is the standard Linux hwmon pwm unit
+    pub fn get_duty(&self, temp: u32) -> Option<u8> {
+        self.curve.get_duty((temp / 10) as i16).map(|duty| {
+            (((duty as u32) * 255) / 10_000) as u8
+        })
+    }
+
+    /// Set the current duty cycle, from 0 to 255
+    /// 0 to 255 is the standard Linux hwmon pwm unit
+    pub fn set_duty(&self, duty_opt: Option<u8>) {
         if let Some(duty) = duty_opt {
-            //TODO: Implement in system76-io-dkms
-            //let _ = self.platform.write_file("pwm1_enable", "1");
-
-            let duty_str = format!("{}", (u32::from(duty) * 255)/10000);
-            let _ = self.platform.write_file("pwm1", &duty_str);
-            let _ = self.platform.write_file("pwm2", &duty_str);
+            let duty_str = format!("{}", duty);
+            for platform in self.platforms.iter() {
+                let _ = platform.write_file("pwm1_enable", "1");
+                let _ = platform.write_file("pwm1", &duty_str);
+                let _ = platform.write_file("pwm2", &duty_str);
+            }
         } else {
-            //TODO: Implement in system76-io-dkms
-            //let _ = self.platform.write_file("pwm1_enable", "2");
+            for platform in self.platforms.iter() {
+                let _ = platform.write_file("pwm1_enable", "2");
+            }
         }
+    }
+
+    /// Calculate the correct duty cycle and apply it to all fans
+    pub fn step(&self) {
+        self.set_duty(
+            self.get_temp().and_then(|temp| {
+                self.get_duty(temp)
+            })
+        )
     }
 }
 
 impl Drop for FanDaemon {
     fn drop(&mut self) {
-        let _ = self.platform.write_file("pwm1_enable", "2");
+        self.set_duty(None);
     }
 }
 
