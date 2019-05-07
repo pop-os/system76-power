@@ -10,16 +10,38 @@ pub struct HotPlugDetect {
 
 impl HotPlugDetect {
     pub unsafe fn new() -> Result<HotPlugDetect, String> {
-        match read_file("/sys/class/dmi/id/product_version").map_err(err_str)?.trim() {
-            "gaze14" => Ok(HotPlugDetect {
-                sideband: Sideband::new(0xFD00_0000)?,
-                port: 0x6A,
-                pins: [
-                    0x2a, // HDMI
-                    0x00, // Mini DisplayPort (0x2c) is connected to Intel graphics
-                    0x2e, // USB-C
-                ],
-            }),
+        let model = read_file("/sys/class/dmi/id/product_version")
+            .map_err(err_str)?;
+        match model.trim() {
+            "gaze14" => {
+                let variant = read_file("/sys/bus/pci/devices/0000:00:00.0/subsystem_device")
+                    .map_err(err_str)?;
+                match variant.trim() {
+                    // NVIDIA GTX 1660 Ti
+                    "0x8550" => Ok(HotPlugDetect {
+                        sideband: Sideband::new(0xFD00_0000)?,
+                        port: 0x6A,
+                        pins: [
+                            0x2a, // HDMI
+                            0x00, // Mini DisplayPort (0x2c) is connected to Intel graphics
+                            0x2e, // USB-C
+                        ],
+                    }),
+                    // NVIDIA GTX 1650
+                    "0x8560" => Ok(HotPlugDetect {
+                        sideband: Sideband::new(0xFD00_0000)?,
+                        port: 0x6A,
+                        pins: [
+                            0x00, // HDMI (0x2a) is connected to Intel graphics
+                            0x2e, // Mini DisplayPort
+                            0x00, // Only two external display connectors
+                        ],
+                    }),
+                    other => Err(
+                        format!("gaze14 variant '{}' does not support hotplug detection", other)
+                    ),
+                }
+            },
             "oryp4" |
             "oryp4-b" |
             "oryp5" => Ok(HotPlugDetect {
@@ -31,7 +53,9 @@ impl HotPlugDetect {
                     0x2c, // Mini DisplayPort
                 ],
             }),
-            other => Err(format!("{} does not support hotplug detection", other))
+            other => Err(
+                format!("model '{}' does not support hotplug detection", other)
+            )
         }
     }
 
