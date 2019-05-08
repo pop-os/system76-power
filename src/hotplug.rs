@@ -18,7 +18,7 @@ impl HotPlugDetect {
                     .map_err(err_str)?;
                 match variant.trim() {
                     // NVIDIA GTX 1660 Ti
-                    "0x8550" => Ok(HotPlugDetect {
+                    "0x8550" | "0x8551" => Ok(HotPlugDetect {
                         sideband: Sideband::new(0xFD00_0000)?,
                         port: 0x6A,
                         pins: [
@@ -28,7 +28,7 @@ impl HotPlugDetect {
                         ],
                     }),
                     // NVIDIA GTX 1650
-                    "0x8560" => Ok(HotPlugDetect {
+                    "0x8560" | "0x8561" => Ok(HotPlugDetect {
                         sideband: Sideband::new(0xFD00_0000)?,
                         port: 0x6A,
                         pins: [
