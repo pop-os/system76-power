@@ -171,11 +171,12 @@ impl FanCurve {
     /// The standard fan curve
     pub fn standard() -> Self {
         Self::default()
-            .append(20_00, 30_00)
-            .append(30_00, 35_00)
-            .append(40_00, 42_50)
-            .append(50_00, 52_50)
-            .append(65_00, 10_000)
+            .append(39_99, 0_00)
+            .append(40_00, 40_00)
+            .append(50_00, 50_00)
+            .append(60_00, 65_00)
+            .append(70_00, 85_00)
+            .append(75_00, 100_00)
     }
 
     pub fn get_duty(&self, temp: i16) -> Option<u16> {
