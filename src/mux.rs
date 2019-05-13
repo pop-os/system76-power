@@ -1,6 +1,21 @@
-use crate::err_str;
-use crate::sideband::Sideband;
-use crate::util::read_file;
+use crate::sideband::{Sideband, SidebandError};
+use std::{io, fs::read_to_string};
+
+#[derive(Debug, Error)]
+pub enum DisplayPortMuxError {
+    #[error(display = "error constructing sideband: {}", _0)]
+    Sideband(SidebandError),
+    #[error(display = "failed to read DMI product version: {}", _0)]
+    ProductVersion(io::Error),
+    #[error(display = "model '{}' does not support hotplug detection", _0)]
+    UnsupportedHotPlugDetect(String),
+}
+
+impl From<SidebandError> for DisplayPortMuxError {
+    fn from(err: SidebandError) -> Self {
+        DisplayPortMuxError::Sideband(err)
+    }
+}
 
 pub struct DisplayPortMux {
     sideband: Sideband,
@@ -9,8 +24,10 @@ pub struct DisplayPortMux {
 }
 
 impl DisplayPortMux {
-    pub unsafe fn new() -> Result<DisplayPortMux, String> {
-        let model_line = read_file("/sys/class/dmi/id/product_version").map_err(err_str)?;
+    pub unsafe fn new() -> Result<DisplayPortMux, DisplayPortMuxError> {
+        let model_line = read_to_string("/sys/class/dmi/id/product_version")
+            .map_err(DisplayPortMuxError::ProductVersion)?;
+
         let model = model_line.trim();
         match model {
             "galp2" | "galp3" | "galp3-b" => Ok(DisplayPortMux {
@@ -23,7 +40,7 @@ impl DisplayPortMux {
                 hpd: (0x6A, 0x4A), // GPP_E13
                 mux: (0x6E, 0x2C), // GPP_A22
             }),
-            _ => Err(format!("{} does not support hotplug detection", model))
+            _ => Err(DisplayPortMuxError::UnsupportedHotPlugDetect(model.to_owned()))
         }
     }
 

@@ -4,9 +4,9 @@ extern crate system76_power;
 use log::LevelFilter;
 use std::{process, thread, time};
 use system76_power::logging;
-use system76_power::sideband::Sideband;
+use system76_power::sideband::{Sideband, SidebandError};
 
-fn inner() -> Result<(), String> {
+fn inner() -> Result<(), SidebandError> {
     let sideband = unsafe { Sideband::new(0xFD00_0000)? };
 
     let hpd = (0x6A, 0x4A);

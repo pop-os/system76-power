@@ -11,7 +11,7 @@ clap = "2.32.0"
 log = "0.4.3"
 fern = "0.5.6"
 intel-pstate = "0.2.0"
-sysfs-class = { git = "https://github.com/pop-os/sysfs-class", branch = "brightness-trait" }
+sysfs-class = { git = "https://github.com/pop-os/sysfs-class" }
 err-derive = "0.1.5"
 
 [build-dependencies]

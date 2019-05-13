@@ -4,7 +4,7 @@ extern crate system76_power;
 use log::LevelFilter;
 use std::process;
 use system76_power::logging;
-use system76_power::sideband::Sideband;
+use system76_power::sideband::{Sideband, SidebandError};
 
 struct GpioGroup<'a> {
     name: &'a str,
@@ -144,7 +144,7 @@ impl<'a> GpioCommunity<'a> {
     }
 }
 
-fn inner() -> Result<(), String> {
+fn inner() -> Result<(), SidebandError> {
     let communities = GpioCommunity::skylake();
 
     let sideband = unsafe { Sideband::new(0xFD00_0000)? };

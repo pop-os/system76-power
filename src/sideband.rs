@@ -10,8 +10,8 @@ use libc::{
     mmap,
     open,
 };
-use std::ffi::CString;
-use std::ptr;
+
+use std::{ffi::CString, io, ptr};
 
 /*
  * P2SB private registers.
@@ -23,16 +23,24 @@ const P2SB_PORTID_SHIFT: u32 = 16;
  */
 const REG_PCH_GPIO_PADBAR: u32 = 0xc;
 
+#[derive(Debug, Error)]
+pub enum SidebandError {
+    #[error(display = "failed to open /dev/mem: {}", _0)]
+    DevMemOpen(io::Error),
+    #[error(display = "failed to map sideband memory: {}", _0)]
+    MapFailed(io::Error)
+}
+
 pub struct Sideband {
     pub addr: u64,
 }
 
 impl Sideband {
-    pub unsafe fn new(sbreg_phys: usize) -> Result<Sideband, String> {
+    pub unsafe fn new(sbreg_phys: usize) -> Result<Sideband, SidebandError> {
         let mem_str = CString::new("/dev/mem").unwrap();
         let memfd: c_int = open(mem_str.as_ptr(), O_RDWR);
         if memfd == -1 {
-            return Err("Failed to open /dev/mem".to_string());
+            return Err(SidebandError::DevMemOpen(io::Error::last_os_error()));
         }
 
         let sbreg_virt = mmap(
@@ -47,7 +55,7 @@ impl Sideband {
         close(memfd);
 
         if sbreg_virt == MAP_FAILED {
-            return Err("Failed to map Sideband memory".to_string());
+            return Err(SidebandError::MapFailed(io::Error::last_os_error()));
         }
 
         Ok(Sideband {
