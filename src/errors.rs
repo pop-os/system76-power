@@ -96,3 +96,11 @@ pub enum GraphicsDeviceError {
     #[error(display = "update-initramfs failed with {} status", _0)]
     UpdateInitramfs(ExitStatus),
 }
+
+#[derive(Debug, Error)]
+pub enum SidebandError {
+    #[error(display = "failed to open /dev/mem: {}", _0)]
+    DevMemOpen(io::Error),
+    #[error(display = "failed to map sideband memory: {}", _0)]
+    MapFailed(io::Error)
+}

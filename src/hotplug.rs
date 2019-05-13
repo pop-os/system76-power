@@ -1,6 +1,19 @@
-use crate::err_str;
-use crate::sideband::Sideband;
-use crate::util::read_file;
+use crate::sideband::{Sideband, SidebandError};
+use std::{io, fs::read_to_string};
+
+#[derive(Debug, Error)]
+pub enum HotPlugDetectError {
+    #[error(display = "failed to read DMI product version: {}", _0)]
+    ProductVersion(io::Error),
+    #[error(display = "error constructing sideband: {}", _0)]
+    Sideband(SidebandError),
+    #[error(display = "{} variant '{}' does not support hotplug detection", model, variant)]
+    VariantUnsupported { model: &'static str, variant: String },
+    #[error(display = "model '{}' does not support hotplug detection", _0)]
+    ModelUnsupported(String),
+    #[error(display = "failed to read {}'s subsystem device: {}", model, why)]
+    SubsystemDevice { model: &'static str, why: io::Error },
+}
 
 pub struct HotPlugDetect {
     sideband: Sideband,
@@ -9,17 +22,19 @@ pub struct HotPlugDetect {
 }
 
 impl HotPlugDetect {
-    pub unsafe fn new() -> Result<HotPlugDetect, String> {
-        let model = read_file("/sys/class/dmi/id/product_version")
-            .map_err(err_str)?;
+    pub unsafe fn new() -> Result<HotPlugDetect, HotPlugDetectError> {
+        let model = read_to_string("/sys/class/dmi/id/product_version")
+            .map_err(HotPlugDetectError::ProductVersion)?;
+
         match model.trim() {
             "gaze14" => {
-                let variant = read_file("/sys/bus/pci/devices/0000:00:00.0/subsystem_device")
-                    .map_err(err_str)?;
+                let variant = read_to_string("/sys/bus/pci/devices/0000:00:00.0/subsystem_device")
+                    .map_err(|why| HotPlugDetectError::SubsystemDevice { model: "gaze14", why })?;
+
                 match variant.trim() {
                     // NVIDIA GTX 1660 Ti
                     "0x8550" | "0x8551" => Ok(HotPlugDetect {
-                        sideband: Sideband::new(0xFD00_0000)?,
+                        sideband: Sideband::new(0xFD00_0000).map_err(HotPlugDetectError::Sideband)?,
                         port: 0x6A,
                         pins: [
                             0x2a, // HDMI
@@ -29,7 +44,7 @@ impl HotPlugDetect {
                     }),
                     // NVIDIA GTX 1650
                     "0x8560" | "0x8561" => Ok(HotPlugDetect {
-                        sideband: Sideband::new(0xFD00_0000)?,
+                        sideband: Sideband::new(0xFD00_0000).map_err(HotPlugDetectError::Sideband)?,
                         port: 0x6A,
                         pins: [
                             0x00, // HDMI (0x2a) is connected to Intel graphics
@@ -37,15 +52,16 @@ impl HotPlugDetect {
                             0x00, // Only two external display connectors
                         ],
                     }),
-                    other => Err(
-                        format!("gaze14 variant '{}' does not support hotplug detection", other)
-                    ),
+                    other => Err(HotPlugDetectError::VariantUnsupported {
+                        model: "gaze14",
+                        variant: other.into()
+                    }),
                 }
             },
             "oryp4" |
             "oryp4-b" |
             "oryp5" => Ok(HotPlugDetect {
-                sideband: Sideband::new(0xFD00_0000)?,
+                sideband: Sideband::new(0xFD00_0000).map_err(HotPlugDetectError::Sideband)?,
                 port: 0x6A,
                 pins: [
                     0x28, // USB-C
@@ -53,9 +69,7 @@ impl HotPlugDetect {
                     0x2c, // Mini DisplayPort
                 ],
             }),
-            other => Err(
-                format!("model '{}' does not support hotplug detection", other)
-            )
+            other => Err(HotPlugDetectError::ModelUnsupported(other.into()))
         }
     }
 
