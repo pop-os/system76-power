@@ -1,6 +1,16 @@
 use std::io;
 use sysfs_class::{HwMon, SysClass};
 
+#[derive(Debug, Error)]
+pub enum FanDaemonError {
+    #[error(display = "failed to collect hwmon devices: {}", _0)]
+    HwmonDevices(io::Error),
+    #[error(display = "platform hwmon not found")]
+    PlatformHwmonNotFound,
+    #[error(display = "cpu hwmon not found")]
+    CpuHwmonNotFound,
+}
+
 pub struct FanDaemon {
     curve:     FanCurve,
     platforms: Vec<HwMon>,
@@ -8,12 +18,12 @@ pub struct FanDaemon {
 }
 
 impl FanDaemon {
-    pub fn new() -> io::Result<FanDaemon> {
+    pub fn new() -> Result<Self, FanDaemonError> {
         // TODO: Support multiple hwmons for platform and cpu
         let mut platforms = Vec::new();
         let mut cpus = Vec::new();
 
-        for hwmon in HwMon::all()? {
+        for hwmon in HwMon::all().map_err(FanDaemonError::HwmonDevices)? {
             if let Ok(name) = hwmon.name() {
                 info!("hwmon: {}", name);
 
@@ -27,11 +37,11 @@ impl FanDaemon {
         }
 
         if platforms.is_empty() {
-            return Err(io::Error::new(io::ErrorKind::NotFound, "platform hwmon not found"));
+            return Err(FanDaemonError::PlatformHwmonNotFound);
         }
 
         if cpus.is_empty() {
-            return Err(io::Error::new(io::ErrorKind::NotFound, "cpu hwmon not found"));
+            return Err(FanDaemonError::CpuHwmonNotFound);
         }
 
         Ok(FanDaemon { curve: FanCurve::standard(), platforms, cpus })
