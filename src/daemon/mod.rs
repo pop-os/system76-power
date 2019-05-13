@@ -1,23 +1,21 @@
 use dbus::{Connection, BusType, NameFlag};
 use dbus::tree::{Factory, MethodErr, Signal};
 use std::cell::RefCell;
-use std::io;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::{DBUS_NAME, DBUS_PATH, DBUS_IFACE, Power, err_str};
-use crate::disks::{Disks, DiskPower};
+use crate::errors::ProfileError;
 use crate::fan::FanDaemon;
 use crate::graphics::Graphics;
 use crate::hotplug::HotPlugDetect;
-use crate::kernel_parameters::{DeviceList, Dirty, KernelParameter, LaptopMode, NmiWatchdog};
+use crate::kernel_parameters::{KernelParameter, NmiWatchdog};
 use crate::mux::DisplayPortMux;
-use pstate::PState;
-use crate::radeon::RadeonDevice;
-use crate::snd::SoundDevice;
-use sysfs_class::{Backlight, Leds, PciDevice, RuntimePM, RuntimePowerManagement, ScsiHost, SysClass};
-// use wifi::WifiDevice;
+
+mod profiles;
+
+use self::profiles::*;
 
 static EXPERIMENTAL: AtomicBool = AtomicBool::new(false);
 
@@ -25,132 +23,10 @@ fn experimental_is_enabled() -> bool {
     EXPERIMENTAL.load(Ordering::SeqCst)
 }
 
-// fn disk_performance(apm_level: u8, autosuspend_delay: i32) ->
-
-fn performance() -> io::Result<()> {
-    if experimental_is_enabled() {
-        let disks = Disks::default();
-        disks.set_apm_level(254)?;
-        disks.set_autosuspend_delay(-1)?;
-
-        for host in ScsiHost::iter() {
-            host?.set_link_power_management_policy(&["med_power_with_dipm", "max_performance"])?;
-        }
-
-        SoundDevice::get_devices().for_each(|dev| dev.set_power_save(0, false));
-        RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("high", "performance", "auto"));
-        for device in PciDevice::all()? {
-            device.set_runtime_pm(RuntimePowerManagement::Off)?;
-        }
-
-        Dirty::default().set_max_lost_work(15);
-        LaptopMode::default().set(b"0");
-    }
-
-    if let Ok(pstate) = PState::new() {
-        pstate.set_min_perf_pct(50)?;
-        pstate.set_max_perf_pct(100)?;
-        pstate.set_no_turbo(false)?;
-    }
-
-    Ok(())
-}
-
-fn balanced() -> io::Result<()> {
-    if experimental_is_enabled() {
-        let disks = Disks::default();
-        disks.set_apm_level(254)?;
-        disks.set_autosuspend_delay(-1)?;
-
-        for host in ScsiHost::iter() {
-            host?.set_link_power_management_policy(&["med_power_with_dipm", "medium_power"])?;
-        }
-
-        SoundDevice::get_devices().for_each(|dev| dev.set_power_save(0, false));
-        RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("auto", "performance", "auto"));
-        for device in PciDevice::all()? {
-            device.set_runtime_pm(RuntimePowerManagement::On)?;
-        }
-
-        Dirty::default().set_max_lost_work(15);
-        LaptopMode::default().set(b"0");
-    }
-
-    if let Ok(pstate) = PState::new() {
-        pstate.set_min_perf_pct(0)?;
-        pstate.set_max_perf_pct(100)?;
-        pstate.set_no_turbo(false)?;
-    }
-
-    for backlight in Backlight::iter() {
-        let backlight = backlight?;
-        let max_brightness = backlight.max_brightness()?;
-        let current = backlight.brightness()?;
-        let new = max_brightness * 40 / 100;
-        if new < current {
-            backlight.set_brightness(new)?;
-        }
-    }
-
-    for backlight in Leds::keyboard_backlights() {
-        let backlight = backlight?;
-        let max_brightness = backlight.max_brightness()?;
-        let current = backlight.brightness()?;
-        let new = max_brightness/2;
-        if new < current {
-            backlight.set_brightness(new)?;
-        }
-    }
-
-    Ok(())
-}
-
-fn battery() -> io::Result<()> {
-    if experimental_is_enabled() {
-        let disks = Disks::default();
-        disks.set_apm_level(128)?;
-        disks.set_autosuspend_delay(15000)?;
-
-        for host in ScsiHost::iter() {
-            host?.set_link_power_management_policy(&["min_power", "min_power"])?;
-        }
-
-        SoundDevice::get_devices().for_each(|dev| dev.set_power_save(1, true));
-        RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("low", "battery", "low"));
-        for device in PciDevice::all()? {
-            device.set_runtime_pm(RuntimePowerManagement::On)?;
-        }
-
-        Dirty::default().set_max_lost_work(15);
-        LaptopMode::default().set(b"2");
-    }
-
-    if let Ok(pstate) = PState::new() {
-        pstate.set_min_perf_pct(0)?;
-        pstate.set_max_perf_pct(50)?;
-        pstate.set_no_turbo(true)?;
-    }
-
-    for backlight in Backlight::all()? {
-        let max_brightness = backlight.max_brightness()?;
-        let current = backlight.brightness()?;
-        let new = max_brightness * 10 / 100;
-        if new < current {
-            backlight.set_brightness(new)?;
-        }
-    }
-
-    for backlight in Leds::keyboard_backlights() {
-        let backlight = backlight?;
-        backlight.set_brightness(0)?;
-    }
-
-    Ok(())
-}
-
 struct PowerDaemon {
     graphics: Graphics,
     power_profile: String,
+    profile_errors: Vec<ProfileError>,
     dbus_connection: Arc<Connection>,
     power_switch_signal: Arc<Signal<()>>
 }
@@ -161,42 +37,53 @@ impl PowerDaemon {
         Ok(PowerDaemon {
             graphics,
             power_profile: String::new(),
+            profile_errors: Vec::new(),
             power_switch_signal,
             dbus_connection,
         })
     }
 
-    fn apply_profile<F>(&mut self, func: F, name: &str) -> Result<(), String>
-        where F: Fn() -> io::Result<()>,
-    {
-        let res = func().map_err(err_str);
-        if res.is_ok() {
-            let message = self.power_switch_signal
-                .msg(&DBUS_PATH.into(), &DBUS_NAME.into())
-                .append1(name);
+    fn apply_profile(
+        &mut self,
+        func: fn(&mut Vec<ProfileError>),
+        name: &str
+    ) -> Result<(), String> {
+        func(&mut self.profile_errors);
 
-            if let Err(()) = self.dbus_connection.send(message) {
-                error!("failed to send power profile switch message");
-            }
+        let message = self.power_switch_signal
+            .msg(&DBUS_PATH.into(), &DBUS_NAME.into())
+            .append1(name);
 
-            self.power_profile = name.into();
+        if let Err(()) = self.dbus_connection.send(message) {
+            error!("failed to send power profile switch message");
         }
 
-        res
+        self.power_profile = name.into();
+
+        if self.profile_errors.is_empty() {
+            Ok(())
+        } else {
+            let mut error_message = String::from("Errors found when setting profile:");
+            for error in self.profile_errors.drain(..) {
+                error_message = format!("{}\n    - {}", error_message, error);
+            }
+
+            Err(error_message)
+        }
     }
 }
 
 impl Power for PowerDaemon {
     fn battery(&mut self) -> Result<(), String> {
-        self.apply_profile(battery, "Battery")
+        self.apply_profile(battery, "Battery").map_err(err_str)
     }
 
     fn balanced(&mut self) -> Result<(), String> {
-        self.apply_profile(balanced, "Balanced")
+        self.apply_profile(balanced, "Balanced").map_err(err_str)
     }
 
     fn performance(&mut self) -> Result<(), String> {
-        self.apply_profile(performance, "Performance")
+        self.apply_profile(performance, "Performance").map_err(err_str)
     }
 
     fn get_graphics(&mut self) -> Result<String, String> {
@@ -252,13 +139,13 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
     match daemon.borrow_mut().auto_graphics_power() {
         Ok(()) => (),
         Err(err) => {
-            error!("Failed to set automatic graphics power: {}", err);
+            warn!("Failed to set automatic graphics power: {}", err);
         }
     }
 
     info!("Initializing with the balanced profile");
     if let Err(why) = daemon.borrow_mut().balanced() {
-        error!("Failed to set initial profile: {}", why);
+        warn!("Failed to set initial profile: {}", why);
     }
 
     info!("Registering dbus name {}", DBUS_NAME);

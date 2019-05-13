@@ -7,6 +7,7 @@ extern crate log;
 pub mod client;
 pub mod daemon;
 pub mod disks;
+pub mod errors;
 pub mod fan;
 pub mod graphics;
 pub mod hotplug;

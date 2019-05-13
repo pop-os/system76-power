@@ -1,8 +1,3 @@
-extern crate clap;
-#[macro_use]
-extern crate log;
-extern crate system76_power;
-
 use clap::{Arg, App, AppSettings, SubCommand};
 use log::LevelFilter;
 use std::process;

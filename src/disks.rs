@@ -1,13 +1,13 @@
-use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use crate::util::{read_file, write_file};
+use crate::errors::DiskPowerError;
 
 const AUTOSUSPEND: &str = "device/power/autosuspend_delay_ms";
 
 pub trait DiskPower {
-    fn set_apm_level(&self, level: u8) -> io::Result<()>;
-    fn set_autosuspend_delay(&self, ms: i32) -> io::Result<()>;
+    fn set_apm_level(&self, level: u8) -> Result<(), DiskPowerError>;
+    fn set_autosuspend_delay(&self, ms: i32) -> Result<(), DiskPowerError>;
 }
 
 pub struct Disks(Vec<Disk>);
@@ -18,7 +18,7 @@ impl Default for Disks {
         let blocks = match Path::new("/sys/block").read_dir() {
             Ok(blocks) => blocks,
             Err(why) => {
-                eprintln!("disks: unable to get block devices: {}", why);
+                warn!("unable to get block devices: {}", why);
                 return Disks(disks);
             }
         };
@@ -47,16 +47,18 @@ impl Default for Disks {
 }
 
 impl DiskPower for Disks {
-    fn set_apm_level(&self, level: u8) -> io::Result<()> {
+    fn set_apm_level(&self, level: u8) -> Result<(), DiskPowerError> {
         self.0.iter()
             .filter(|dev| dev.is_rotational)
-            .map(|dev| dev.set_apm_level(level)).collect()
+            .map(|dev| dev.set_apm_level(level))
+            .collect()
     }
 
-    fn set_autosuspend_delay(&self, ms: i32) -> io::Result<()> {
+    fn set_autosuspend_delay(&self, ms: i32) -> Result<(), DiskPowerError> {
         self.0.iter()
             .filter(|dev| dev.is_rotational)
-            .map(|dev| dev.set_autosuspend_delay(ms)).collect()
+            .map(|dev| dev.set_autosuspend_delay(ms))
+            .collect()
     }
 }
 
@@ -67,7 +69,7 @@ pub struct Disk {
 }
 
 impl DiskPower for Disk {
-    fn set_apm_level(&self, level: u8) -> io::Result<()> {
+    fn set_apm_level(&self, level: u8) -> Result<(), DiskPowerError> {
         debug!("Setting APM level on {:?} to {}", &self.path, level);
         Command::new("hdparm")
             .arg("-B")
@@ -76,11 +78,13 @@ impl DiskPower for Disk {
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status()
+            .map_err(|why| DiskPowerError::ApmLevel(self.path.to_owned(), level, why))
             .map(|_| ())
     }
 
-    fn set_autosuspend_delay(&self, ms: i32) -> io::Result<()> {
+    fn set_autosuspend_delay(&self, ms: i32) -> Result<(), DiskPowerError> {
         debug!("Setting autosuspend delay on {:?} to {}", &self.block, ms);
         write_file(&self.block.join(AUTOSUSPEND), ms.to_string().as_bytes())
+            .map_err(|why| DiskPowerError::AutosuspendDelay(self.block.to_owned(), ms, why))
     }
 }
