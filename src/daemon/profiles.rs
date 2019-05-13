@@ -1,21 +1,25 @@
-use crate::disks::{Disks, DiskPower};
-use crate::kernel_parameters::{DeviceList, Dirty, KernelParameter, LaptopMode};
-use crate::radeon::RadeonDevice;
-use crate::errors::{BacklightError, DiskPowerError, PciDeviceError, ProfileError, ScsiHostError};
-use std::io;
+use crate::{
+    disks::{DiskPower, Disks},
+    errors::{BacklightError, DiskPowerError, PciDeviceError, ProfileError, ScsiHostError},
+    kernel_parameters::{DeviceList, Dirty, KernelParameter, LaptopMode},
+    radeon::RadeonDevice,
+};
 use pstate::{PState, PStateError};
-use sysfs_class::{Backlight, Brightness, Leds, PciDevice, RuntimePM, RuntimePowerManagement, ScsiHost, SysClass};
+use std::io;
+use sysfs_class::{
+    Backlight, Brightness, Leds, PciDevice, RuntimePM, RuntimePowerManagement, ScsiHost, SysClass,
+};
 
 /// Instead of returning on the first error, we want to collect all errors that occur while
 /// setting a profile. Even if one parameter fails to set, we'll still be able to set other
 /// parameters successfully.
 macro_rules! catch {
-    ($errors:ident, $result:expr) => (
+    ($errors:ident, $result:expr) => {
         match $result {
             Ok(_) => (),
-            Err(why) => $errors.push(why.into())
+            Err(why) => $errors.push(why.into()),
         }
-    )
+    };
 }
 
 /// Sets parameters for the balanced profile.
@@ -24,7 +28,7 @@ pub fn balanced(errors: &mut Vec<ProfileError>) {
     // frequently this occurs, the more power can be saved, yet the higher the risk of sudden
     // power loss causing loss of data. 15s is a resonable number.
     Dirty::default().set_max_lost_work(15);
-    
+
     // Enables the laptop mode feature in the kernel, which allows mechanical drives to spin down
     // when inactive.
     LaptopMode::default().set(b"2");
@@ -91,7 +95,7 @@ fn pstate_values(min: u8, max: u8, no_turbo: bool) -> Result<(), PStateError> {
 fn iterate_backlights<B: Brightness>(
     iterator: impl Iterator<Item = io::Result<B>>,
     strategy: &dyn Fn(&B, u64) -> io::Result<()>,
-    value: u64
+    value: u64,
 ) -> Result<(), BacklightError> {
     for backlight in iterator {
         match backlight {
@@ -109,9 +113,9 @@ fn iterate_backlights<B: Brightness>(
 fn pci_device_runtime_pm(pm: RuntimePowerManagement) -> Result<(), PciDeviceError> {
     for device in PciDevice::iter() {
         match device {
-            Ok(device) => device.set_runtime_pm(pm).map_err(|why| {
-                PciDeviceError::SetRuntimePM(device.id().to_owned(), why)
-            })?,
+            Ok(device) => device
+                .set_runtime_pm(pm)
+                .map_err(|why| PciDeviceError::SetRuntimePM(device.id().to_owned(), why))?,
             Err(why) => {
                 warn!("failed to iterate PCI device: {}", why);
             }
@@ -130,7 +134,7 @@ fn scsi_host_link_time_pm_policy(policies: &'static [&'static str]) -> Result<()
                 device.set_link_power_management_policy(policies).map_err(|why| {
                     ScsiHostError::LinkTimePolicy(policies[0], device.id().to_owned(), why)
                 })?;
-            },
+            }
             Err(why) => {
                 warn!("failed to iterate SCSI Host device: {}", why);
             }
@@ -144,9 +148,10 @@ fn scsi_host_link_time_pm_policy(policies: &'static [&'static str]) -> Result<()
 fn set_backlight<B: Brightness>(
     strategy: impl Fn(&B, u64) -> io::Result<()>,
     backlight: &B,
-    value: u64
+    value: u64,
 ) -> Result<(), BacklightError> {
-    strategy(backlight, value).map_err(|why| BacklightError::Set(backlight.id().to_owned(), why))?;
+    strategy(backlight, value)
+        .map_err(|why| BacklightError::Set(backlight.id().to_owned(), why))?;
     Ok(())
 }
 

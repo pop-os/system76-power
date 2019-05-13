@@ -1,9 +1,10 @@
-use crate::module::Module;
-use crate::pci::PciBus;
-use std::{fs, io, process};
-use std::io::Write;
-use std::iter::FromIterator;
-use std::process::ExitStatus;
+use crate::{module::Module, pci::PciBus};
+use std::{
+    fs,
+    io::{self, Write},
+    iter::FromIterator,
+    process::{self, ExitStatus},
+};
 use sysfs_class::{PciDevice, SysClass};
 
 const MODPROBE_PATH: &str = "/etc/modprobe.d/system76-power.conf";
@@ -51,21 +52,16 @@ pub enum GraphicsDeviceError {
 }
 
 pub struct GraphicsDevice {
-    id: String,
+    id:        String,
     functions: Vec<PciDevice>,
 }
 
 impl GraphicsDevice {
     pub fn new(id: String, functions: Vec<PciDevice>) -> GraphicsDevice {
-        GraphicsDevice {
-            id,
-            functions
-        }
+        GraphicsDevice { id, functions }
     }
 
-    pub fn exists(&self) -> bool {
-        self.functions.iter().any(|func| func.path().exists())
-    }
+    pub fn exists(&self) -> bool { self.functions.iter().any(|func| func.path().exists()) }
 
     pub unsafe fn unbind(&self) -> Result<(), GraphicsDeviceError> {
         for func in self.functions.iter() {
@@ -76,16 +72,18 @@ impl GraphicsDevice {
                         driver.unbind(&func).map_err(|why| GraphicsDeviceError::Unbind {
                             driver: driver.id().to_owned(),
                             func: func.id().to_owned(),
-                            why
+                            why,
                         })?;
-                    },
+                    }
                     Err(why) => match why.kind() {
                         io::ErrorKind::NotFound => (),
-                        _ => return Err(GraphicsDeviceError::PciDriver {
-                            device: self.id.clone(),
-                            why
-                        }),
-                    }
+                        _ => {
+                            return Err(GraphicsDeviceError::PciDriver {
+                                device: self.id.clone(),
+                                why,
+                            })
+                        }
+                    },
                 }
             }
         }
@@ -100,23 +98,25 @@ impl GraphicsDevice {
                     Ok(driver) => {
                         error!("{}: in use by {}", func.id(), driver.id());
                         return Err(GraphicsDeviceError::DeviceInUse {
-                            func: func.id().to_owned(),
-                            driver: driver.id().to_owned()
+                            func:   func.id().to_owned(),
+                            driver: driver.id().to_owned(),
                         });
-                    },
+                    }
                     Err(why) => match why.kind() {
                         io::ErrorKind::NotFound => {
                             info!("{}: Removing", func.id());
                             func.remove().map_err(|why| GraphicsDeviceError::Remove {
                                 device: self.id.clone(),
-                                why
+                                why,
                             })?;
-                        },
-                        _ => return Err(GraphicsDeviceError::PciDriver {
-                            device: self.id.clone(),
-                            why
-                        }),
-                    }
+                        }
+                        _ => {
+                            return Err(GraphicsDeviceError::PciDriver {
+                                device: self.id.clone(),
+                                why,
+                            })
+                        }
+                    },
                 }
             } else {
                 warn!("{}: Already removed", func.id());
@@ -128,11 +128,11 @@ impl GraphicsDevice {
 }
 
 pub struct Graphics {
-    pub bus: PciBus,
-    pub amd: Vec<GraphicsDevice>,
-    pub intel: Vec<GraphicsDevice>,
+    pub bus:    PciBus,
+    pub amd:    Vec<GraphicsDevice>,
+    pub intel:  Vec<GraphicsDevice>,
     pub nvidia: Vec<GraphicsDevice>,
-    pub other: Vec<GraphicsDevice>,
+    pub other:  Vec<GraphicsDevice>,
 }
 
 impl Graphics {
@@ -174,40 +174,33 @@ impl Graphics {
                     0x10DE => {
                         info!("{}: NVIDIA graphics", dev.id());
                         nvidia.push(GraphicsDevice::new(dev.id().to_owned(), functions(&dev)));
-                    },
+                    }
                     0x8086 => {
                         info!("{}: Intel graphics", dev.id());
                         intel.push(GraphicsDevice::new(dev.id().to_owned(), functions(&dev)));
-                    },
+                    }
                     vendor => {
                         info!("{}: Other({:X}) graphics", dev.id(), vendor);
                         other.push(GraphicsDevice::new(dev.id().to_owned(), functions(&dev)));
-                    },
+                    }
                 },
-                _ => ()
+                _ => (),
             }
         }
 
-        Ok(Graphics {
-            bus,
-            amd,
-            intel,
-            nvidia,
-            other,
-        })
+        Ok(Graphics { bus, amd, intel, nvidia, other })
     }
 
-    pub fn can_switch(&self) -> bool {
-        !self.intel.is_empty() && !self.nvidia.is_empty()
-    }
+    pub fn can_switch(&self) -> bool { !self.intel.is_empty() && !self.nvidia.is_empty() }
 
     pub fn get_vendor(&self) -> Result<String, GraphicsDeviceError> {
         let modules = Module::all().map_err(GraphicsDeviceError::ModulesFetch)?;
-        let vendor = if modules.iter().any(|module| module.name == "nouveau" || module.name == "nvidia") {
-            "nvidia".to_string()
-        } else {
-            "intel".to_string()
-        };
+        let vendor =
+            if modules.iter().any(|module| module.name == "nouveau" || module.name == "nvidia") {
+                "nvidia".to_string()
+            } else {
+                "intel".to_string()
+            };
 
         Ok(vendor)
     }
@@ -231,8 +224,7 @@ impl Graphics {
                 file.write_all(MODPROBE_INTEL)
             };
 
-            result.and_then(|_| file.sync_all())
-                .map_err(GraphicsDeviceError::ModprobeFileWrite)?;
+            result.and_then(|_| file.sync_all()).map_err(GraphicsDeviceError::ModprobeFileWrite)?;
         }
 
         const SYSTEMCTL_CMD: &str = "systemctl";
@@ -249,25 +241,21 @@ impl Graphics {
             .arg(action)
             .arg("nvidia-fallback.service")
             .status()
-            .map_err(|why| GraphicsDeviceError::Command {
-                cmd: SYSTEMCTL_CMD,
-                why
-            })?;
+            .map_err(|why| GraphicsDeviceError::Command { cmd: SYSTEMCTL_CMD, why })?;
 
-        if ! status.success() {
+        if !status.success() {
             // Error is ignored in case this service is removed
             warn!("systemctl: failed with {} (not an error if service does not exist!)", status);
         }
 
         info!("Updating initramfs");
         const UPDATE_INITRAMFS_CMD: &str = "update-initramfs";
-        let status = process::Command::new(UPDATE_INITRAMFS_CMD).arg("-u").status()
-            .map_err(|why| GraphicsDeviceError::Command {
-                cmd: UPDATE_INITRAMFS_CMD,
-                why
-            })?;
+        let status = process::Command::new(UPDATE_INITRAMFS_CMD)
+            .arg("-u")
+            .status()
+            .map_err(|why| GraphicsDeviceError::Command { cmd: UPDATE_INITRAMFS_CMD, why })?;
 
-        if ! status.success() {
+        if !status.success() {
             return Err(GraphicsDeviceError::UpdateInitramfs(status));
         }
 

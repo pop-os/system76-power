@@ -3,11 +3,9 @@ extern crate system76_power;
 
 use log::LevelFilter;
 use std::{io, process};
-use system76_power::graphics::Graphics;
-use system76_power::logging;
+use system76_power::{graphics::Graphics, logging};
 
 fn inner() -> io::Result<()> {
-
     Graphics::new()?;
 
     Ok(())

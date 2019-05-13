@@ -3,8 +3,7 @@ extern crate system76_power;
 
 use log::LevelFilter;
 use std::{io, process, thread, time};
-use system76_power::fan::FanDaemon;
-use system76_power::logging;
+use system76_power::{fan::FanDaemon, logging};
 
 fn inner() -> io::Result<()> {
     let daemon = FanDaemon::new()?;

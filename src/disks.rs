@@ -1,7 +1,9 @@
-use std::fs::{read_to_string, write};
-use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
 use crate::errors::DiskPowerError;
+use std::{
+    fs::{read_to_string, write},
+    path::{Path, PathBuf},
+    process::{Command, Stdio},
+};
 
 const AUTOSUSPEND: &str = "device/power/autosuspend_delay_ms";
 
@@ -27,16 +29,17 @@ impl Default for Disks {
             if device.path().join("slaves").exists() {
                 if let Ok(name) = device.file_name().into_string() {
                     if name.starts_with("loop") || name.starts_with("dm") {
-                        continue
+                        continue;
                     }
 
                     disks.push(Disk {
-                        path: PathBuf::from(["/dev/", &name].concat()),
-                        block: PathBuf::from(["/sys/block/", &name].concat()),
+                        path:          PathBuf::from(["/dev/", &name].concat()),
+                        block:         PathBuf::from(["/sys/block/", &name].concat()),
                         is_rotational: {
-                            read_to_string(device.path().join("queue/rotational")).ok()
+                            read_to_string(device.path().join("queue/rotational"))
+                                .ok()
                                 .map_or(false, |string| string.trim() == "1")
-                        }
+                        },
                     });
                 }
             }
@@ -48,14 +51,12 @@ impl Default for Disks {
 
 impl DiskPower for Disks {
     fn set_apm_level(&self, level: u8) -> Result<(), DiskPowerError> {
-        self.0.iter()
-            .filter(|dev| dev.is_rotational)
-            .map(|dev| dev.set_apm_level(level))
-            .collect()
+        self.0.iter().filter(|dev| dev.is_rotational).map(|dev| dev.set_apm_level(level)).collect()
     }
 
     fn set_autosuspend_delay(&self, ms: i32) -> Result<(), DiskPowerError> {
-        self.0.iter()
+        self.0
+            .iter()
             .filter(|dev| dev.is_rotational)
             .map(|dev| dev.set_autosuspend_delay(ms))
             .collect()
@@ -63,8 +64,8 @@ impl DiskPower for Disks {
 }
 
 pub struct Disk {
-    path: PathBuf,
-    block: PathBuf,
+    path:          PathBuf,
+    block:         PathBuf,
     is_rotational: bool,
 }
 
