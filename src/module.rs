@@ -1,6 +1,6 @@
 use std::io;
 
-use util;
+use crate::util;
 
 pub struct Module {
     pub name: String,

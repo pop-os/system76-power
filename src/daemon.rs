@@ -4,30 +4,32 @@ use std::cell::RefCell;
 use std::io;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::sync::atomic::{ATOMIC_BOOL_INIT, AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 
-use {DBUS_NAME, DBUS_PATH, DBUS_IFACE, Power, err_str};
-use disks::{Disks, DiskPower};
-use fan::FanDaemon;
-use graphics::Graphics;
-use hotplug::HotPlugDetect;
-use kernel_parameters::{DeviceList, Dirty, KernelParameter, LaptopMode, NmiWatchdog};
-use mux::DisplayPortMux;
+use crate::{DBUS_NAME, DBUS_PATH, DBUS_IFACE, Power, err_str};
+use crate::disks::{Disks, DiskPower};
+use crate::fan::FanDaemon;
+use crate::graphics::Graphics;
+use crate::hotplug::HotPlugDetect;
+use crate::kernel_parameters::{DeviceList, Dirty, KernelParameter, LaptopMode, NmiWatchdog};
+use crate::mux::DisplayPortMux;
 use pstate::PState;
-use radeon::RadeonDevice;
-use snd::SoundDevice;
+use crate::radeon::RadeonDevice;
+use crate::snd::SoundDevice;
 use sysfs_class::{Backlight, Leds, PciDevice, RuntimePM, RuntimePowerManagement, ScsiHost, SysClass};
 // use wifi::WifiDevice;
 
-static EXPERIMENTAL: AtomicBool = ATOMIC_BOOL_INIT;
+static EXPERIMENTAL: AtomicBool = AtomicBool::new(false);
 
 fn experimental_is_enabled() -> bool {
     EXPERIMENTAL.load(Ordering::SeqCst)
 }
 
+// fn disk_performance(apm_level: u8, autosuspend_delay: i32) ->
+
 fn performance() -> io::Result<()> {
     if experimental_is_enabled() {
-        let disks = Disks::new();
+        let disks = Disks::default();
         disks.set_apm_level(254)?;
         disks.set_autosuspend_delay(-1)?;
 
@@ -41,8 +43,8 @@ fn performance() -> io::Result<()> {
             device.set_runtime_pm(RuntimePowerManagement::Off)?;
         }
 
-        Dirty::new().set_max_lost_work(15);
-        LaptopMode::new().set(b"0");
+        Dirty::default().set_max_lost_work(15);
+        LaptopMode::default().set(b"0");
     }
 
     if let Ok(pstate) = PState::new() {
@@ -56,7 +58,7 @@ fn performance() -> io::Result<()> {
 
 fn balanced() -> io::Result<()> {
     if experimental_is_enabled() {
-        let disks = Disks::new();
+        let disks = Disks::default();
         disks.set_apm_level(254)?;
         disks.set_autosuspend_delay(-1)?;
 
@@ -70,8 +72,8 @@ fn balanced() -> io::Result<()> {
             device.set_runtime_pm(RuntimePowerManagement::On)?;
         }
 
-        Dirty::new().set_max_lost_work(15);
-        LaptopMode::new().set(b"0");
+        Dirty::default().set_max_lost_work(15);
+        LaptopMode::default().set(b"0");
     }
 
     if let Ok(pstate) = PState::new() {
@@ -80,7 +82,7 @@ fn balanced() -> io::Result<()> {
         pstate.set_no_turbo(false)?;
     }
 
-    for mut backlight in Backlight::iter() {
+    for backlight in Backlight::iter() {
         let backlight = backlight?;
         let max_brightness = backlight.max_brightness()?;
         let current = backlight.brightness()?;
@@ -90,7 +92,7 @@ fn balanced() -> io::Result<()> {
         }
     }
 
-    for mut backlight in Leds::keyboard_backlights() {
+    for backlight in Leds::keyboard_backlights() {
         let backlight = backlight?;
         let max_brightness = backlight.max_brightness()?;
         let current = backlight.brightness()?;
@@ -105,7 +107,7 @@ fn balanced() -> io::Result<()> {
 
 fn battery() -> io::Result<()> {
     if experimental_is_enabled() {
-        let disks = Disks::new();
+        let disks = Disks::default();
         disks.set_apm_level(128)?;
         disks.set_autosuspend_delay(15000)?;
 
@@ -119,8 +121,8 @@ fn battery() -> io::Result<()> {
             device.set_runtime_pm(RuntimePowerManagement::On)?;
         }
 
-        Dirty::new().set_max_lost_work(15);
-        LaptopMode::new().set(b"2");
+        Dirty::default().set_max_lost_work(15);
+        LaptopMode::default().set(b"2");
     }
 
     if let Ok(pstate) = PState::new() {
@@ -129,7 +131,7 @@ fn battery() -> io::Result<()> {
         pstate.set_no_turbo(true)?;
     }
 
-    for mut backlight in Backlight::all()? {
+    for backlight in Backlight::all()? {
         let max_brightness = backlight.max_brightness()?;
         let current = backlight.brightness()?;
         let new = max_brightness * 10 / 100;
@@ -138,7 +140,7 @@ fn battery() -> io::Result<()> {
         }
     }
 
-    for mut backlight in Leds::keyboard_backlights() {
+    for backlight in Leds::keyboard_backlights() {
         let backlight = backlight?;
         backlight.set_brightness(0)?;
     }
@@ -227,6 +229,9 @@ impl Power for PowerDaemon {
 }
 
 pub fn daemon(experimental: bool) -> Result<(), String> {
+    let experimental = experimental
+        || std::env::var("S76_POWER_EXPERIMENTAL").ok().map_or(false, |v| v == "1");
+
     info!("Starting daemon{}", if experimental { " with experimental enabled" } else { "" });
     EXPERIMENTAL.store(experimental, Ordering::SeqCst);
 
@@ -241,7 +246,7 @@ pub fn daemon(experimental: bool) -> Result<(), String> {
     let daemon = Rc::new(RefCell::new(daemon));
 
     info!("Disabling NMI Watchdog (for kernel debugging only)");
-    NmiWatchdog::new().set(b"0");
+    NmiWatchdog::default().set(b"0");
 
     info!("Setting automatic graphics power");
     match daemon.borrow_mut().auto_graphics_power() {

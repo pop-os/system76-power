@@ -1,11 +1,8 @@
-extern crate clap;
-extern crate dbus;
-extern crate fern;
+#[macro_use]
+extern crate err_derive;
 extern crate intel_pstate as pstate;
-extern crate libc;
 #[macro_use]
 extern crate log;
-extern crate sysfs_class;
 
 pub mod client;
 pub mod daemon;

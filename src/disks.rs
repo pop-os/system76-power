@@ -1,7 +1,7 @@
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use util::{read_file, write_file};
+use crate::util::{read_file, write_file};
 
 const AUTOSUSPEND: &str = "device/power/autosuspend_delay_ms";
 
@@ -12,8 +12,8 @@ pub trait DiskPower {
 
 pub struct Disks(Vec<Disk>);
 
-impl Disks {
-    pub fn new() -> Disks {
+impl Default for Disks {
+    fn default() -> Disks {
         let mut disks = Vec::new();
         let blocks = match Path::new("/sys/block").read_dir() {
             Ok(blocks) => blocks,
@@ -23,7 +23,7 @@ impl Disks {
             }
         };
 
-        for device in blocks.flat_map(|dev| dev.ok()) {
+        for device in blocks.flat_map(Result::ok) {
             if device.path().join("slaves").exists() {
                 if let Ok(name) = device.file_name().into_string() {
                     if name.starts_with("loop") || name.starts_with("dm") {

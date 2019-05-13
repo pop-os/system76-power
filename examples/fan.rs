@@ -16,7 +16,7 @@ fn inner() -> io::Result<()> {
                     "{}°C ({}): {}% ({})",
                     (temp as f32) / 1000.0,
                     temp,
-                    (duty as u32 * 100) / 255,
+                    (u32::from(duty) * 100) / 255,
                     duty,
                 );
             } else {

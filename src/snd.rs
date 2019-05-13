@@ -1,5 +1,5 @@
 use std::path::Path;
-use kernel_parameters::*;
+use crate::kernel_parameters::*;
 
 pub struct SoundDevice {
     device: &'static str,
