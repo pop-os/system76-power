@@ -1,10 +1,5 @@
-use std::{io, path::PathBuf};
+use std::{io, path::PathBuf, process::ExitStatus};
 use pstate::PStateError;
-
-// #[derive(Debug, Error)]
-// pub enum DaemonError {
-//
-// }
 
 #[derive(Debug, Error)]
 pub enum ProfileError {
@@ -74,4 +69,30 @@ pub enum PciDeviceError {
 pub enum ScsiHostError {
     #[error(display = "failed to set link time power management policy {} on {}: {}", _0, _1, _2)]
     LinkTimePolicy(&'static str, String, io::Error)
+}
+
+#[derive(Debug, Error)]
+pub enum GraphicsDeviceError {
+    #[error(display = "failed to execute {} command: {}", cmd, why)]
+    Command { cmd: &'static str, why: io::Error },
+    #[error(display = "{} in use by {}", func, driver)]
+    DeviceInUse { func: String, driver: String },
+    #[error(display = "failed to open system76-power modprobe file: {}", _0)]
+    ModprobeFileOpen(io::Error),
+    #[error(display = "failed to write to system76-power modprobe file: {}", _0)]
+    ModprobeFileWrite(io::Error),
+    #[error(display = "failed to fetch list of active kernel modules: {}", _0)]
+    ModulesFetch(io::Error),
+    #[error(display = "does not have switchable graphics")]
+    NotSwitchable,
+    #[error(display = "PCI driver error on {}: {}", device, why)]
+    PciDriver { device: String, why: io::Error },
+    #[error(display = "failed to remove PCI device {}: {}", device, why)]
+    Remove { device: String, why: io::Error },
+    #[error(display = "failed to rescan PCI bus: {}", _0)]
+    Rescan(io::Error),
+    #[error(display = "failed to unbind {} on PCI driver {}: {}", func, driver, why)]
+    Unbind { func: String, driver: String, why: io::Error },
+    #[error(display = "update-initramfs failed with {} status", _0)]
+    UpdateInitramfs(ExitStatus),
 }
