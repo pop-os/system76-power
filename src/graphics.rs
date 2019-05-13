@@ -1,9 +1,9 @@
-use crate::errors::GraphicsDeviceError;
 use crate::module::Module;
 use crate::pci::PciBus;
 use std::{fs, io, process};
 use std::io::Write;
 use std::iter::FromIterator;
+use std::process::ExitStatus;
 use sysfs_class::{PciDevice, SysClass};
 
 const MODPROBE_PATH: &str = "/etc/modprobe.d/system76-power.conf";
@@ -23,6 +23,32 @@ alias nvidia off
 alias nvidia-drm off
 alias nvidia-modeset off
 "#;
+
+#[derive(Debug, Error)]
+pub enum GraphicsDeviceError {
+    #[error(display = "failed to execute {} command: {}", cmd, why)]
+    Command { cmd: &'static str, why: io::Error },
+    #[error(display = "{} in use by {}", func, driver)]
+    DeviceInUse { func: String, driver: String },
+    #[error(display = "failed to open system76-power modprobe file: {}", _0)]
+    ModprobeFileOpen(io::Error),
+    #[error(display = "failed to write to system76-power modprobe file: {}", _0)]
+    ModprobeFileWrite(io::Error),
+    #[error(display = "failed to fetch list of active kernel modules: {}", _0)]
+    ModulesFetch(io::Error),
+    #[error(display = "does not have switchable graphics")]
+    NotSwitchable,
+    #[error(display = "PCI driver error on {}: {}", device, why)]
+    PciDriver { device: String, why: io::Error },
+    #[error(display = "failed to remove PCI device {}: {}", device, why)]
+    Remove { device: String, why: io::Error },
+    #[error(display = "failed to rescan PCI bus: {}", _0)]
+    Rescan(io::Error),
+    #[error(display = "failed to unbind {} on PCI driver {}: {}", func, driver, why)]
+    Unbind { func: String, driver: String, why: io::Error },
+    #[error(display = "update-initramfs failed with {} status", _0)]
+    UpdateInitramfs(ExitStatus),
+}
 
 pub struct GraphicsDevice {
     id: String,
@@ -187,9 +213,7 @@ impl Graphics {
     }
 
     pub fn set_vendor(&self, vendor: &str) -> Result<(), GraphicsDeviceError> {
-        if !self.can_switch() {
-            return Err(GraphicsDeviceError::NotSwitchable);
-        }
+        self.switchable_or_fail()?;
 
         {
             info!("Creating {}", MODPROBE_PATH);
@@ -251,17 +275,12 @@ impl Graphics {
     }
 
     pub fn get_power(&self) -> Result<bool, GraphicsDeviceError> {
-        if self.can_switch() {
-            Ok(self.nvidia.iter().any(GraphicsDevice::exists))
-        } else {
-            Err(GraphicsDeviceError::NotSwitchable)
-        }
+        self.switchable_or_fail()?;
+        Ok(self.nvidia.iter().any(GraphicsDevice::exists))
     }
 
     pub fn set_power(&self, power: bool) -> Result<(), GraphicsDeviceError> {
-        if !self.can_switch() {
-            return Err(GraphicsDeviceError::NotSwitchable);
-        }
+        self.switchable_or_fail()?;
 
         if power {
             info!("Enabling graphics power");
@@ -285,5 +304,13 @@ impl Graphics {
 
     pub fn auto_power(&self) -> Result<(), GraphicsDeviceError> {
         self.set_power(self.get_vendor()? == "nvidia")
+    }
+
+    fn switchable_or_fail(&self) -> Result<(), GraphicsDeviceError> {
+        if self.can_switch() {
+            Ok(())
+        } else {
+            Err(GraphicsDeviceError::NotSwitchable)
+        }
     }
 }

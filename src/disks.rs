@@ -1,6 +1,6 @@
+use std::fs::{read_to_string, write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use crate::util::{read_file, write_file};
 use crate::errors::DiskPowerError;
 
 const AUTOSUSPEND: &str = "device/power/autosuspend_delay_ms";
@@ -34,7 +34,7 @@ impl Default for Disks {
                         path: PathBuf::from(["/dev/", &name].concat()),
                         block: PathBuf::from(["/sys/block/", &name].concat()),
                         is_rotational: {
-                            read_file(device.path().join("queue/rotational")).ok()
+                            read_to_string(device.path().join("queue/rotational")).ok()
                                 .map_or(false, |string| string.trim() == "1")
                         }
                     });
@@ -84,7 +84,7 @@ impl DiskPower for Disk {
 
     fn set_autosuspend_delay(&self, ms: i32) -> Result<(), DiskPowerError> {
         debug!("Setting autosuspend delay on {:?} to {}", &self.block, ms);
-        write_file(&self.block.join(AUTOSUSPEND), ms.to_string().as_bytes())
+        write(&self.block.join(AUTOSUSPEND), ms.to_string().as_bytes())
             .map_err(|why| DiskPowerError::AutosuspendDelay(self.block.to_owned(), ms, why))
     }
 }
