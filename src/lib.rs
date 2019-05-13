@@ -17,8 +17,8 @@ pub mod modprobe;
 pub mod module;
 pub mod mux;
 pub mod pci;
-pub mod sideband;
 pub mod radeon;
+pub mod sideband;
 pub mod snd;
 pub mod util;
 pub mod wifi;
@@ -43,6 +43,4 @@ pub trait Power {
 }
 
 // Helper function for errors
-pub (crate) fn err_str<E: ::std::fmt::Display>(err: E) -> String {
-    format!("{}", err)
-}
+pub(crate) fn err_str<E: ::std::fmt::Display>(err: E) -> String { format!("{}", err) }

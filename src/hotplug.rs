@@ -1,5 +1,5 @@
 use crate::sideband::{Sideband, SidebandError};
-use std::{io, fs::read_to_string};
+use std::{fs::read_to_string, io};
 
 #[derive(Debug, Error)]
 pub enum HotPlugDetectError {
@@ -17,8 +17,8 @@ pub enum HotPlugDetectError {
 
 pub struct HotPlugDetect {
     sideband: Sideband,
-    port: u8,
-    pins: [u8; 3],
+    port:     u8,
+    pins:     [u8; 3],
 }
 
 impl HotPlugDetect {
@@ -34,9 +34,10 @@ impl HotPlugDetect {
                 match variant.trim() {
                     // NVIDIA GTX 1660 Ti
                     "0x8550" | "0x8551" => Ok(HotPlugDetect {
-                        sideband: Sideband::new(0xFD00_0000).map_err(HotPlugDetectError::Sideband)?,
-                        port: 0x6A,
-                        pins: [
+                        sideband: Sideband::new(0xFD00_0000)
+                            .map_err(HotPlugDetectError::Sideband)?,
+                        port:     0x6A,
+                        pins:     [
                             0x2a, // HDMI
                             0x00, // Mini DisplayPort (0x2c) is connected to Intel graphics
                             0x2e, // USB-C
@@ -44,32 +45,31 @@ impl HotPlugDetect {
                     }),
                     // NVIDIA GTX 1650
                     "0x8560" | "0x8561" => Ok(HotPlugDetect {
-                        sideband: Sideband::new(0xFD00_0000).map_err(HotPlugDetectError::Sideband)?,
-                        port: 0x6A,
-                        pins: [
+                        sideband: Sideband::new(0xFD00_0000)
+                            .map_err(HotPlugDetectError::Sideband)?,
+                        port:     0x6A,
+                        pins:     [
                             0x00, // HDMI (0x2a) is connected to Intel graphics
                             0x2e, // Mini DisplayPort
                             0x00, // Only two external display connectors
                         ],
                     }),
                     other => Err(HotPlugDetectError::VariantUnsupported {
-                        model: "gaze14",
-                        variant: other.into()
+                        model:   "gaze14",
+                        variant: other.into(),
                     }),
                 }
-            },
-            "oryp4" |
-            "oryp4-b" |
-            "oryp5" => Ok(HotPlugDetect {
+            }
+            "oryp4" | "oryp4-b" | "oryp5" => Ok(HotPlugDetect {
                 sideband: Sideband::new(0xFD00_0000).map_err(HotPlugDetectError::Sideband)?,
-                port: 0x6A,
-                pins: [
+                port:     0x6A,
+                pins:     [
                     0x28, // USB-C
                     0x2a, // HDMI
                     0x2c, // Mini DisplayPort
                 ],
             }),
-            other => Err(HotPlugDetectError::ModelUnsupported(other.into()))
+            other => Err(HotPlugDetectError::ModelUnsupported(other.into())),
         }
     }
 

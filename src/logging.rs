@@ -8,13 +8,7 @@ pub fn setup_logging(filter: LevelFilter) -> Result<(), InitError> {
         .level(LevelFilter::Off)
         // Include only the logs for this binary
         .level_for("system76_power", filter)
-        .format(|out, message, record| {
-            out.finish(format_args!(
-                "[{}] {}",
-                record.level(),
-                message
-            ))
-        })
+        .format(|out, message, record| out.finish(format_args!("[{}] {}", record.level(), message)))
         .chain(io::stderr())
         .apply()?;
     Ok(())

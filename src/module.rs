@@ -8,14 +8,11 @@ impl Module {
     fn parse(line: &str) -> io::Result<Module> {
         let mut parts = line.split(' ');
 
-        let name = parts.next().ok_or_else(|| io::Error::new(
-            io::ErrorKind::InvalidData,
-            "module name not found"
-        ))?;
+        let name = parts
+            .next()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "module name not found"))?;
 
-        Ok(Module {
-            name: name.to_string(),
-        })
+        Ok(Module { name: name.to_string() })
     }
 
     pub fn all() -> io::Result<Vec<Module>> {

@@ -1,5 +1,5 @@
 use crate::sideband::{Sideband, SidebandError};
-use std::{io, fs::read_to_string};
+use std::{fs::read_to_string, io};
 
 #[derive(Debug, Error)]
 pub enum DisplayPortMuxError {
@@ -12,15 +12,13 @@ pub enum DisplayPortMuxError {
 }
 
 impl From<SidebandError> for DisplayPortMuxError {
-    fn from(err: SidebandError) -> Self {
-        DisplayPortMuxError::Sideband(err)
-    }
+    fn from(err: SidebandError) -> Self { DisplayPortMuxError::Sideband(err) }
 }
 
 pub struct DisplayPortMux {
     sideband: Sideband,
-    hpd: (u8, u8),
-    mux: (u8, u8),
+    hpd:      (u8, u8),
+    mux:      (u8, u8),
 }
 
 impl DisplayPortMux {
@@ -32,15 +30,15 @@ impl DisplayPortMux {
         match model {
             "galp2" | "galp3" | "galp3-b" => Ok(DisplayPortMux {
                 sideband: Sideband::new(0xFD00_0000)?,
-                hpd: (0xAE, 0x31), // GPP_E13
-                mux: (0xAF, 0x16), // GPP_A22
+                hpd:      (0xAE, 0x31), // GPP_E13
+                mux:      (0xAF, 0x16), // GPP_A22
             }),
             "darp5" | "galp3-c" => Ok(DisplayPortMux {
                 sideband: Sideband::new(0xFD00_0000)?,
-                hpd: (0x6A, 0x4A), // GPP_E13
-                mux: (0x6E, 0x2C), // GPP_A22
+                hpd:      (0x6A, 0x4A), // GPP_E13
+                mux:      (0x6E, 0x2C), // GPP_A22
             }),
-            _ => Err(DisplayPortMuxError::UnsupportedHotPlugDetect(model.to_owned()))
+            _ => Err(DisplayPortMuxError::UnsupportedHotPlugDetect(model.to_owned())),
         }
     }
 

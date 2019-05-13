@@ -1,0 +1,17 @@
+unstable_features = true
+comment_width = 100
+condense_wildcard_suffixes = true
+fn_single_line = true
+format_strings = true
+imports_indent = "Block"
+max_width = 100
+normalize_comments = true
+reorder_imports = true
+reorder_modules = true
+reorder_impl_items = true
+struct_field_align_threshold = 30
+use_field_init_shorthand = true
+wrap_comments = true
+merge_imports = true
+force_multiline_blocks = false
+use_small_heuristics = "Max"

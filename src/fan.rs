@@ -1,15 +1,15 @@
 use std::io;
-use sysfs_class::{SysClass, HwMon};
+use sysfs_class::{HwMon, SysClass};
 
 pub struct FanDaemon {
-    curve: FanCurve,
+    curve:     FanCurve,
     platforms: Vec<HwMon>,
-    cpus: Vec<HwMon>,
+    cpus:      Vec<HwMon>,
 }
 
 impl FanDaemon {
     pub fn new() -> io::Result<FanDaemon> {
-        //TODO: Support multiple hwmons for platform and cpu
+        // TODO: Support multiple hwmons for platform and cpu
         let mut platforms = Vec::new();
         let mut cpus = Vec::new();
 
@@ -18,33 +18,23 @@ impl FanDaemon {
                 info!("hwmon: {}", name);
 
                 match name.as_str() {
-                    "system76" => (), //TODO: Support laptops
+                    "system76" => (), // TODO: Support laptops
                     "system76_io" => platforms.push(hwmon),
                     "coretemp" | "k10temp" => cpus.push(hwmon),
-                    _ => ()
+                    _ => (),
                 }
             }
         }
 
         if platforms.is_empty() {
-            return Err(io::Error::new(
-                io::ErrorKind::NotFound,
-                "platform hwmon not found"
-            ));
+            return Err(io::Error::new(io::ErrorKind::NotFound, "platform hwmon not found"));
         }
 
         if cpus.is_empty() {
-            return Err(io::Error::new(
-                io::ErrorKind::NotFound,
-                "cpu hwmon not found"
-            ));
+            return Err(io::Error::new(io::ErrorKind::NotFound, "cpu hwmon not found"));
         }
 
-        Ok(FanDaemon {
-            curve: FanCurve::standard(),
-            platforms,
-            cpus,
-        })
+        Ok(FanDaemon { curve: FanCurve::standard(), platforms, cpus })
     }
 
     /// Get the maximum measured temperature from any CPU on the system, in thousandths Celsius
@@ -67,9 +57,9 @@ impl FanDaemon {
     /// Thousandths celsius is the standard Linux hwmon temperature unit
     /// 0 to 255 is the standard Linux hwmon pwm unit
     pub fn get_duty(&self, temp: u32) -> Option<u8> {
-        self.curve.get_duty((temp / 10) as i16).map(|duty| {
-            (((u32::from(duty)) * 255) / 10_000) as u8
-        })
+        self.curve
+            .get_duty((temp / 10) as i16)
+            .map(|duty| (((u32::from(duty)) * 255) / 10_000) as u8)
     }
 
     /// Set the current duty cycle, from 0 to 255
@@ -90,19 +80,11 @@ impl FanDaemon {
     }
 
     /// Calculate the correct duty cycle and apply it to all fans
-    pub fn step(&self) {
-        self.set_duty(
-            self.get_temp().and_then(|temp| {
-                self.get_duty(temp)
-            })
-        )
-    }
+    pub fn step(&self) { self.set_duty(self.get_temp().and_then(|temp| self.get_duty(temp))) }
 }
 
 impl Drop for FanDaemon {
-    fn drop(&mut self) {
-        self.set_duty(None);
-    }
+    fn drop(&mut self) { self.set_duty(None); }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -114,12 +96,7 @@ pub struct FanPoint {
 }
 
 impl FanPoint {
-    pub fn new(temp: i16, duty: u16) -> Self {
-        Self {
-            temp,
-            duty
-        }
-    }
+    pub fn new(temp: i16, duty: u16) -> Self { Self { temp, duty } }
 
     /// Find the duty between two points and a given temperature, if the temperature
     /// lies within this range.
@@ -158,7 +135,7 @@ impl FanPoint {
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct FanCurve {
-    points: Vec<FanPoint>
+    points: Vec<FanPoint>,
 }
 
 impl FanCurve {

@@ -1,8 +1,11 @@
 #![allow(unused)]
 pub use sysfs_class::RuntimePowerManagement;
 
-use std::path::{Path, PathBuf};
-use std::{fs::{read_to_string, write}, str};
+use std::{
+    fs::{read_to_string, write},
+    path::{Path, PathBuf},
+    str,
+};
 
 /// Base trait that implements kernel parameter get/set capabilities.
 pub trait KernelParameter {
@@ -17,10 +20,8 @@ pub trait KernelParameter {
                 Ok(mut value) => {
                     value.pop();
                     return Some(value);
-                },
-                Err(why) => {
-                    error!("{}: failed to get value: {}", path.display(), why)
                 }
+                Err(why) => error!("{}: failed to get value: {}", path.display(), why),
             }
         } else {
             warn!("{} does not exist", path.display());
@@ -32,10 +33,14 @@ pub trait KernelParameter {
     fn set(&self, value: &[u8]) {
         let path = self.get_path();
         if path.exists() {
-            debug!("Modifying kernel parameter at {:?} to {}", path, match str::from_utf8(value) {
-                Ok(string) => string,
-                Err(_) => "[INVALID UTF8]",
-            });
+            debug!(
+                "Modifying kernel parameter at {:?} to {}",
+                path,
+                match str::from_utf8(value) {
+                    Ok(string) => string,
+                    Err(_) => "[INVALID UTF8]",
+                }
+            );
 
             if let Err(why) = write(path, value) {
                 error!("{}: failed to set value: {}", path.display(), why)
@@ -124,7 +129,7 @@ dynamic_parameters! {
 
 #[derive(Default)]
 pub struct Dirty {
-    expire: DirtyExpire,
+    expire:    DirtyExpire,
     writeback: DirtyWriteback,
 }
 

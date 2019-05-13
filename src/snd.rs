@@ -1,10 +1,10 @@
-use std::path::Path;
 use crate::kernel_parameters::*;
+use std::path::Path;
 
 pub struct SoundDevice {
-    device: &'static str,
-    power_save: PowerSave,
-    power_save_controller: Option<PowerSaveController>
+    device:                &'static str,
+    power_save:            PowerSave,
+    power_save_controller: Option<PowerSaveController>,
 }
 
 impl SoundDevice {
@@ -21,7 +21,7 @@ impl SoundDevice {
                 Some(controller)
             } else {
                 None
-            }
+            },
         })
     }
 
