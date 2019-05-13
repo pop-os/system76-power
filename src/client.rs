@@ -4,7 +4,7 @@ use std::io;
 use crate::{DBUS_NAME, DBUS_PATH, DBUS_IFACE, Power, err_str};
 use clap::ArgMatches;
 use pstate::PState;
-use sysfs_class::{Backlight, Leds, SysClass};
+use sysfs_class::{Backlight, Brightness, Leds, SysClass};
 
 static TIMEOUT: i32 = 60 * 1000;
 
@@ -90,11 +90,13 @@ fn profile(client: &mut PowerClient) -> io::Result<()> {
     let profile = profile.as_ref().map_or("?", |s| s.as_str());
     println!("Power Profile: {}", profile);
 
-    if let Ok(pstate) = PState::new() {
-        let min = pstate.min_perf_pct()?;
-        let max = pstate.max_perf_pct()?;
-        let no_turbo = pstate.no_turbo()?;
-        println!("CPU: {}% - {}%, {}", min, max, if no_turbo { "No Turbo" } else { "Turbo" });
+    if let Ok(values) = PState::new().and_then(|pstate| pstate.values()) {
+        println!(
+            "CPU: {}% - {}%, {}",
+            values.min_perf_pct,
+            values.max_perf_pct,
+            if values.no_turbo { "No Turbo" } else { "Turbo" }
+        );
     }
 
     for backlight in Backlight::iter() {
@@ -106,7 +108,7 @@ fn profile(client: &mut PowerClient) -> io::Result<()> {
         println!("Backlight {}: {}/{} = {}%", backlight.id(), brightness, max_brightness, percent);
     }
 
-    for backlight in Leds::keyboard_backlights() {
+    for backlight in Leds::iter_keyboards() {
         let backlight = backlight?;
         let brightness = backlight.brightness()?;
         let max_brightness = backlight.max_brightness()?;

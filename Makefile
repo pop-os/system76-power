@@ -7,6 +7,8 @@ includedir = $(prefix)/include
 datarootdir = $(prefix)/share
 datadir = $(datarootdir)
 
+SRC = Cargo.toml Cargo.lock Makefile $(shell find src -type f -wholename '*src/*.rs')
+
 .PHONY: all clean distclean install uninstall update
 
 BIN=system76-power
@@ -38,7 +40,7 @@ vendor: .cargo/config
 	cargo vendor
 	touch vendor
 
-target/release/$(BIN): Cargo.lock Cargo.toml src/*.rs
+target/release/$(BIN): $(SRC)
 	if [ -d vendor ]; \
 	then \
 		cargo build --release --frozen; \
