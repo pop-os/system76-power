@@ -1,6 +1,4 @@
-use std::io;
-
-use crate::util;
+use std::{fs::read_to_string, io};
 
 pub struct Module {
     pub name: String,
@@ -23,7 +21,7 @@ impl Module {
     pub fn all() -> io::Result<Vec<Module>> {
         let mut modules = Vec::new();
 
-        let data = util::read_file("/proc/modules")?;
+        let data = read_to_string("/proc/modules")?;
         for line in data.lines() {
             let module = Module::parse(line)?;
             modules.push(module);

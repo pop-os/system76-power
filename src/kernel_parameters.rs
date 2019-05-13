@@ -2,8 +2,7 @@
 pub use sysfs_class::RuntimePowerManagement;
 
 use std::path::{Path, PathBuf};
-use std::str;
-use crate::util::{read_file, write_file};
+use std::{fs::{read_to_string, write}, str};
 
 /// Base trait that implements kernel parameter get/set capabilities.
 pub trait KernelParameter {
@@ -14,7 +13,7 @@ pub trait KernelParameter {
     fn get(&self) -> Option<String> {
         let path = self.get_path();
         if path.exists() {
-            match read_file(path) {
+            match read_to_string(path) {
                 Ok(mut value) => {
                     value.pop();
                     return Some(value);
@@ -38,7 +37,7 @@ pub trait KernelParameter {
                 Err(_) => "[INVALID UTF8]",
             });
 
-            if let Err(why) = write_file(path, value) {
+            if let Err(why) = write(path, value) {
                 error!("{}: failed to set value: {}", path.display(), why)
             }
         } else {
