@@ -3,7 +3,7 @@ pub use sysfs_class::RuntimePowerManagement;
 
 use std::path::{Path, PathBuf};
 use std::str;
-use util::{read_file, write_file};
+use crate::util::{read_file, write_file};
 
 /// Base trait that implements kernel parameter get/set capabilities.
 pub trait KernelParameter {
@@ -60,7 +60,7 @@ macro_rules! static_parameters {
         $(
             pub struct $struct;
 
-            impl $struct { pub fn new() -> $struct { $struct } }
+            impl Default for $struct { fn default() -> Self { $struct } }
 
             impl KernelParameter for $struct {
                 const NAME: &'static str = stringify!($name);
@@ -123,19 +123,13 @@ dynamic_parameters! {
     }
 }
 
+#[derive(Default)]
 pub struct Dirty {
     expire: DirtyExpire,
     writeback: DirtyWriteback,
 }
 
 impl Dirty {
-    pub fn new() -> Dirty {
-        Dirty {
-            expire: DirtyExpire::new(),
-            writeback: DirtyWriteback::new(),
-        }
-    }
-
     pub fn set_max_lost_work(&self, secs: u32) {
         let centisecs = (u64::from(secs) * 100).to_string();
         let centisecs = centisecs.as_bytes();

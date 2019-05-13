@@ -1,6 +1,6 @@
-use err_str;
-use sideband::Sideband;
-use util::read_file;
+use crate::err_str;
+use crate::sideband::Sideband;
+use crate::util::read_file;
 
 pub struct DisplayPortMux {
     sideband: Sideband,
@@ -37,10 +37,10 @@ impl DisplayPortMux {
 
             if mux_data & 1 == 1 {
                 // HPD low, switching to mDP
-                mux_data = mux_data & !1;
+                mux_data &= !1;
             } else {
                 // HPD low, switching to USB-C
-                mux_data = mux_data | 1;
+                mux_data |= 1;
             }
 
             self.sideband.set_gpio(self.mux.0, self.mux.1, mux_data);

@@ -1,4 +1,4 @@
-use kernel_parameters::*;
+use crate::kernel_parameters::*;
 
 pub struct RadeonDevice {
     card: u8,

@@ -1,6 +1,6 @@
 use std::io;
 use std::path::PathBuf;
-use util::write_file;
+use crate::util::write_file;
 
 pub struct PciBus {
     path: PathBuf

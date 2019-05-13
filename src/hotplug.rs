@@ -1,6 +1,6 @@
-use err_str;
-use sideband::Sideband;
-use util::read_file;
+use crate::err_str;
+use crate::sideband::Sideband;
+use crate::util::read_file;
 
 pub struct HotPlugDetect {
     sideband: Sideband,

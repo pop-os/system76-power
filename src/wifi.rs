@@ -1,6 +1,6 @@
 use std::path::Path;
-use kernel_parameters::*;
-use modprobe;
+use crate::kernel_parameters::*;
+use crate::modprobe;
 
 pub struct WifiDevice {
     device: &'static str,

@@ -1,7 +1,7 @@
 use dbus::{BusType, Connection, Message};
 use dbus::arg::Append;
 use std::io;
-use {DBUS_NAME, DBUS_PATH, DBUS_IFACE, Power, err_str};
+use crate::{DBUS_NAME, DBUS_PATH, DBUS_IFACE, Power, err_str};
 use clap::ArgMatches;
 use pstate::PState;
 use sysfs_class::{Backlight, Leds, SysClass};
@@ -15,9 +15,7 @@ struct PowerClient {
 impl PowerClient {
     fn new() -> Result<PowerClient, String> {
         let bus = Connection::get_private(BusType::System).map_err(err_str)?;
-        Ok(PowerClient {
-            bus: bus
-        })
+        Ok(PowerClient { bus })
     }
 
     fn call_method<A: Append>(&mut self, method: &str, append: Option<A>) -> Result<Message, String> {

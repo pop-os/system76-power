@@ -68,7 +68,7 @@ impl FanDaemon {
     /// 0 to 255 is the standard Linux hwmon pwm unit
     pub fn get_duty(&self, temp: u32) -> Option<u8> {
         self.curve.get_duty((temp / 10) as i16).map(|duty| {
-            (((duty as u32) * 255) / 10_000) as u8
+            (((u32::from(duty)) * 255) / 10_000) as u8
         })
     }
 
