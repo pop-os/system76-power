@@ -1,10 +1,9 @@
+use crate::{kernel_parameters::*, modprobe};
 use std::path::Path;
-use kernel_parameters::*;
-use modprobe;
 
 pub struct WifiDevice {
-    device: &'static str,
-    power_save: PowerSave,
+    device:      &'static str,
+    power_save:  PowerSave,
     power_level: PowerLevel,
 }
 
@@ -14,13 +13,11 @@ impl WifiDevice {
             return None;
         }
 
-        Some(
-            WifiDevice {
-                device,
-                power_save: PowerSave::new(device),
-                power_level: PowerLevel::new(device),
-            }
-        )
+        Some(WifiDevice {
+            device,
+            power_save: PowerSave::new(device),
+            power_level: PowerLevel::new(device),
+        })
     }
 
     pub fn set(&self, power_level: u8) {
@@ -44,10 +41,8 @@ impl WifiDevice {
                         error!("failed to reload {} module: {}", self.device, why);
                     }
                 }
-
             }
         }
-
     }
 }
 

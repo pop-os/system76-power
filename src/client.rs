@@ -1,10 +1,9 @@
-use dbus::{BusType, Connection, Message};
-use dbus::arg::Append;
-use std::io;
-use {DBUS_NAME, DBUS_PATH, DBUS_IFACE, Power, err_str};
+use crate::{err_str, Power, DBUS_IFACE, DBUS_NAME, DBUS_PATH};
 use clap::ArgMatches;
+use dbus::{arg::Append, BusType, Connection, Message};
 use pstate::PState;
-use sysfs_class::{Backlight, Leds, SysClass};
+use std::io;
+use sysfs_class::{Backlight, Brightness, Leds, SysClass};
 
 static TIMEOUT: i32 = 60 * 1000;
 
@@ -15,18 +14,21 @@ struct PowerClient {
 impl PowerClient {
     fn new() -> Result<PowerClient, String> {
         let bus = Connection::get_private(BusType::System).map_err(err_str)?;
-        Ok(PowerClient {
-            bus: bus
-        })
+        Ok(PowerClient { bus })
     }
 
-    fn call_method<A: Append>(&mut self, method: &str, append: Option<A>) -> Result<Message, String> {
+    fn call_method<A: Append>(
+        &mut self,
+        method: &str,
+        append: Option<A>,
+    ) -> Result<Message, String> {
         let mut m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, method)?;
         if let Some(arg) = append {
             m = m.append1(arg);
         }
 
-        let r = self.bus
+        let r = self
+            .bus
             .send_with_reply_and_block(m, TIMEOUT)
             .map_err(|why| format!("daemon returned an error message: {}", err_str(why)))?;
 
@@ -37,17 +39,17 @@ impl PowerClient {
 impl Power for PowerClient {
     fn performance(&mut self) -> Result<(), String> {
         println!("setting power profile to performance");
-        self.call_method::<bool>("Performance", None).map(|_|())
+        self.call_method::<bool>("Performance", None).map(|_| ())
     }
 
     fn balanced(&mut self) -> Result<(), String> {
         println!("setting power profile to balanced");
-        self.call_method::<bool>("Balanced", None).map(|_|())
+        self.call_method::<bool>("Balanced", None).map(|_| ())
     }
 
     fn battery(&mut self) -> Result<(), String> {
         println!("setting power profile to battery");
-        self.call_method::<bool>("Battery", None).map(|_|())
+        self.call_method::<bool>("Battery", None).map(|_| ())
     }
 
     fn get_graphics(&mut self) -> Result<String, String> {
@@ -68,7 +70,7 @@ impl Power for PowerClient {
 
     fn set_graphics(&mut self, vendor: &str) -> Result<(), String> {
         println!("setting graphics to {}", vendor);
-        self.call_method::<&str>("SetGraphics", Some(vendor)).map(|_|())
+        self.call_method::<&str>("SetGraphics", Some(vendor)).map(|_| ())
     }
 
     fn get_graphics_power(&mut self) -> Result<bool, String> {
@@ -77,13 +79,13 @@ impl Power for PowerClient {
     }
 
     fn set_graphics_power(&mut self, power: bool) -> Result<(), String> {
-        println!("turning discrete graphics {}", if power { "on" } else { "off "});
-        self.call_method::<bool>("SetGraphicsPower", Some(power)).map(|_|())
+        println!("turning discrete graphics {}", if power { "on" } else { "off " });
+        self.call_method::<bool>("SetGraphicsPower", Some(power)).map(|_| ())
     }
 
     fn auto_graphics_power(&mut self) -> Result<(), String> {
         println!("setting discrete graphics to turn off when not in use");
-        self.call_method::<bool>("AutoGraphicsPower", None).map(|_|())
+        self.call_method::<bool>("AutoGraphicsPower", None).map(|_| ())
     }
 }
 
@@ -92,29 +94,37 @@ fn profile(client: &mut PowerClient) -> io::Result<()> {
     let profile = profile.as_ref().map_or("?", |s| s.as_str());
     println!("Power Profile: {}", profile);
 
-    if let Ok(pstate) = PState::new() {
-        let min = pstate.min_perf_pct()?;
-        let max = pstate.max_perf_pct()?;
-        let no_turbo = pstate.no_turbo()?;
-        println!("CPU: {}% - {}%, {}", min, max, if no_turbo { "No Turbo" } else { "Turbo" });
+    if let Ok(values) = PState::new().and_then(|pstate| pstate.values()) {
+        println!(
+            "CPU: {}% - {}%, {}",
+            values.min_perf_pct,
+            values.max_perf_pct,
+            if values.no_turbo { "No Turbo" } else { "Turbo" }
+        );
     }
 
     for backlight in Backlight::iter() {
         let backlight = backlight?;
         let brightness = backlight.actual_brightness()?;
         let max_brightness = backlight.max_brightness()?;
-        let ratio = (brightness as f64)/(max_brightness as f64);
+        let ratio = (brightness as f64) / (max_brightness as f64);
         let percent = (ratio * 100.0) as u64;
         println!("Backlight {}: {}/{} = {}%", backlight.id(), brightness, max_brightness, percent);
     }
 
-    for backlight in Leds::keyboard_backlights() {
+    for backlight in Leds::iter_keyboards() {
         let backlight = backlight?;
         let brightness = backlight.brightness()?;
         let max_brightness = backlight.max_brightness()?;
-        let ratio = (brightness as f64)/(max_brightness as f64);
+        let ratio = (brightness as f64) / (max_brightness as f64);
         let percent = (ratio * 100.0) as u64;
-        println!("Keyboard Backlight {}: {}/{} = {}%", backlight.id(), brightness, max_brightness, percent);
+        println!(
+            "Keyboard Backlight {}: {}/{} = {}%",
+            backlight.id(),
+            brightness,
+            max_brightness,
+            percent
+        );
     }
 
     Ok(())
@@ -128,7 +138,7 @@ pub fn client(subcommand: &str, matches: &ArgMatches) -> Result<(), String> {
             Some("balanced") => client.balanced(),
             Some("battery") => client.battery(),
             Some("performance") => client.performance(),
-            _ => profile(&mut client).map_err(err_str)
+            _ => profile(&mut client).map_err(err_str),
         },
         "graphics" => match matches.subcommand() {
             ("intel", _) => client.set_graphics("intel"),
@@ -153,12 +163,12 @@ pub fn client(subcommand: &str, matches: &ArgMatches) -> Result<(), String> {
                     }
                     Ok(())
                 }
-            }
+            },
             _ => {
                 println!("{}", client.get_graphics()?);
                 Ok(())
             }
-        }
-        _ => Err(format!("unknown sub-command {}", subcommand))
+        },
+        _ => Err(format!("unknown sub-command {}", subcommand)),
     }
 }

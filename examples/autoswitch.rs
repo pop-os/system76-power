@@ -3,10 +3,12 @@ extern crate system76_power;
 
 use log::LevelFilter;
 use std::{process, thread, time};
-use system76_power::logging;
-use system76_power::sideband::Sideband;
+use system76_power::{
+    logging,
+    sideband::{Sideband, SidebandError},
+};
 
-fn inner() -> Result<(), String> {
+fn inner() -> Result<(), SidebandError> {
     let sideband = unsafe { Sideband::new(0xFD00_0000)? };
 
     let hpd = (0x6A, 0x4A);
@@ -24,10 +26,10 @@ fn inner() -> Result<(), String> {
         } else {
             if mux_data & 1 == 1 {
                 println!("HPD low, switching to mDP");
-                mux_data = mux_data & !1;
+                mux_data &= !1;
             } else {
                 println!("HPD low, switching to USB-C");
-                mux_data = mux_data | 1;
+                mux_data |= 1;
             }
 
             println!("MUX = {:#>08x} {:#>08x}", mux_data as u32, (mux_data >> 32) as u32);
@@ -36,8 +38,6 @@ fn inner() -> Result<(), String> {
 
         thread::sleep(time::Duration::new(1, 0));
     }
-
-    Ok(())
 }
 
 fn main() {
