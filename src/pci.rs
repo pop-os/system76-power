@@ -1,9 +1,7 @@
-use std::io;
-use std::path::PathBuf;
-use util::write_file;
+use std::{fs::write, io, path::PathBuf};
 
 pub struct PciBus {
-    path: PathBuf
+    path: PathBuf,
 }
 
 impl PciBus {
@@ -16,7 +14,5 @@ impl PciBus {
         }
     }
 
-    pub fn rescan(&self) -> io::Result<()> {
-        write_file(self.path.join("rescan"), "1")
-    }
+    pub fn rescan(&self) -> io::Result<()> { write(self.path.join("rescan"), "1") }
 }

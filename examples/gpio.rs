@@ -3,148 +3,78 @@ extern crate system76_power;
 
 use log::LevelFilter;
 use std::process;
-use system76_power::logging;
-use system76_power::sideband::Sideband;
+use system76_power::{
+    logging,
+    sideband::{Sideband, SidebandError},
+};
 
 struct GpioGroup<'a> {
-    name: &'a str,
+    name:  &'a str,
     count: u8,
 }
 
 struct GpioCommunity<'a> {
-    id: u8,
-    groups: &'a [GpioGroup<'a>]
+    id:     u8,
+    groups: &'a [GpioGroup<'a>],
 }
 
 impl<'a> GpioCommunity<'a> {
     pub fn skylake() -> &'static [GpioCommunity<'static>] {
         &[
             GpioCommunity {
-                id: 0xAF,
+                id:     0xAF,
                 groups: &[
-                    GpioGroup {
-                        name: "GPP_A",
-                        count: 24
-                    },
-                    GpioGroup {
-                        name: "GPP_B",
-                        count: 24
-                    },
+                    GpioGroup { name: "GPP_A", count: 24 },
+                    GpioGroup { name: "GPP_B", count: 24 },
                 ],
             },
             GpioCommunity {
-                id: 0xAE,
+                id:     0xAE,
                 groups: &[
-                    GpioGroup {
-                        name: "GPP_C",
-                        count: 24
-                    },
-                    GpioGroup {
-                        name: "GPP_D",
-                        count: 24
-                    },
-                    GpioGroup {
-                        name: "GPP_E",
-                        count: 13
-                    },
-                    GpioGroup {
-                        name: "GPP_F",
-                        count: 24
-                    },
-                    GpioGroup {
-                        name: "GPP_G",
-                        count: 24
-                    },
-                    GpioGroup {
-                        name: "GPP_H",
-                        count: 24
-                    },
+                    GpioGroup { name: "GPP_C", count: 24 },
+                    GpioGroup { name: "GPP_D", count: 24 },
+                    GpioGroup { name: "GPP_E", count: 13 },
+                    GpioGroup { name: "GPP_F", count: 24 },
+                    GpioGroup { name: "GPP_G", count: 24 },
+                    GpioGroup { name: "GPP_H", count: 24 },
                 ],
             },
-            GpioCommunity {
-                id: 0xAD,
-                groups: &[
-                    GpioGroup {
-                        name: "GPD",
-                        count: 12
-                    }
-                ]
-            },
-            GpioCommunity {
-                id: 0xAC,
-                groups: &[
-                    GpioGroup {
-                        name: "GPP_I",
-                        count: 11
-                    }
-                ]
-            }
+            GpioCommunity { id: 0xAD, groups: &[GpioGroup { name: "GPD", count: 12 }] },
+            GpioCommunity { id: 0xAC, groups: &[GpioGroup { name: "GPP_I", count: 11 }] },
         ]
     }
 
     pub fn cannonlake() -> &'static [GpioCommunity<'static>] {
         &[
             GpioCommunity {
-                id: 0x6E,
+                id:     0x6E,
                 groups: &[
-                    GpioGroup {
-                        name: "GPP_A",
-                        count: 24,
-                    },
-                    GpioGroup {
-                        name: "GPP_B",
-                        count: 24,
-                    },
-                    GpioGroup {
-                        name: "GPP_G",
-                        count: 8,
-                    },
+                    GpioGroup { name: "GPP_A", count: 24 },
+                    GpioGroup { name: "GPP_B", count: 24 },
+                    GpioGroup { name: "GPP_G", count: 8 },
                 ],
             },
             GpioCommunity {
-                id: 0x6D,
+                id:     0x6D,
                 groups: &[
-                    GpioGroup {
-                        name: "GPP_D",
-                        count: 24,
-                    },
-                    GpioGroup {
-                        name: "GPP_F",
-                        count: 24,
-                    },
-                    GpioGroup {
-                        name: "GPP_H",
-                        count: 24,
-                    },
+                    GpioGroup { name: "GPP_D", count: 24 },
+                    GpioGroup { name: "GPP_F", count: 24 },
+                    GpioGroup { name: "GPP_H", count: 24 },
                 ],
             },
+            GpioCommunity { id: 0x6C, groups: &[GpioGroup { name: "GPD", count: 12 }] },
             GpioCommunity {
-                id: 0x6C,
+                id:     0x6A,
                 groups: &[
-                    GpioGroup {
-                        name: "GPD",
-                        count: 12,
-                    },
-                ],
-            },
-            GpioCommunity {
-                id: 0x6A,
-                groups: &[
-                    GpioGroup {
-                        name: "GPP_C",
-                        count: 24,
-                    },
-                    GpioGroup {
-                        name: "GPP_E",
-                        count: 24,
-                    },
+                    GpioGroup { name: "GPP_C", count: 24 },
+                    GpioGroup { name: "GPP_E", count: 24 },
                 ],
             },
         ]
     }
 }
 
-fn inner() -> Result<(), String> {
+fn inner() -> Result<(), SidebandError> {
     let communities = GpioCommunity::skylake();
 
     let sideband = unsafe { Sideband::new(0xFD00_0000)? };
@@ -161,7 +91,6 @@ fn inner() -> Result<(), String> {
             }
         }
     }
-
 
     Ok(())
 }
