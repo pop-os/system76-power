@@ -141,6 +141,7 @@ pub fn daemon() -> Result<(), String> {
         Arc::new(f.signal("PowerProfileSwitch", ()).sarg::<&str, _>("profile"));
 
     let daemon = PowerDaemon::new(power_switch_signal.clone(), c.clone())?;
+    let nvidia_exists = !daemon.graphics.nvidia.is_empty();
     let daemon = Rc::new(RefCell::new(daemon));
 
     info!("Disabling NMI Watchdog (for kernel debugging only)");
@@ -240,7 +241,7 @@ pub fn daemon() -> Result<(), String> {
 
     c.add_handler(tree);
 
-    let fan_daemon_res = FanDaemon::new();
+    let fan_daemon_res = FanDaemon::new(nvidia_exists);
 
     if let Err(ref err) = fan_daemon_res {
         error!("fan daemon: {}", err);
