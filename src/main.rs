@@ -33,11 +33,6 @@ fn main() {
                         .help("Set the verbosity of daemon logs to 'debug' [default is 'info']")
                         .global(true)
                         .group("verbosity"),
-                )
-                .arg(
-                    Arg::with_name("experimental")
-                        .long("experimental")
-                        .help("enables experimental power-saving features"),
                 ),
         )
         .subcommand(
@@ -97,7 +92,7 @@ fn main() {
             }
 
             if unsafe { libc::geteuid() } == 0 {
-                daemon::daemon(matches.is_present("experimental"))
+                daemon::daemon()
             } else {
                 Err("must be run as root".to_string())
             }
