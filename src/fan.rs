@@ -1,57 +1,73 @@
-use std::io;
-use sysfs_class::{SysClass, HwMon};
+use std::{
+    cell::Cell,
+    cmp, io,
+    process::{Command, Stdio},
+};
+use sysfs_class::{HwMon, SysClass};
+
+#[derive(Debug, Error)]
+pub enum FanDaemonError {
+    #[error(display = "failed to collect hwmon devices: {}", _0)]
+    HwmonDevices(io::Error),
+    #[error(display = "platform hwmon not found")]
+    PlatformHwmonNotFound,
+    #[error(display = "cpu hwmon not found")]
+    CpuHwmonNotFound,
+}
 
 pub struct FanDaemon {
-    curve: FanCurve,
-    platforms: Vec<HwMon>,
-    cpus: Vec<HwMon>,
+    curve:             FanCurve,
+    amdgpus:           Vec<HwMon>,
+    platforms:         Vec<HwMon>,
+    cpus:              Vec<HwMon>,
+    nvidia_exists:     bool,
+    displayed_warning: Cell<bool>,
 }
 
 impl FanDaemon {
-    pub fn new() -> io::Result<FanDaemon> {
-        //TODO: Support multiple hwmons for platform and cpu
+    pub fn new(nvidia_exists: bool) -> Result<Self, FanDaemonError> {
+        // TODO: Support multiple hwmons for platform and cpu
+        let mut amdgpus = Vec::new();
         let mut platforms = Vec::new();
         let mut cpus = Vec::new();
 
-        for hwmon in HwMon::all()? {
+        for hwmon in HwMon::all().map_err(FanDaemonError::HwmonDevices)? {
             if let Ok(name) = hwmon.name() {
                 info!("hwmon: {}", name);
 
                 match name.as_str() {
-                    "system76" => (), //TODO: Support laptops
+                    "amdgpu" => amdgpus.push(hwmon),
+                    "system76" => (), // TODO: Support laptops
                     "system76_io" => platforms.push(hwmon),
                     "coretemp" | "k10temp" => cpus.push(hwmon),
-                    _ => ()
+                    _ => (),
                 }
             }
         }
 
         if platforms.is_empty() {
-            return Err(io::Error::new(
-                io::ErrorKind::NotFound,
-                "platform hwmon not found"
-            ));
+            return Err(FanDaemonError::PlatformHwmonNotFound);
         }
 
         if cpus.is_empty() {
-            return Err(io::Error::new(
-                io::ErrorKind::NotFound,
-                "cpu hwmon not found"
-            ));
+            return Err(FanDaemonError::CpuHwmonNotFound);
         }
 
         Ok(FanDaemon {
             curve: FanCurve::standard(),
+            amdgpus,
             platforms,
             cpus,
+            nvidia_exists,
+            displayed_warning: Cell::new(false),
         })
     }
 
-    /// Get the maximum measured temperature from any CPU on the system, in thousandths Celsius
-    /// Thousandths celsius is the standard Linux hwmon temperature unit
+    /// Get the maximum measured temperature from any CPU / GPU on the system, in
+    /// thousandths of a Celsius. Thousandths celsius is the standard Linux hwmon temperature unit.
     pub fn get_temp(&self) -> Option<u32> {
         let mut temp_opt = None;
-        for cpu in self.cpus.iter() {
+        for cpu in self.cpus.iter().chain(self.amdgpus.iter()) {
             if let Ok(temp) = cpu.temp(1) {
                 if let Ok(input) = temp.input() {
                     if temp_opt.map_or(true, |x| input > x) {
@@ -60,6 +76,23 @@ impl FanDaemon {
                 }
             }
         }
+
+        // Fetch NVIDIA temperatures from the `nvidia-smi` tool when it exists.
+        if self.nvidia_exists && !self.displayed_warning.get() {
+            let mut nv_temp = 0;
+            match nvidia_temperatures(|temp| nv_temp = cmp::max(temp, nv_temp)) {
+                Ok(()) => {
+                    if nv_temp != 0 {
+                        temp_opt = Some(temp_opt.map_or(nv_temp, |temp| cmp::max(nv_temp, temp)));
+                    }
+                }
+                Err(why) => {
+                    warn!("failed to get temperature of NVIDIA GPUs: {}", why);
+                    self.displayed_warning.set(true);
+                }
+            }
+        }
+
         temp_opt
     }
 
@@ -67,9 +100,9 @@ impl FanDaemon {
     /// Thousandths celsius is the standard Linux hwmon temperature unit
     /// 0 to 255 is the standard Linux hwmon pwm unit
     pub fn get_duty(&self, temp: u32) -> Option<u8> {
-        self.curve.get_duty((temp / 10) as i16).map(|duty| {
-            (((duty as u32) * 255) / 10_000) as u8
-        })
+        self.curve
+            .get_duty((temp / 10) as i16)
+            .map(|duty| (((u32::from(duty)) * 255) / 10_000) as u8)
     }
 
     /// Set the current duty cycle, from 0 to 255
@@ -90,19 +123,11 @@ impl FanDaemon {
     }
 
     /// Calculate the correct duty cycle and apply it to all fans
-    pub fn step(&self) {
-        self.set_duty(
-            self.get_temp().and_then(|temp| {
-                self.get_duty(temp)
-            })
-        )
-    }
+    pub fn step(&self) { self.set_duty(self.get_temp().and_then(|temp| self.get_duty(temp))) }
 }
 
 impl Drop for FanDaemon {
-    fn drop(&mut self) {
-        self.set_duty(None);
-    }
+    fn drop(&mut self) { self.set_duty(None); }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -114,12 +139,7 @@ pub struct FanPoint {
 }
 
 impl FanPoint {
-    pub fn new(temp: i16, duty: u16) -> Self {
-        Self {
-            temp,
-            duty
-        }
-    }
+    pub fn new(temp: i16, duty: u16) -> Self { Self { temp, duty } }
 
     /// Find the duty between two points and a given temperature, if the temperature
     /// lies within this range.
@@ -158,7 +178,7 @@ impl FanPoint {
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct FanCurve {
-    points: Vec<FanPoint>
+    points: Vec<FanPoint>,
 }
 
 impl FanCurve {
@@ -208,6 +228,23 @@ impl FanCurve {
         // If there are no points, return None
         None
     }
+}
+
+pub fn nvidia_temperatures<F: FnMut(u32)>(func: F) -> io::Result<()> {
+    let output = Command::new("nvidia-smi")
+        .arg("--query-gpu=temperature.gpu")
+        .arg("--format=csv,noheader")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .stdin(Stdio::null())
+        .output()?;
+
+    let stdout = String::from_utf8(output.stdout)
+        .map_err(|_| io::Error::new(io::ErrorKind::Other, "non-utf8 output"))?;
+
+    stdout.lines().filter_map(|line| line.parse::<u32>().ok()).for_each(func);
+
+    Ok(())
 }
 
 #[cfg(test)]

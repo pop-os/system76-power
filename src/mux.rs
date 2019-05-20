@@ -1,29 +1,44 @@
-use err_str;
-use sideband::Sideband;
-use util::read_file;
+use crate::sideband::{Sideband, SidebandError};
+use std::{fs::read_to_string, io};
+
+#[derive(Debug, Error)]
+pub enum DisplayPortMuxError {
+    #[error(display = "error constructing sideband: {}", _0)]
+    Sideband(SidebandError),
+    #[error(display = "failed to read DMI product version: {}", _0)]
+    ProductVersion(io::Error),
+    #[error(display = "model '{}' does not support hotplug detection", _0)]
+    UnsupportedHotPlugDetect(String),
+}
+
+impl From<SidebandError> for DisplayPortMuxError {
+    fn from(err: SidebandError) -> Self { DisplayPortMuxError::Sideband(err) }
+}
 
 pub struct DisplayPortMux {
     sideband: Sideband,
-    hpd: (u8, u8),
-    mux: (u8, u8),
+    hpd:      (u8, u8),
+    mux:      (u8, u8),
 }
 
 impl DisplayPortMux {
-    pub unsafe fn new() -> Result<DisplayPortMux, String> {
-        let model_line = read_file("/sys/class/dmi/id/product_version").map_err(err_str)?;
+    pub unsafe fn new() -> Result<DisplayPortMux, DisplayPortMuxError> {
+        let model_line = read_to_string("/sys/class/dmi/id/product_version")
+            .map_err(DisplayPortMuxError::ProductVersion)?;
+
         let model = model_line.trim();
         match model {
             "galp2" | "galp3" | "galp3-b" => Ok(DisplayPortMux {
                 sideband: Sideband::new(0xFD00_0000)?,
-                hpd: (0xAE, 0x31), // GPP_E13
-                mux: (0xAF, 0x16), // GPP_A22
+                hpd:      (0xAE, 0x31), // GPP_E13
+                mux:      (0xAF, 0x16), // GPP_A22
             }),
             "darp5" | "galp3-c" => Ok(DisplayPortMux {
                 sideband: Sideband::new(0xFD00_0000)?,
-                hpd: (0x6A, 0x4A), // GPP_E13
-                mux: (0x6E, 0x2C), // GPP_A22
+                hpd:      (0x6A, 0x4A), // GPP_E13
+                mux:      (0x6E, 0x2C), // GPP_A22
             }),
-            _ => Err(format!("{} does not support hotplug detection", model))
+            _ => Err(DisplayPortMuxError::UnsupportedHotPlugDetect(model.to_owned())),
         }
     }
 
@@ -37,10 +52,10 @@ impl DisplayPortMux {
 
             if mux_data & 1 == 1 {
                 // HPD low, switching to mDP
-                mux_data = mux_data & !1;
+                mux_data &= !1;
             } else {
                 // HPD low, switching to USB-C
-                mux_data = mux_data | 1;
+                mux_data |= 1;
             }
 
             self.sideband.set_gpio(self.mux.0, self.mux.1, mux_data);

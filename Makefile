@@ -7,17 +7,30 @@ includedir = $(prefix)/include
 datarootdir = $(prefix)/share
 datadir = $(datarootdir)
 
+SRC = Cargo.toml Cargo.lock Makefile $(shell find src -type f -wholename '*src/*.rs')
+
 .PHONY: all clean distclean install uninstall update
 
 BIN=system76-power
+
+DEBUG ?= 0
+ifeq ($(DEBUG),0)
+	ARGS += "--release"
+	TARGET = release
+endif
+
+VENDORED ?= 0
+ifeq ($(VENDORED),1)
+	ARGS += "--frozen"
+endif
 
 all: target/release/$(BIN)
 
 clean:
 	cargo clean
 
-distclean: clean
-	rm -rf .cargo vendor
+distclean:
+	rm -rf .cargo vendor vendor.tar.xz
 
 install: all
 	install -D -m 04755 "target/release/$(BIN)" "$(DESTDIR)$(bindir)/$(BIN)"
@@ -30,18 +43,15 @@ uninstall:
 update:
 	cargo update
 
-.cargo/config: vendor_config
+vendor:
 	mkdir -p .cargo
-	cp $< $@
+	cargo vendor | head -n -1 > .cargo/config
+	echo 'directory = "vendor"' >> .cargo/config
+	tar pcfJ vendor.tar.xz vendor
+	rm -rf vendor
 
-vendor: .cargo/config
-	cargo vendor
-	touch vendor
-
-target/release/$(BIN): Cargo.lock Cargo.toml src/*.rs
-	if [ -d vendor ]; \
-	then \
-		cargo build --release --frozen; \
-	else \
-		cargo build --release; \
-	fi
+target/release/$(BIN): $(SRC)
+ifeq ($(VENDORED),1)
+	tar pxf vendor.tar.xz
+endif
+	cargo build $(ARGS)

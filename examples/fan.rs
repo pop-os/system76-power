@@ -2,12 +2,14 @@ extern crate log;
 extern crate system76_power;
 
 use log::LevelFilter;
-use std::{io, process, thread, time};
-use system76_power::fan::FanDaemon;
-use system76_power::logging;
+use std::{process, thread, time};
+use system76_power::{
+    fan::{FanDaemon, FanDaemonError},
+    logging,
+};
 
-fn inner() -> io::Result<()> {
-    let daemon = FanDaemon::new()?;
+fn inner() -> Result<(), FanDaemonError> {
+    let daemon = FanDaemon::new(false)?;
 
     loop {
         if let Some(temp) = daemon.get_temp() {
@@ -16,7 +18,7 @@ fn inner() -> io::Result<()> {
                     "{}°C ({}): {}% ({})",
                     (temp as f32) / 1000.0,
                     temp,
-                    (duty as u32 * 100) / 255,
+                    (u32::from(duty) * 100) / 255,
                     duty,
                 );
             } else {
