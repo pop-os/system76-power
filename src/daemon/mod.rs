@@ -26,9 +26,12 @@ mod profiles;
 
 use self::profiles::*;
 
-static EXPERIMENTAL: AtomicBool = AtomicBool::new(false);
+// Disabled by default because some systems have quirky ACPI tables that fail to resume from
+// suspension.
+static PCI_RUNTIME_PM: AtomicBool = AtomicBool::new(false);
 
-fn experimental_is_enabled() -> bool { EXPERIMENTAL.load(Ordering::SeqCst) }
+// TODO: Whitelist system76 hardware that's known to work with this setting.
+fn pci_runtime_pm_support() -> bool { PCI_RUNTIME_PM.load(Ordering::SeqCst) }
 
 struct PowerDaemon {
     graphics:            Graphics,
@@ -120,12 +123,14 @@ impl Power for PowerDaemon {
     }
 }
 
-pub fn daemon(experimental: bool) -> Result<(), String> {
-    let experimental =
-        experimental || std::env::var("S76_POWER_EXPERIMENTAL").ok().map_or(false, |v| v == "1");
+pub fn daemon() -> Result<(), String> {
+    let pci_runtime_pm = std::env::var("S76_POWER_PCI_RUNTIME_PM").ok().map_or(false, |v| v == "1");
 
-    info!("Starting daemon{}", if experimental { " with experimental enabled" } else { "" });
-    EXPERIMENTAL.store(experimental, Ordering::SeqCst);
+    info!(
+        "Starting daemon{}",
+        if pci_runtime_pm { " with pci runtime pm support enabled" } else { "" }
+    );
+    PCI_RUNTIME_PM.store(pci_runtime_pm, Ordering::SeqCst);
 
     info!("Connecting to dbus system bus");
     let c = Arc::new(Connection::get_private(BusType::System).map_err(err_str)?);

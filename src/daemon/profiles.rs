@@ -1,3 +1,4 @@
+use super::pci_runtime_pm_support;
 use crate::{
     disks::{DiskPower, Disks},
     errors::{BacklightError, DiskPowerError, PciDeviceError, ProfileError, ScsiHostError},
@@ -9,7 +10,6 @@ use std::io;
 use sysfs_class::{
     Backlight, Brightness, Leds, PciDevice, RuntimePM, RuntimePowerManagement, ScsiHost, SysClass,
 };
-use super::experimental_is_enabled;
 
 /// Instead of returning on the first error, we want to collect all errors that occur while
 /// setting a profile. Even if one parameter fails to set, we'll still be able to set other
@@ -49,9 +49,8 @@ pub fn balanced(errors: &mut Vec<ProfileError>) {
     // Manage keyboard backlights.
     catch!(errors, iterate_backlights(Leds::iter_keyboards(), &Brightness::set_if_lower_than, 50));
 
-    // Parameters which may cause issues.
-    if experimental_is_enabled() {
-        // TODO: Does this really  cause issues on any systems?
+    // Parameters which may cause on certain systems.
+    if pci_runtime_pm_support() {
         // Enables PCI device runtime power management.
         catch!(errors, pci_device_runtime_pm(RuntimePowerManagement::On));
     }
@@ -69,7 +68,7 @@ pub fn performance(errors: &mut Vec<ProfileError>) {
     catch!(errors, scsi_host_link_time_pm_policy(&["med_power_with_dipm", "max_performance"]));
     catch!(errors, pstate_values(50, 100, false));
 
-    if experimental_is_enabled() {
+    if pci_runtime_pm_support() {
         catch!(errors, pci_device_runtime_pm(RuntimePowerManagement::Off));
     }
 }
@@ -85,7 +84,7 @@ pub fn battery(errors: &mut Vec<ProfileError>) {
     catch!(errors, iterate_backlights(Leds::iter_keyboards(), &Brightness::set_brightness, 0));
     catch!(errors, pstate_values(0, 50, true));
 
-    if experimental_is_enabled() {
+    if pci_runtime_pm_support() {
         catch!(errors, pci_device_runtime_pm(RuntimePowerManagement::On));
     }
 }
