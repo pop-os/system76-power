@@ -1,15 +1,13 @@
-extern crate clap;
-extern crate dbus;
-extern crate fern;
+#[macro_use]
+extern crate err_derive;
 extern crate intel_pstate as pstate;
-extern crate libc;
 #[macro_use]
 extern crate log;
-extern crate sysfs_class;
 
 pub mod client;
 pub mod daemon;
 pub mod disks;
+pub mod errors;
 pub mod fan;
 pub mod graphics;
 pub mod hotplug;
@@ -19,8 +17,8 @@ pub mod modprobe;
 pub mod module;
 pub mod mux;
 pub mod pci;
-pub mod sideband;
 pub mod radeon;
+pub mod sideband;
 pub mod snd;
 pub mod util;
 pub mod wifi;
@@ -45,6 +43,4 @@ pub trait Power {
 }
 
 // Helper function for errors
-pub (crate) fn err_str<E: ::std::fmt::Display>(err: E) -> String {
-    format!("{}", err)
-}
+pub(crate) fn err_str<E: ::std::fmt::Display>(err: E) -> String { format!("{}", err) }
