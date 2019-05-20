@@ -71,6 +71,7 @@ impl FanDaemon {
             if let Ok(temp) = cpu.temp(1) {
                 if let Ok(input) = temp.input() {
                     if temp_opt.map_or(true, |x| input > x) {
+                        debug!("highest hwmon cpu/gpu temp: {}", input);
                         temp_opt = Some(input);
                     }
                 }
@@ -83,6 +84,7 @@ impl FanDaemon {
             match nvidia_temperatures(|temp| nv_temp = cmp::max(temp, nv_temp)) {
                 Ok(()) => {
                     if nv_temp != 0 {
+                        debug!("highest nvidia temp: {}", nv_temp);
                         temp_opt =
                             Some(temp_opt.map_or(nv_temp, |temp| cmp::max(nv_temp * 1000, temp)));
                     }
@@ -93,6 +95,8 @@ impl FanDaemon {
                 }
             }
         }
+
+        debug!("current temp: {:?}", temp_opt);
 
         temp_opt
     }
@@ -192,11 +196,11 @@ impl FanCurve {
     /// The standard fan curve
     pub fn standard() -> Self {
         Self::default()
-            .append(39_99, 0_00)
-            .append(40_00, 40_00)
-            .append(50_00, 50_00)
-            .append(60_00, 65_00)
-            .append(70_00, 85_00)
+            .append(39_99,   0_00)
+            .append(40_00,  40_00)
+            .append(50_00,  50_00)
+            .append(60_00,  65_00)
+            .append(70_00,  85_00)
             .append(75_00, 100_00)
     }
 
