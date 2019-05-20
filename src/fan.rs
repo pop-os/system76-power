@@ -83,7 +83,8 @@ impl FanDaemon {
             match nvidia_temperatures(|temp| nv_temp = cmp::max(temp, nv_temp)) {
                 Ok(()) => {
                     if nv_temp != 0 {
-                        temp_opt = Some(temp_opt.map_or(nv_temp, |temp| cmp::max(nv_temp, temp)));
+                        temp_opt =
+                            Some(temp_opt.map_or(nv_temp, |temp| cmp::max(nv_temp * 1000, temp)));
                     }
                 }
                 Err(why) => {
