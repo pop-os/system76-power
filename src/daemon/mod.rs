@@ -26,6 +26,24 @@ mod profiles;
 
 use self::profiles::*;
 
+static CONTINUE: AtomicBool = AtomicBool::new(true);
+
+fn signal_handling() {
+    extern "C" fn handler(signal: libc::c_int) {
+        info!("caught signal: {}", signal);
+        CONTINUE.store(false, Ordering::SeqCst);
+    }
+
+    unsafe fn signal(signal: libc::c_int) { libc::signal(signal, handler as libc::sighandler_t); }
+
+    unsafe {
+        signal(libc::SIGINT);
+        signal(libc::SIGHUP);
+        signal(libc::SIGTERM);
+        signal(libc::SIGKILL);
+    }
+}
+
 // Disabled by default because some systems have quirky ACPI tables that fail to resume from
 // suspension.
 static PCI_RUNTIME_PM: AtomicBool = AtomicBool::new(false);
@@ -124,6 +142,7 @@ impl Power for PowerDaemon {
 }
 
 pub fn daemon() -> Result<(), String> {
+    signal_handling();
     let pci_runtime_pm = std::env::var("S76_POWER_PCI_RUNTIME_PM").ok().map_or(false, |v| v == "1");
 
     info!(
@@ -262,7 +281,7 @@ pub fn daemon() -> Result<(), String> {
     let mut last = hpd();
 
     info!("Handling dbus requests");
-    loop {
+    while CONTINUE.load(Ordering::SeqCst) {
         c.incoming(1000).next();
 
         if let Ok(ref fan_daemon) = fan_daemon_res {
@@ -286,4 +305,7 @@ pub fn daemon() -> Result<(), String> {
             }
         }
     }
+
+    info!("daemon exited from loop");
+    Ok(())
 }
