@@ -66,17 +66,18 @@ impl FanDaemon {
     /// Get the maximum measured temperature from any CPU / GPU on the system, in
     /// thousandths of a Celsius. Thousandths celsius is the standard Linux hwmon temperature unit.
     pub fn get_temp(&self) -> Option<u32> {
-        let mut temp_opt = None;
-        for cpu in self.cpus.iter().chain(self.amdgpus.iter()) {
-            if let Ok(temp) = cpu.temp(1) {
-                if let Ok(input) = temp.input() {
-                    if temp_opt.map_or(true, |x| input > x) {
-                        debug!("highest hwmon cpu/gpu temp: {}", input);
-                        temp_opt = Some(input);
-                    }
+        let mut temp_opt = self.cpus.iter()
+            .chain(self.amdgpus.iter())
+            .filter_map(|sensor| sensor.temp(1).ok())
+            .filter_map(|temp| temp.input().ok())
+            .fold(None, |mut temp_opt, input| {
+                if temp_opt.map_or(true, |x| input > x) {
+                    debug!("highest hwmon cpu/gpu temp: {}", input);
+                    temp_opt = Some(input);
                 }
-            }
-        }
+
+                temp_opt
+            });
 
         // Fetch NVIDIA temperatures from the `nvidia-smi` tool when it exists.
         if self.nvidia_exists && !self.displayed_warning.get() {
