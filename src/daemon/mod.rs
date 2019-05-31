@@ -22,9 +22,10 @@ use crate::{
     Power, DBUS_IFACE, DBUS_NAME, DBUS_PATH,
 };
 
+mod persistables;
 mod profiles;
 
-use self::profiles::*;
+use self::{persistables::Persistables, profiles::*};
 
 static CONTINUE: AtomicBool = AtomicBool::new(true);
 
@@ -54,7 +55,7 @@ fn pci_runtime_pm_support() -> bool { PCI_RUNTIME_PM.load(Ordering::SeqCst) }
 struct PowerDaemon {
     initial_set:         bool,
     graphics:            Graphics,
-    power_profile:       String,
+    persistables:        Persistables,
     profile_errors:      Vec<ProfileError>,
     dbus_connection:     Arc<Connection>,
     power_switch_signal: Arc<Signal<()>>,
@@ -69,17 +70,20 @@ impl PowerDaemon {
         Ok(PowerDaemon {
             initial_set: false,
             graphics,
-            power_profile: String::new(),
+            persistables: Persistables::new(),
             profile_errors: Vec::new(),
             power_switch_signal,
             dbus_connection,
         })
     }
 
-    fn apply_profile(
+    /// Applies the power profile to the daemon, optionally persisting the
+    /// profile which was set.
+    fn apply_profile_inner(
         &mut self,
         func: fn(&mut Vec<ProfileError>, bool),
         name: &str,
+        persist: bool,
     ) -> Result<(), String> {
         func(&mut self.profile_errors, self.initial_set);
 
@@ -90,7 +94,10 @@ impl PowerDaemon {
             error!("failed to send power profile switch message");
         }
 
-        self.power_profile = name.into();
+        if persist {
+            self.persistables.power_profile_set(name);
+            self.persistables.persist();
+        }
 
         if self.profile_errors.is_empty() {
             Ok(())
@@ -102,6 +109,42 @@ impl PowerDaemon {
 
             Err(error_message)
         }
+    }
+
+    /// Applies a power profile to the daemon, then persisting it.
+    fn apply_profile(
+        &mut self,
+        func: fn(&mut Vec<ProfileError>, bool),
+        name: &str,
+    ) -> Result<(), String> {
+        self.apply_profile_inner(func, name, true)
+    }
+
+    /// Borrows the active power profile, and re-borrows the daemon
+    fn borrow_power_profile<F: FnOnce(&mut Self, &str)>(&mut self, func: F) {
+        let temporary_borrow = &mut String::new();
+        std::mem::swap(temporary_borrow, &mut self.persistables.power_profile);
+        func(self, &temporary_borrow);
+        std::mem::swap(temporary_borrow, &mut self.persistables.power_profile);
+    }
+
+    /// Sets the initial power profile from the profile stored in memory.
+    fn set_initial_profile(&mut self) {
+        self.borrow_power_profile(|daemon, profile| {
+            let initial: fn(&mut Vec<ProfileError>, bool) = match profile {
+                "Balanced" => balanced,
+                "Battery" => battery,
+                "Performance" => performance,
+                profile => panic!("unknown profile: {}", profile),
+            };
+
+            info!("Initializing with the {} profile", profile);
+            if let Err(why) = daemon.apply_profile_inner(initial, profile, false) {
+                warn!("failed to set initial power profile: {}", why);
+            }
+
+            daemon.initial_set = true;
+        });
     }
 }
 
@@ -122,7 +165,9 @@ impl Power for PowerDaemon {
         self.graphics.get_vendor().map_err(err_str)
     }
 
-    fn get_profile(&mut self) -> Result<String, String> { Ok(self.power_profile.clone()) }
+    fn get_profile(&mut self) -> Result<String, String> {
+        Ok(self.persistables.power_profile.clone())
+    }
 
     fn get_switchable(&mut self) -> Result<bool, String> { Ok(self.graphics.can_switch()) }
 
@@ -175,18 +220,6 @@ pub fn daemon() -> Result<(), String> {
             warn!("Failed to set automatic graphics power: {}", err);
         }
     }
-
-    {
-        info!("Initializing with the balanced profile");
-        let mut daemon = daemon.borrow_mut();
-        if let Err(why) = daemon.balanced() {
-            warn!("Failed to set initial profile: {}", why);
-        }
-
-        daemon.initial_set = true;
-    }
-
-
 
     info!("Registering dbus name {}", DBUS_NAME);
     c.register_name(DBUS_NAME, NameFlag::ReplaceExisting as u32).map_err(err_str)?;
@@ -284,6 +317,8 @@ pub fn daemon() -> Result<(), String> {
     };
 
     let mut last = hpd();
+
+    daemon.borrow_mut().set_initial_profile();
 
     info!("Handling dbus requests");
     while CONTINUE.load(Ordering::SeqCst) {
