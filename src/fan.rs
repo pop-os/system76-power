@@ -66,16 +66,18 @@ impl FanDaemon {
     /// Get the maximum measured temperature from any CPU / GPU on the system, in
     /// thousandths of a Celsius. Thousandths celsius is the standard Linux hwmon temperature unit.
     pub fn get_temp(&self) -> Option<u32> {
-        let mut temp_opt = None;
-        for cpu in self.cpus.iter().chain(self.amdgpus.iter()) {
-            if let Ok(temp) = cpu.temp(1) {
-                if let Ok(input) = temp.input() {
-                    if temp_opt.map_or(true, |x| input > x) {
-                        temp_opt = Some(input);
-                    }
+        let mut temp_opt = self.cpus.iter()
+            .chain(self.amdgpus.iter())
+            .filter_map(|sensor| sensor.temp(1).ok())
+            .filter_map(|temp| temp.input().ok())
+            .fold(None, |mut temp_opt, input| {
+                if temp_opt.map_or(true, |x| input > x) {
+                    debug!("highest hwmon cpu/gpu temp: {}", input);
+                    temp_opt = Some(input);
                 }
-            }
-        }
+
+                temp_opt
+            });
 
         // Fetch NVIDIA temperatures from the `nvidia-smi` tool when it exists.
         if self.nvidia_exists && !self.displayed_warning.get() {
@@ -83,6 +85,7 @@ impl FanDaemon {
             match nvidia_temperatures(|temp| nv_temp = cmp::max(temp, nv_temp)) {
                 Ok(()) => {
                     if nv_temp != 0 {
+                        debug!("highest nvidia temp: {}", nv_temp);
                         temp_opt =
                             Some(temp_opt.map_or(nv_temp, |temp| cmp::max(nv_temp * 1000, temp)));
                     }
@@ -93,6 +96,8 @@ impl FanDaemon {
                 }
             }
         }
+
+        debug!("current temp: {:?}", temp_opt);
 
         temp_opt
     }
@@ -192,11 +197,12 @@ impl FanCurve {
     /// The standard fan curve
     pub fn standard() -> Self {
         Self::default()
-            .append(20_00, 30_00)
-            .append(30_00, 35_00)
-            .append(40_00, 42_50)
-            .append(50_00, 52_50)
-            .append(65_00, 10_000)
+            .append(39_99,   0_00)
+            .append(40_00,  40_00)
+            .append(50_00,  50_00)
+            .append(60_00,  65_00)
+            .append(70_00,  85_00)
+            .append(75_00, 100_00)
     }
 
     pub fn get_duty(&self, temp: i16) -> Option<u16> {
