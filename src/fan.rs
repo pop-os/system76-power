@@ -25,42 +25,52 @@ pub struct FanDaemon {
 }
 
 impl FanDaemon {
-    pub fn new(nvidia_exists: bool) -> Result<Self, FanDaemonError> {
-        // TODO: Support multiple hwmons for platform and cpu
-        let mut amdgpus = Vec::new();
-        let mut platforms = Vec::new();
-        let mut cpus = Vec::new();
+    pub fn new(nvidia_exists: bool) -> Self {
+        let mut daemon = FanDaemon {
+            curve: FanCurve::standard(),
+            amdgpus: Vec::new(),
+            platforms: Vec::new(),
+            cpus: Vec::new(),
+            nvidia_exists,
+            displayed_warning: Cell::new(false),
+        };
+
+        if let Err(err) = daemon.discover() {
+            error!("fan daemon: {}", err);
+        }
+
+        daemon
+    }
+
+    /// Discover all utilizable hwmon devices
+    fn discover(&mut self) -> Result<(), FanDaemonError> {
+        self.amdgpus.clear();
+        self.platforms.clear();
+        self.cpus.clear();
 
         for hwmon in HwMon::all().map_err(FanDaemonError::HwmonDevices)? {
             if let Ok(name) = hwmon.name() {
-                info!("hwmon: {}", name);
+                debug!("hwmon: {}", name);
 
                 match name.as_str() {
-                    "amdgpu" => amdgpus.push(hwmon),
+                    "amdgpu" => self.amdgpus.push(hwmon),
                     "system76" => (), // TODO: Support laptops
-                    "system76_io" => platforms.push(hwmon),
-                    "coretemp" | "k10temp" => cpus.push(hwmon),
+                    "system76_io" => self.platforms.push(hwmon),
+                    "coretemp" | "k10temp" => self.cpus.push(hwmon),
                     _ => (),
                 }
             }
         }
 
-        if platforms.is_empty() {
+        if self.platforms.is_empty() {
             return Err(FanDaemonError::PlatformHwmonNotFound);
         }
 
-        if cpus.is_empty() {
+        if self.cpus.is_empty() {
             return Err(FanDaemonError::CpuHwmonNotFound);
         }
 
-        Ok(FanDaemon {
-            curve: FanCurve::standard(),
-            amdgpus,
-            platforms,
-            cpus,
-            nvidia_exists,
-            displayed_warning: Cell::new(false),
-        })
+        Ok(())
     }
 
     /// Get the maximum measured temperature from any CPU / GPU on the system, in
@@ -129,7 +139,11 @@ impl FanDaemon {
     }
 
     /// Calculate the correct duty cycle and apply it to all fans
-    pub fn step(&self) { self.set_duty(self.get_temp().and_then(|temp| self.get_duty(temp))) }
+    pub fn step(&mut self) {
+        if let Ok(()) = self.discover() {
+            self.set_duty(self.get_temp().and_then(|temp| self.get_duty(temp)));
+        }
+    }
 }
 
 impl Drop for FanDaemon {
