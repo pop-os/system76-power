@@ -38,7 +38,7 @@ pub fn balanced(errors: &mut Vec<ProfileError>) {
     RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("auto", "performance", "auto"));
 
     // Controls disk APM levels and autosuspend delays.
-    catch!(errors, set_disk_power(127, -1));
+    catch!(errors, set_disk_power(127, 60000));
 
     // Enables SCSI / SATA link time power management.
     catch!(errors, scsi_host_link_time_pm_policy(&["med_power_with_dipm", "medium_power"]));
@@ -64,7 +64,7 @@ pub fn performance(errors: &mut Vec<ProfileError>) {
     Dirty::default().set_max_lost_work(15);
     LaptopMode::default().set(b"0");
     RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("high", "performance", "auto"));
-    catch!(errors, set_disk_power(254, -1));
+    catch!(errors, set_disk_power(254, 300000));
     catch!(errors, scsi_host_link_time_pm_policy(&["med_power_with_dipm", "max_performance"]));
     catch!(errors, pstate_values(50, 100, false));
 
