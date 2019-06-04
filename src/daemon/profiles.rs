@@ -1,4 +1,4 @@
-use super::pci_runtime_pm_support;
+use super::{config::*, pci_runtime_pm_support};
 use crate::{
     disks::{DiskPower, Disks},
     errors::{BacklightError, DiskPowerError, PciDeviceError, ProfileError, ScsiHostError},
@@ -23,69 +23,92 @@ macro_rules! catch {
     };
 }
 
-/// Sets parameters for the balanced profile.
-pub fn balanced(errors: &mut Vec<ProfileError>) {
-    // The dirty kernel parameter controls how often the OS will sync data to disks. The less
-    // frequently this occurs, the more power can be saved, yet the higher the risk of sudden
-    // power loss causing loss of data. 15s is a resonable number.
-    Dirty::default().set_max_lost_work(15);
+pub fn apply_profile(profile: &ProfileConfig, errors: &mut Vec<ProfileError>) {
+    // Manage screen and keyboard backlights.
+    if let Some(ref backlight) = profile.backlight {
+        if let Some(brightness) = backlight.keyboard {
+            info!("setting keyboard brightness to {}%", brightness);
+            let func = match backlight.method {
+                BacklightMethod::None => Leds::set_brightness,
+                BacklightMethod::Lower => Leds::set_if_lower_than,
+            };
+
+            catch!(errors, iterate_backlights(Leds::iter_keyboards(), func, brightness as u64));
+        }
+
+        if let Some(brightness) = backlight.screen {
+            info!("setting screen brightness to {}%", brightness);
+            let func = match backlight.method {
+                BacklightMethod::None => Backlight::set_brightness,
+                BacklightMethod::Lower => Backlight::set_if_lower_than,
+            };
+
+            catch!(errors, iterate_backlights(Backlight::iter(), func, brightness as u64));
+        }
+    }
+
+    // Controls disk APM levels and autosuspend delays.
+    if let Some(disk) = profile.disk {
+        info!(
+            "setting global HDD APM: {}; with autosuspend delay: {}s",
+            disk.apm_level, disk.autosuspend_delay
+        );
+        catch!(errors, set_disk_power(disk.apm_level, (disk.autosuspend_delay * 1000) as i32));
+    }
 
     // Enables the laptop mode feature in the kernel, which allows mechanical drives to spin down
     // when inactive.
-    LaptopMode::default().set(b"2");
+    if let Some(laptop_mode) = profile.laptop_mode {
+        LaptopMode::default().set(laptop_mode.to_string().as_bytes());
+    }
 
-    // Sets radeon power profiles for AMD graphics.
-    RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("auto", "performance", "auto"));
+    // The dirty kernel parameter controls how often the OS will sync data to disks. The less
+    // frequently this occurs, the more power can be saved, yet the higher the risk of sudden
+    // power loss causing loss of data. 15s is a resonable number.
+    if let Some(max_lost_work) = profile.max_lost_work {
+        Dirty::default().set_max_lost_work(max_lost_work);
+    }
 
-    // Controls disk APM levels and autosuspend delays.
-    catch!(errors, set_disk_power(127, 60000));
-
-    // Enables SCSI / SATA link time power management.
-    catch!(errors, scsi_host_link_time_pm_policy(&["med_power_with_dipm", "medium_power"]));
-
-    // Manage screen backlights.
-    catch!(errors, iterate_backlights(Backlight::iter(), &Brightness::set_if_lower_than, 40));
-
-    // Manage keyboard backlights.
-    catch!(errors, iterate_backlights(Leds::iter_keyboards(), &Brightness::set_if_lower_than, 50));
-
-    // Parameters which may cause on certain systems.
+    // Toggles PCI device runtime power management support -- disabled by default.
     if pci_runtime_pm_support() {
-        // Enables PCI device runtime power management.
-        catch!(errors, pci_device_runtime_pm(RuntimePowerManagement::On));
+        if let Some(support) = profile.pci_runtime_pm {
+            catch!(
+                errors,
+                pci_device_runtime_pm(if support {
+                    RuntimePowerManagement::On
+                } else {
+                    RuntimePowerManagement::Off
+                })
+            );
+        }
     }
 
     // Control Intel PState values, if they exist.
-    catch!(errors, pstate_values(0, 100, false));
-}
-
-/// Sets parameters for the perfromance profile
-pub fn performance(errors: &mut Vec<ProfileError>) {
-    Dirty::default().set_max_lost_work(15);
-    LaptopMode::default().set(b"0");
-    RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("high", "performance", "auto"));
-    catch!(errors, set_disk_power(254, 300000));
-    catch!(errors, scsi_host_link_time_pm_policy(&["med_power_with_dipm", "max_performance"]));
-    catch!(errors, pstate_values(50, 100, false));
-
-    if pci_runtime_pm_support() {
-        catch!(errors, pci_device_runtime_pm(RuntimePowerManagement::Off));
+    if let Some(pstate) = profile.pstate {
+        info!("setting pstate values to {}-{}; turbo: {}", pstate.min, pstate.max, pstate.turbo);
+        catch!(errors, pstate_values(pstate.min, pstate.max, !pstate.turbo));
     }
-}
 
-/// Sets parameters for the battery profile
-pub fn battery(errors: &mut Vec<ProfileError>) {
-    Dirty::default().set_max_lost_work(15);
-    LaptopMode::default().set(b"2");
-    RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("low", "battery", "low"));
-    catch!(errors, set_disk_power(127, 15000));
-    catch!(errors, scsi_host_link_time_pm_policy(&["min_power", "min_power"]));
-    catch!(errors, iterate_backlights(Backlight::iter(), &Brightness::set_if_lower_than, 10));
-    catch!(errors, iterate_backlights(Leds::iter_keyboards(), &Brightness::set_brightness, 0));
-    catch!(errors, pstate_values(0, 50, true));
+    // Sets radeon power profiles for AMD graphics.
+    if let Some(radeon) = profile.radeon {
+        RadeonDevice::get_devices().for_each(|dev| {
+            dev.set_profiles(
+                <&'static str>::from(radeon.profile),
+                <&'static str>::from(radeon.dpm_state),
+                <&'static str>::from(radeon.dpm_perf),
+            )
+        });
+    }
 
-    if pci_runtime_pm_support() {
-        catch!(errors, pci_device_runtime_pm(RuntimePowerManagement::On));
+    // Enables SCSI / SATA link time power management.
+    if let Some([first, second]) = profile.scsi_host_link_time_pm_policy {
+        catch!(
+            errors,
+            scsi_host_link_time_pm_policy(&[
+                <&'static str>::from(first),
+                <&'static str>::from(second),
+            ])
+        );
     }
 }
 
@@ -104,7 +127,7 @@ fn pstate_values(min: u8, max: u8, no_turbo: bool) -> Result<(), PStateError> {
 /// on each discovered backlight source.
 fn iterate_backlights<B: Brightness>(
     iterator: impl Iterator<Item = io::Result<B>>,
-    strategy: &dyn Fn(&B, u64) -> io::Result<()>,
+    strategy: fn(&B, u64) -> io::Result<()>,
     value: u64,
 ) -> Result<(), BacklightError> {
     for backlight in iterator {
@@ -137,7 +160,7 @@ fn pci_device_runtime_pm(pm: RuntimePowerManagement) -> Result<(), PciDeviceErro
 
 /// Iterates on all available SCSI/SATA hosts, setting the first link time power mangement policy
 /// that succeeeds.
-fn scsi_host_link_time_pm_policy(policies: &'static [&'static str]) -> Result<(), ScsiHostError> {
+fn scsi_host_link_time_pm_policy(policies: &[&'static str]) -> Result<(), ScsiHostError> {
     for device in ScsiHost::iter() {
         match device {
             Ok(device) => {

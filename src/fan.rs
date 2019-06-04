@@ -1,3 +1,4 @@
+use crate::daemon::config::FanConfig;
 use std::{
     cell::Cell,
     cmp, io,
@@ -16,7 +17,7 @@ pub enum FanDaemonError {
 }
 
 pub struct FanDaemon {
-    curve:             FanCurve,
+    config:            FanConfig,
     amdgpus:           Vec<HwMon>,
     platforms:         Vec<HwMon>,
     cpus:              Vec<HwMon>,
@@ -25,9 +26,9 @@ pub struct FanDaemon {
 }
 
 impl FanDaemon {
-    pub fn new(nvidia_exists: bool) -> Self {
+    pub fn new(config: FanConfig, nvidia_exists: bool) -> Self {
         let mut daemon = FanDaemon {
-            curve: FanCurve::standard(),
+            config,
             amdgpus: Vec::new(),
             platforms: Vec::new(),
             cpus: Vec::new(),
@@ -73,6 +74,10 @@ impl FanDaemon {
         Ok(())
     }
 
+    pub fn get_active_curve(&self) -> &FanCurve {
+        self.config.curves.get("standard").expect("missing standard curve")
+    }
+
     /// Get the maximum measured temperature from any CPU / GPU on the system, in
     /// thousandths of a Celsius. Thousandths celsius is the standard Linux hwmon temperature unit.
     pub fn get_temp(&self) -> Option<u32> {
@@ -116,7 +121,7 @@ impl FanDaemon {
     /// Thousandths celsius is the standard Linux hwmon temperature unit
     /// 0 to 255 is the standard Linux hwmon pwm unit
     pub fn get_duty(&self, temp: u32) -> Option<u8> {
-        self.curve
+        self.get_active_curve()
             .get_duty((temp / 10) as i16)
             .map(|duty| (((u32::from(duty)) * 255) / 10_000) as u8)
     }
@@ -150,12 +155,12 @@ impl Drop for FanDaemon {
     fn drop(&mut self) { self.set_duty(None); }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
 pub struct FanPoint {
     // Temperature in hundredths of a degree, 10000 = 100C
-    temp: i16,
+    pub(crate) temp: i16,
     // duty in hundredths of a percent, 10000 = 100%
-    duty: u16,
+    pub(crate) duty: u16,
 }
 
 impl FanPoint {
@@ -196,9 +201,10 @@ impl FanPoint {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[serde(transparent)]
 pub struct FanCurve {
-    points: Vec<FanPoint>,
+    pub(crate) points: Vec<FanPoint>,
 }
 
 impl FanCurve {

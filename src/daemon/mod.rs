@@ -4,6 +4,7 @@ use dbus::{
 };
 use std::{
     cell::RefCell,
+    collections::HashMap,
     rc::Rc,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -22,9 +23,10 @@ use crate::{
     Power, DBUS_IFACE, DBUS_NAME, DBUS_PATH,
 };
 
+pub mod config;
 mod profiles;
 
-use self::profiles::*;
+use self::{config::*, profiles::*};
 
 static CONTINUE: AtomicBool = AtomicBool::new(true);
 
@@ -52,6 +54,7 @@ static PCI_RUNTIME_PM: AtomicBool = AtomicBool::new(false);
 fn pci_runtime_pm_support() -> bool { PCI_RUNTIME_PM.load(Ordering::SeqCst) }
 
 struct PowerDaemon {
+    profiles:            HashMap<String, ProfileConfig>,
     graphics:            Graphics,
     power_profile:       String,
     profile_errors:      Vec<ProfileError>,
@@ -61,11 +64,13 @@ struct PowerDaemon {
 
 impl PowerDaemon {
     fn new(
+        profiles: HashMap<String, ProfileConfig>,
         power_switch_signal: Arc<Signal<()>>,
         dbus_connection: Arc<Connection>,
     ) -> Result<PowerDaemon, String> {
         let graphics = Graphics::new().map_err(err_str)?;
         Ok(PowerDaemon {
+            profiles,
             graphics,
             power_profile: String::new(),
             profile_errors: Vec::new(),
@@ -74,21 +79,21 @@ impl PowerDaemon {
         })
     }
 
-    fn apply_profile(
-        &mut self,
-        func: fn(&mut Vec<ProfileError>),
-        name: &str,
-    ) -> Result<(), String> {
-        func(&mut self.profile_errors);
+    fn apply_profile(&mut self, name: &str) -> Result<(), String> {
+        let name = name.to_lowercase();
+        let profile =
+            self.profiles.get(&name).ok_or_else(|| String::from("Profile not found"))?;
+
+        apply_profile(profile, &mut self.profile_errors);
 
         let message =
-            self.power_switch_signal.msg(&DBUS_PATH.into(), &DBUS_NAME.into()).append1(name);
+            self.power_switch_signal.msg(&DBUS_PATH.into(), &DBUS_NAME.into()).append1(&name);
 
         if let Err(()) = self.dbus_connection.send(message) {
             error!("failed to send power profile switch message");
         }
 
-        self.power_profile = name.into();
+        self.power_profile = name;
 
         if self.profile_errors.is_empty() {
             Ok(())
@@ -104,16 +109,12 @@ impl PowerDaemon {
 }
 
 impl Power for PowerDaemon {
-    fn battery(&mut self) -> Result<(), String> {
-        self.apply_profile(battery, "Battery").map_err(err_str)
-    }
+    fn battery(&mut self) -> Result<(), String> { self.apply_profile("battery").map_err(err_str) }
 
-    fn balanced(&mut self) -> Result<(), String> {
-        self.apply_profile(balanced, "Balanced").map_err(err_str)
-    }
+    fn balanced(&mut self) -> Result<(), String> { self.apply_profile("balanced").map_err(err_str) }
 
     fn performance(&mut self) -> Result<(), String> {
-        self.apply_profile(performance, "Performance").map_err(err_str)
+        self.apply_profile("performance").map_err(err_str)
     }
 
     fn get_graphics(&mut self) -> Result<String, String> {
@@ -159,7 +160,8 @@ pub fn daemon() -> Result<(), String> {
     let power_switch_signal =
         Arc::new(f.signal("PowerProfileSwitch", ()).sarg::<&str, _>("profile"));
 
-    let daemon = PowerDaemon::new(power_switch_signal.clone(), c.clone())?;
+    let Config { fans, profiles } = Config::new();
+    let daemon = PowerDaemon::new(profiles, power_switch_signal.clone(), c.clone())?;
     let nvidia_exists = !daemon.graphics.nvidia.is_empty();
     let daemon = Rc::new(RefCell::new(daemon));
 
@@ -260,7 +262,7 @@ pub fn daemon() -> Result<(), String> {
 
     c.add_handler(tree);
 
-    let mut fan_daemon = FanDaemon::new(nvidia_exists);
+    let mut fan_daemon = FanDaemon::new(fans, nvidia_exists);
 
     let hpd_res = unsafe { HotPlugDetect::new() };
 

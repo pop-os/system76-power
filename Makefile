@@ -24,6 +24,10 @@ ifeq ($(VENDORED),1)
 	ARGS += "--frozen"
 endif
 
+DAEMON_DEST = "$(DESTDIR)$(bindir)/$(BIN)"
+DBUS_DEST = "$(DESTDIR)$(sysconfdir)/dbus-1/system.d/$(BIN).conf"
+CONFIG_DEST = "$(DESTDIR)$(libdir)/$(BIN)/config.toml"
+
 all: target/release/$(BIN)
 
 clean:
@@ -32,13 +36,15 @@ clean:
 distclean:
 	rm -rf .cargo vendor vendor.tar.xz
 
-install: all
-	install -D -m 04755 "target/release/$(BIN)" "$(DESTDIR)$(bindir)/$(BIN)"
-	install -D -m 0644 "data/$(BIN).conf" "$(DESTDIR)$(sysconfdir)/dbus-1/system.d/$(BIN).conf"
+install:
+	install -Dm 04755 "target/$(TARGET)/$(BIN)" "$(DAEMON_DEST)"
+	install -Dm 0644 "data/$(BIN).conf" "$(DBUS_DEST)"
+	install -Dm 0644 "data/config.toml" "$(CONFIG_DEST)"
 
 uninstall:
-	rm -f "$(DESTDIR)$(bindir)/$(BIN)"
-	rm -f "$(DESTDIR)$(sysconfdir)/dbus-1/system.d/$(BIN).conf"
+	rm -f "$(DAEMON_DEST)"
+	rm -f "$(DBUS_DEST)"
+	rm -f "$(CONFIG_DEST)"
 
 update:
 	cargo update
@@ -50,7 +56,7 @@ vendor:
 	tar pcfJ vendor.tar.xz vendor
 	rm -rf vendor
 
-target/release/$(BIN): $(SRC)
+target/$(TARGET)/$(BIN): $(SRC)
 ifeq ($(VENDORED),1)
 	tar pxf vendor.tar.xz
 endif

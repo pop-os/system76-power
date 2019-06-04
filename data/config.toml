@@ -1,0 +1,66 @@
+# This file is maintained by system76-power, and therefore should not be edited.
+#
+# To make changes to the power daemon configuration, create a file at
+# `/etc/system76-power/config.toml` which contains the parameters that
+# you want to modify.
+
+[fans]
+enable = true
+
+# A curve is defined as a collection of points, each point containing a:
+#   - `temp`: System temperature, measured in Celsius.
+#   - `duty`: Fan speed, as a percent of its max speed.
+curves.standard = [ { temp = 39, duty =   0 },
+                 { temp = 40, duty =  40 },
+                 { temp = 50, duty =  50 },
+                 { temp = 60, duty =  65 },
+                 { temp = 70, duty =  85 },
+                 { temp = 75, duty = 100 } ]
+
+[profiles.battery]
+backlight.method = 'lower'
+backlight.keyboard = 0
+backlight.screen = 10
+disk.apm_level = 127
+disk.autosuspend_delay = 15
+laptop_mode = 2
+max_lost_work = 15
+pci_runtime_pm = true
+pstate.min = 0
+pstate.max = 50
+pstate.turbo = false
+radeon.profile = 'low'
+radeon.dpm_state = 'battery'
+radeon.dpm_perf = 'low'
+scsi_host_link_time_pm_policy = [ 'min_power', 'min_power' ]
+
+[profiles.balanced]
+backlight.method = 'lower'
+backlight.keyboard = 50
+backlight.screen = 40
+disk.apm_level = 127
+disk.autosuspend_delay = 60
+laptop_mode = 2
+max_lost_work = 15
+pci_runtime_pm = true
+pstate.min = 0
+pstate.max = 100
+pstate.turbo = true
+radeon.profile = 'auto'
+radeon.dpm_state = 'performance'
+radeon.dpm_perf = 'auto'
+scsi_host_link_time_pm_policy = [ 'med_power_with_dipm', 'medium_power' ]
+
+[profiles.performance]
+disk.apm_level = 254
+disk.autosuspend_delay = 300
+laptop_mode = 0
+max_lost_work = 15
+pci_runtime_pm = true
+pstate.min = 50
+pstate.max = 100
+pstate.turbo = true
+radeon.profile = 'high'
+radeon.dpm_state = 'performance'
+radeon.dpm_perf = 'auto'
+scsi_host_link_time_pm_policy = [ 'med_power_with_dipm', 'max_performance' ]

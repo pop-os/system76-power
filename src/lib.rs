@@ -3,6 +3,8 @@ extern crate err_derive;
 extern crate intel_pstate as pstate;
 #[macro_use]
 extern crate log;
+#[macro_use]
+extern crate serde_derive;
 
 pub mod client;
 pub mod daemon;
