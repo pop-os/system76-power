@@ -260,11 +260,7 @@ pub fn daemon() -> Result<(), String> {
 
     c.add_handler(tree);
 
-    let fan_daemon_res = FanDaemon::new(nvidia_exists);
-
-    if let Err(ref err) = fan_daemon_res {
-        error!("fan daemon: {}", err);
-    }
+    let mut fan_daemon = FanDaemon::new(nvidia_exists);
 
     let hpd_res = unsafe { HotPlugDetect::new() };
 
@@ -284,9 +280,7 @@ pub fn daemon() -> Result<(), String> {
     while CONTINUE.load(Ordering::SeqCst) {
         c.incoming(1000).next();
 
-        if let Ok(ref fan_daemon) = fan_daemon_res {
-            fan_daemon.step();
-        }
+        fan_daemon.step();
 
         let hpd = hpd();
         for i in 0..hpd.len() {
