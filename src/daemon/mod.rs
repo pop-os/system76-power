@@ -52,6 +52,7 @@ static PCI_RUNTIME_PM: AtomicBool = AtomicBool::new(false);
 fn pci_runtime_pm_support() -> bool { PCI_RUNTIME_PM.load(Ordering::SeqCst) }
 
 struct PowerDaemon {
+    initial_set:         bool,
     graphics:            Graphics,
     power_profile:       String,
     profile_errors:      Vec<ProfileError>,
@@ -66,6 +67,7 @@ impl PowerDaemon {
     ) -> Result<PowerDaemon, String> {
         let graphics = Graphics::new().map_err(err_str)?;
         Ok(PowerDaemon {
+            initial_set: false,
             graphics,
             power_profile: String::new(),
             profile_errors: Vec::new(),
@@ -76,10 +78,10 @@ impl PowerDaemon {
 
     fn apply_profile(
         &mut self,
-        func: fn(&mut Vec<ProfileError>),
+        func: fn(&mut Vec<ProfileError>, bool),
         name: &str,
     ) -> Result<(), String> {
-        func(&mut self.profile_errors);
+        func(&mut self.profile_errors, self.initial_set);
 
         let message =
             self.power_switch_signal.msg(&DBUS_PATH.into(), &DBUS_NAME.into()).append1(name);
@@ -174,10 +176,17 @@ pub fn daemon() -> Result<(), String> {
         }
     }
 
-    info!("Initializing with the balanced profile");
-    if let Err(why) = daemon.borrow_mut().balanced() {
-        warn!("Failed to set initial profile: {}", why);
+    {
+        info!("Initializing with the balanced profile");
+        let mut daemon = daemon.borrow_mut();
+        if let Err(why) = daemon.balanced() {
+            warn!("Failed to set initial profile: {}", why);
+        }
+
+        daemon.initial_set = true;
     }
+
+
 
     info!("Registering dbus name {}", DBUS_NAME);
     c.register_name(DBUS_NAME, NameFlag::ReplaceExisting as u32).map_err(err_str)?;
