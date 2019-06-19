@@ -47,6 +47,11 @@ impl Power for PowerClient {
         self.call_method::<bool>("Balanced", None).map(|_| ())
     }
 
+    fn cool(&mut self) -> Result<(), String> {
+        println!("setting power profile to cool");
+        self.call_method::<bool>("Cool", None).map(|_| ())
+    }
+
     fn battery(&mut self) -> Result<(), String> {
         println!("setting power profile to battery");
         self.call_method::<bool>("Battery", None).map(|_| ())
@@ -136,6 +141,7 @@ pub fn client(subcommand: &str, matches: &ArgMatches) -> Result<(), String> {
     match subcommand {
         "profile" => match matches.value_of("profile") {
             Some("balanced") => client.balanced(),
+            Some("cool") => client.cool(),
             Some("battery") => client.battery(),
             Some("performance") => client.performance(),
             _ => profile(&mut client).map_err(err_str),

@@ -112,6 +112,10 @@ impl Power for PowerDaemon {
         self.apply_profile(balanced, "Balanced").map_err(err_str)
     }
 
+    fn cool(&mut self) -> Result<(), String> {
+        self.apply_profile(cool, "Cool").map_err(err_str)
+    }
+
     fn performance(&mut self) -> Result<(), String> {
         self.apply_profile(performance, "Performance").map_err(err_str)
     }
@@ -232,6 +236,7 @@ pub fn daemon() -> Result<(), String> {
             f.interface(DBUS_IFACE, ())
                 .add_m(method!(performance, "Performance", false, false))
                 .add_m(method!(balanced, "Balanced", false, false))
+                .add_m(method!(cool, "Cool", false, false))
                 .add_m(method!(battery, "Battery", false, false))
                 .add_m(
                     method!(get_graphics, "GetGraphics", true, false).outarg::<&str, _>("vendor"),

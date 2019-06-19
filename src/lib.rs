@@ -32,6 +32,7 @@ pub static DBUS_IFACE: &'static str = "com.system76.PowerDaemon";
 pub trait Power {
     fn performance(&mut self) -> Result<(), String>;
     fn balanced(&mut self) -> Result<(), String>;
+    fn cool(&mut self) -> Result<(), String>;
     fn battery(&mut self) -> Result<(), String>;
     fn get_graphics(&mut self) -> Result<String, String>;
     fn get_profile(&mut self) -> Result<String, String>;

@@ -46,7 +46,7 @@ fn main() {
                 .arg(
                     Arg::with_name("profile")
                         .help("set the power profile")
-                        .possible_values(&["battery", "balanced", "performance"])
+                        .possible_values(&["battery", "balanced", "cool", "performance"])
                         .required(false),
                 ),
         )
