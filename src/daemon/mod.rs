@@ -266,11 +266,11 @@ pub fn daemon() -> Result<(), String> {
 
     let mux_res = unsafe { DisplayPortMux::new() };
 
-    let hpd = || -> [bool; 3] {
+    let hpd = || -> [bool; 4] {
         if let Ok(ref hpd) = hpd_res {
             unsafe { hpd.detect() }
         } else {
-            [false; 3]
+            [false; 4]
         }
     };
 
