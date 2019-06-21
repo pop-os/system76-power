@@ -18,7 +18,7 @@ pub enum HotPlugDetectError {
 pub struct HotPlugDetect {
     sideband: Sideband,
     port:     u8,
-    pins:     [u8; 3],
+    pins:     [u8; 4],
 }
 
 impl HotPlugDetect {
@@ -27,6 +27,16 @@ impl HotPlugDetect {
             .map_err(HotPlugDetectError::ProductVersion)?;
 
         match model.trim() {
+            "addp1" => Ok(HotPlugDetect {
+                sideband: Sideband::new(0xFD00_0000).map_err(HotPlugDetectError::Sideband)?,
+                port:     0x6A,
+                pins:     [
+                    0x28, // USB-C on rear
+                    0x2a, // HDMI
+                    0x2c, // Mini DisplayPort
+                    0x2e, // USB-C on right
+                ],
+            }),
             "gaze14" => {
                 let variant = read_to_string("/sys/bus/pci/devices/0000:00:00.0/subsystem_device")
                     .map_err(|why| HotPlugDetectError::SubsystemDevice { model: "gaze14", why })?;
@@ -41,6 +51,7 @@ impl HotPlugDetect {
                             0x2a, // HDMI
                             0x00, // Mini DisplayPort (0x2c) is connected to Intel graphics
                             0x2e, // USB-C
+                            0x00, // Not Connected
                         ],
                     }),
                     // NVIDIA GTX 1650
@@ -51,7 +62,8 @@ impl HotPlugDetect {
                         pins:     [
                             0x00, // HDMI (0x2a) is connected to Intel graphics
                             0x2e, // Mini DisplayPort
-                            0x00, // Only two external display connectors
+                            0x00, // Not Connected
+                            0x00, // Not Connected
                         ],
                     }),
                     other => Err(HotPlugDetectError::VariantUnsupported {
@@ -67,14 +79,15 @@ impl HotPlugDetect {
                     0x28, // USB-C
                     0x2a, // HDMI
                     0x2c, // Mini DisplayPort
+                    0x00, // Not Connected
                 ],
             }),
             other => Err(HotPlugDetectError::ModelUnsupported(other.into())),
         }
     }
 
-    pub unsafe fn detect(&self) -> [bool; 3] {
-        let mut hpd = [false; 3];
+    pub unsafe fn detect(&self) -> [bool; 4] {
+        let mut hpd = [false; 4];
         for i in 0..self.pins.len() {
             let pin = self.pins[i];
             if pin > 0 {
