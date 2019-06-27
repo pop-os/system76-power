@@ -27,7 +27,7 @@ impl HotPlugDetect {
             .map_err(HotPlugDetectError::ProductVersion)?;
 
         match model.trim() {
-            "addp1" => Ok(HotPlugDetect {
+            "addw1" => Ok(HotPlugDetect {
                 sideband: Sideband::new(0xFD00_0000).map_err(HotPlugDetectError::Sideband)?,
                 port:     0x6A,
                 pins:     [
