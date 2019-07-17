@@ -29,7 +29,7 @@ impl FanDaemon {
         let model = fs::read_to_string("/sys/class/dmi/id/product_version")
             .unwrap_or(String::new());
         let mut daemon = FanDaemon {
-            curve: match model.as_str() {
+            curve: match model.trim() {
                 "thelio-major-r1" => FanCurve::threadripper(),
                 _ => FanCurve::standard()
             },
