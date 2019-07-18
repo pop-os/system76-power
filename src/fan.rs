@@ -1,6 +1,6 @@
 use std::{
     cell::Cell,
-    cmp, io,
+    cmp, fs, io,
     process::{Command, Stdio},
 };
 use sysfs_class::{HwMon, SysClass};
@@ -26,8 +26,13 @@ pub struct FanDaemon {
 
 impl FanDaemon {
     pub fn new(nvidia_exists: bool) -> Self {
+        let model = fs::read_to_string("/sys/class/dmi/id/product_version")
+            .unwrap_or(String::new());
         let mut daemon = FanDaemon {
-            curve: FanCurve::standard(),
+            curve: match model.trim() {
+                "thelio-major-r1" => FanCurve::threadripper(),
+                _ => FanCurve::standard()
+            },
             amdgpus: Vec::new(),
             platforms: Vec::new(),
             cpus: Vec::new(),
@@ -217,6 +222,17 @@ impl FanCurve {
             .append(60_00,  65_00)
             .append(70_00,  85_00)
             .append(75_00, 100_00)
+    }
+
+    /// Adjusted fan curve for threadripper
+    pub fn threadripper() -> Self {
+        Self::default()
+            .append(39_99,   0_00)
+            .append(40_00,  40_00)
+            .append(47_50,  50_00)
+            .append(55_00,  65_00)
+            .append(62_50,  85_00)
+            .append(66_25, 100_00)
     }
 
     pub fn get_duty(&self, temp: i16) -> Option<u16> {
