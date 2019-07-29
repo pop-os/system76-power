@@ -24,7 +24,7 @@ macro_rules! catch {
 }
 
 /// Sets parameters for the balanced profile.
-pub fn balanced(errors: &mut Vec<ProfileError>) {
+pub fn balanced(errors: &mut Vec<ProfileError>, set_brightness: bool) {
     // The dirty kernel parameter controls how often the OS will sync data to disks. The less
     // frequently this occurs, the more power can be saved, yet the higher the risk of sudden
     // power loss causing loss of data. 15s is a resonable number.
@@ -43,11 +43,13 @@ pub fn balanced(errors: &mut Vec<ProfileError>) {
     // Enables SCSI / SATA link time power management.
     catch!(errors, scsi_host_link_time_pm_policy(&["med_power_with_dipm", "medium_power"]));
 
-    // Manage screen backlights.
-    catch!(errors, iterate_backlights(Backlight::iter(), &Brightness::set_if_lower_than, 40));
+    if set_brightness {
+        // Manage screen backlights.
+        catch!(errors, iterate_backlights(Backlight::iter(), &Brightness::set_if_lower_than, 40));
 
-    // Manage keyboard backlights.
-    catch!(errors, iterate_backlights(Leds::iter_keyboards(), &Brightness::set_if_lower_than, 50));
+        // Manage keyboard backlights.
+        catch!(errors, iterate_backlights(Leds::iter_keyboards(), &Brightness::set_if_lower_than, 50));
+    }
 
     // Parameters which may cause on certain systems.
     if pci_runtime_pm_support() {
@@ -60,7 +62,7 @@ pub fn balanced(errors: &mut Vec<ProfileError>) {
 }
 
 /// Sets parameters for the perfromance profile
-pub fn performance(errors: &mut Vec<ProfileError>) {
+pub fn performance(errors: &mut Vec<ProfileError>, _set_brightness: bool) {
     Dirty::default().set_max_lost_work(15);
     LaptopMode::default().set(b"0");
     RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("high", "performance", "auto"));
@@ -74,15 +76,18 @@ pub fn performance(errors: &mut Vec<ProfileError>) {
 }
 
 /// Sets parameters for the battery profile
-pub fn battery(errors: &mut Vec<ProfileError>) {
+pub fn battery(errors: &mut Vec<ProfileError>, set_brightness: bool) {
     Dirty::default().set_max_lost_work(15);
     LaptopMode::default().set(b"2");
     RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("low", "battery", "low"));
     catch!(errors, set_disk_power(127, 15000));
     catch!(errors, scsi_host_link_time_pm_policy(&["min_power", "min_power"]));
-    catch!(errors, iterate_backlights(Backlight::iter(), &Brightness::set_if_lower_than, 10));
-    catch!(errors, iterate_backlights(Leds::iter_keyboards(), &Brightness::set_brightness, 0));
     catch!(errors, pstate_values(0, 50, true));
+
+    if set_brightness {
+        catch!(errors, iterate_backlights(Backlight::iter(), &Brightness::set_if_lower_than, 10));
+        catch!(errors, iterate_backlights(Leds::iter_keyboards(), &Brightness::set_brightness, 0));
+    }
 
     if pci_runtime_pm_support() {
         catch!(errors, pci_device_runtime_pm(RuntimePowerManagement::On));
