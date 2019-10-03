@@ -33,7 +33,7 @@ impl DisplayPortMux {
                 hpd:      (0xAE, 0x31), // GPP_E13
                 mux:      (0xAF, 0x16), // GPP_A22
             }),
-            "darp5" | "galp3-c" => Ok(DisplayPortMux {
+            "darp5" | "darp6" | "galp3-c" | "galp4" => Ok(DisplayPortMux {
                 sideband: Sideband::new(0xFD00_0000)?,
                 hpd:      (0x6A, 0x4A), // GPP_E13
                 mux:      (0x6E, 0x2C), // GPP_A22
