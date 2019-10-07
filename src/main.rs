@@ -58,6 +58,10 @@ fn main() {
                      graphics profile will be queried\n - Otherwise, that profile will be set, if \
                      it is a valid profile",
                 )
+                .subcommand(
+                    SubCommand::with_name("hybrid")
+                        .about("Set the graphics mode to Hybrid (PRIME)"),
+                )
                 .subcommand(SubCommand::with_name("intel").about("Set the graphics mode to Intel"))
                 .subcommand(
                     SubCommand::with_name("nvidia").about("Set the graphics mode to NVIDIA"),
