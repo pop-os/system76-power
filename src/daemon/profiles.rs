@@ -61,7 +61,7 @@ pub fn balanced(errors: &mut Vec<ProfileError>, set_brightness: bool) {
     catch!(errors, pstate_values(0, 100, false));
 }
 
-/// Sets parameters for the perfromance profile
+/// Sets parameters for the performance profile
 pub fn performance(errors: &mut Vec<ProfileError>, _set_brightness: bool) {
     Dirty::default().set_max_lost_work(15);
     LaptopMode::default().set(b"0");
