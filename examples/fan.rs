@@ -9,7 +9,7 @@ use system76_power::{
 };
 
 fn inner() -> Result<(), FanDaemonError> {
-    let daemon = FanDaemon::new(false)?;
+    let daemon = FanDaemon::new(false);
 
     loop {
         if let Some(temp) = daemon.get_temp() {
