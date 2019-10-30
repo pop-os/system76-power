@@ -81,6 +81,11 @@ impl PowerDaemon {
         func: fn(&mut Vec<ProfileError>, bool),
         name: &str,
     ) -> Result<(), String> {
+        if &self.power_profile == name {
+            info!("profile was already set");
+            return Ok(())
+        }
+
         func(&mut self.profile_errors, self.initial_set);
 
         let message =
