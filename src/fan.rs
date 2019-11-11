@@ -31,6 +31,7 @@ impl FanDaemon {
         let mut daemon = FanDaemon {
             curve: match model.trim() {
                 "thelio-major-r1" => FanCurve::threadripper(),
+                "thelio-major-b1" => FanCurve::corex(),
                 _ => FanCurve::standard()
             },
             amdgpus: Vec::new(),
@@ -216,12 +217,24 @@ impl FanCurve {
     /// The standard fan curve
     pub fn standard() -> Self {
         Self::default()
-            .append(39_99,   0_00)
-            .append(40_00,  40_00)
-            .append(50_00,  50_00)
-            .append(60_00,  65_00)
-            .append(70_00,  85_00)
-            .append(75_00, 100_00)
+            .append(44_99,   0_00)
+            .append(45_00,  40_00)
+            .append(55_00,  50_00)
+            .append(65_00,  60_00)
+            .append(75_00,  70_00)
+            .append(85_00,  85_00)
+            .append(90_00, 100_00)
+    }
+
+    /// Adjusted fan curve for core-x
+    pub fn corex() -> Self {
+        Self::default()
+            .append(44_99,   0_00)
+            .append(45_00,  40_00)
+            .append(55_00,  50_00)
+            .append(65_00,  65_00)
+            .append(75_00,  85_00)
+            .append(80_00, 100_00)
     }
 
     /// Adjusted fan curve for threadripper
