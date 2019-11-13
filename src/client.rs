@@ -34,22 +34,25 @@ impl PowerClient {
 
         Ok(r)
     }
+
+    fn set_profile(&mut self, profile: &str) -> Result<(), String> {
+        println!("setting power profile to {}", profile);
+        self.call_method::<bool>(profile, None)?;
+        Ok(())
+    }
 }
 
 impl Power for PowerClient {
     fn performance(&mut self) -> Result<(), String> {
-        println!("setting power profile to performance");
-        self.call_method::<bool>("Performance", None).map(|_| ())
+        self.set_profile("Performance")
     }
 
     fn balanced(&mut self) -> Result<(), String> {
-        println!("setting power profile to balanced");
-        self.call_method::<bool>("Balanced", None).map(|_| ())
+        self.set_profile("Balanced")
     }
 
     fn battery(&mut self) -> Result<(), String> {
-        println!("setting power profile to battery");
-        self.call_method::<bool>("Battery", None).map(|_| ())
+        self.set_profile("Battery")
     }
 
     fn get_graphics(&mut self) -> Result<String, String> {
