@@ -218,11 +218,11 @@ impl FanCurve {
     pub fn standard() -> Self {
         Self::default()
             .append(44_99,   0_00)
-            .append(45_00,  40_00)
-            .append(55_00,  50_00)
-            .append(65_00,  60_00)
-            .append(75_00,  70_00)
-            .append(85_00,  85_00)
+            .append(45_00,  30_00)
+            .append(55_00,  35_00)
+            .append(65_00,  40_00)
+            .append(75_00,  45_00)
+            .append(80_00,  50_00)
             .append(90_00, 100_00)
     }
 
