@@ -31,6 +31,7 @@ impl FanDaemon {
         let mut daemon = FanDaemon {
             curve: match model.trim() {
                 "thelio-major-r1" => FanCurve::threadripper(),
+                "thelio-major-b1" => FanCurve::corex(),
                 _ => FanCurve::standard()
             },
             amdgpus: Vec::new(),
@@ -216,12 +217,24 @@ impl FanCurve {
     /// The standard fan curve
     pub fn standard() -> Self {
         Self::default()
-            .append(39_99,   0_00)
-            .append(40_00,  40_00)
-            .append(50_00,  50_00)
-            .append(60_00,  65_00)
-            .append(70_00,  85_00)
-            .append(75_00, 100_00)
+            .append(44_99,   0_00)
+            .append(45_00,  30_00)
+            .append(55_00,  35_00)
+            .append(65_00,  40_00)
+            .append(75_00,  45_00)
+            .append(80_00,  50_00)
+            .append(90_00, 100_00)
+    }
+
+    /// Adjusted fan curve for core-x
+    pub fn corex() -> Self {
+        Self::default()
+            .append(44_99,   0_00)
+            .append(45_00,  40_00)
+            .append(55_00,  50_00)
+            .append(65_00,  65_00)
+            .append(75_00,  85_00)
+            .append(80_00, 100_00)
     }
 
     /// Adjusted fan curve for threadripper
@@ -304,12 +317,27 @@ mod tests {
         let standard = FanCurve::standard();
 
         assert_eq!(standard.get_duty(0), Some(0));
-        assert_eq!(standard.get_duty(3999), Some(0));
-        assert_eq!(standard.get_duty(4000), Some(4000));
-        assert_eq!(standard.get_duty(5000), Some(5000));
-        assert_eq!(standard.get_duty(6000), Some(6500));
-        assert_eq!(standard.get_duty(7000), Some(8500));
-        assert_eq!(standard.get_duty(7500), Some(10000));
+        assert_eq!(standard.get_duty(4499), Some(0));
+        assert_eq!(standard.get_duty(4500), Some(3000));
+        assert_eq!(standard.get_duty(5500), Some(3500));
+        assert_eq!(standard.get_duty(6500), Some(4000));
+        assert_eq!(standard.get_duty(7500), Some(4500));
+        assert_eq!(standard.get_duty(8000), Some(5000));
+        assert_eq!(standard.get_duty(9000), Some(10000));
         assert_eq!(standard.get_duty(10000), Some(10000));
+    }
+
+    #[test]
+    fn corex_points() {
+        let corex = FanCurve::corex();
+
+        assert_eq!(corex.get_duty(0), Some(0));
+        assert_eq!(corex.get_duty(4499), Some(0));
+        assert_eq!(corex.get_duty(4500), Some(4000));
+        assert_eq!(corex.get_duty(5500), Some(5000));
+        assert_eq!(corex.get_duty(6500), Some(6500));
+        assert_eq!(corex.get_duty(7500), Some(8500));
+        assert_eq!(corex.get_duty(8000), Some(10000));
+        assert_eq!(corex.get_duty(10000), Some(10000));
     }
 }
