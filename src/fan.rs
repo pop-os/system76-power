@@ -317,12 +317,27 @@ mod tests {
         let standard = FanCurve::standard();
 
         assert_eq!(standard.get_duty(0), Some(0));
-        assert_eq!(standard.get_duty(3999), Some(0));
-        assert_eq!(standard.get_duty(4000), Some(4000));
-        assert_eq!(standard.get_duty(5000), Some(5000));
-        assert_eq!(standard.get_duty(6000), Some(6500));
-        assert_eq!(standard.get_duty(7000), Some(8500));
-        assert_eq!(standard.get_duty(7500), Some(10000));
+        assert_eq!(standard.get_duty(4499), Some(0));
+        assert_eq!(standard.get_duty(4500), Some(3000));
+        assert_eq!(standard.get_duty(5500), Some(3500));
+        assert_eq!(standard.get_duty(6500), Some(4000));
+        assert_eq!(standard.get_duty(7500), Some(4500));
+        assert_eq!(standard.get_duty(8000), Some(5000));
+        assert_eq!(standard.get_duty(9000), Some(10000));
         assert_eq!(standard.get_duty(10000), Some(10000));
+    }
+
+    #[test]
+    fn corex_points() {
+        let corex = FanCurve::corex();
+
+        assert_eq!(corex.get_duty(0), Some(0));
+        assert_eq!(corex.get_duty(4499), Some(0));
+        assert_eq!(corex.get_duty(4500), Some(4000));
+        assert_eq!(corex.get_duty(5500), Some(5000));
+        assert_eq!(corex.get_duty(6500), Some(6500));
+        assert_eq!(corex.get_duty(7500), Some(8500));
+        assert_eq!(corex.get_duty(8000), Some(10000));
+        assert_eq!(corex.get_duty(10000), Some(10000));
     }
 }
