@@ -30,7 +30,7 @@ static CONTINUE: AtomicBool = AtomicBool::new(true);
 
 fn signal_handling() {
     extern "C" fn handler(signal: libc::c_int) {
-        info!("caught signal: {}", signal);
+        error!("caught signal: {}", signal);
         CONTINUE.store(false, Ordering::SeqCst);
     }
 
