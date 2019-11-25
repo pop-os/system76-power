@@ -229,6 +229,22 @@ impl Graphics {
 
         const SYSTEMCTL_CMD: &str = "systemctl";
 
+        // NVIDIA driver functions are still in use, so we can't turn off power
+        // yet if switching to Intel.
+        if vendor == "nvidia" || vendor == "hybrid" {
+            self.set_power(true)?;
+        }
+
+        let status = process::Command::new(SYSTEMCTL_CMD)
+            .arg("restart")
+            .arg("gpu-manager.service")
+            .status()
+            .map_err(|why| GraphicsDeviceError::Command { cmd: SYSTEMCTL_CMD, why })?;
+
+        if !status.success() {
+            warn!("Unable to restart gpu-manager: {}", status);
+        }
+
         let action = if vendor == "nvidia" {
             info!("Enabling nvidia-fallback.service");
             "enable"
