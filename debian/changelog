@@ -1,3 +1,9 @@
+system76-power (1.1.2) eoan; urgency=medium
+
+  * 1.1.2 release.
+
+ -- Jeremy Soller <jeremy@system76.com>  Wed, 18 Dec 2019 09:44:55 -0700
+
 system76-power (1.0.1) bionic; urgency=medium
 
   * 1.0.1 release.
