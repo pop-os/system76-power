@@ -202,7 +202,9 @@ impl Graphics {
         Ok(Graphics { bus, amd, intel, nvidia, other })
     }
 
-    pub fn can_switch(&self) -> bool { !self.intel.is_empty() && !self.nvidia.is_empty() }
+    pub fn can_switch(&self) -> bool {
+        !self.nvidia.is_empty() && (!self.intel.is_empty() || !self.amd.is_empty())
+    }
 
     fn get_prime_discrete() -> Result<String, GraphicsDeviceError> {
         fs::read_to_string(PRIME_DISCRETE_PATH)
