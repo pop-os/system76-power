@@ -2,11 +2,11 @@
 
 **system76-power** is a utility for managing graphics and power profiles.
 
-## Graphics
+## Graphics Modes
 
-### Intel
+### Integrated
 
-The iGPU (Intel) is used exclusively.
+The integrated graphics controller on the Intel or AMD CPU is used exclusively.
 
 Lower graphical performance with a longer battery life.
 
