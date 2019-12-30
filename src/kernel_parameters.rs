@@ -54,7 +54,7 @@ pub trait KernelParameter {
 pub trait DeviceList<T> {
     const SUPPORTED: &'static [&'static str];
 
-    fn get_devices() -> Box<Iterator<Item = T>>;
+    fn get_devices() -> Box<dyn Iterator<Item = T>>;
 }
 
 // Macros to help with constructing kernel parameter structures.
