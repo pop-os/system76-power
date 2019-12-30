@@ -1,6 +1,6 @@
 use dbus::{
+    ffidisp::{Connection, NameFlag},
     tree::{Factory, MethodErr, Signal},
-    BusType, Connection, NameFlag,
 };
 use std::{
     cell::RefCell,
@@ -159,7 +159,7 @@ pub fn daemon() -> Result<(), String> {
     PCI_RUNTIME_PM.store(pci_runtime_pm, Ordering::SeqCst);
 
     info!("Connecting to dbus system bus");
-    let c = Arc::new(Connection::get_private(BusType::System).map_err(err_str)?);
+    let c = Arc::new(Connection::new_system().map_err(err_str)?);
 
     let f = Factory::new_fn::<()>();
     let hotplug_signal = Arc::new(f.signal("HotPlugDetect", ()).sarg::<u64, _>("port"));
@@ -190,8 +190,6 @@ pub fn daemon() -> Result<(), String> {
 
         daemon.initial_set = true;
     }
-
-
 
     info!("Registering dbus name {}", DBUS_NAME);
     c.register_name(DBUS_NAME, NameFlag::ReplaceExisting as u32).map_err(err_str)?;
