@@ -209,15 +209,15 @@ dependencies = [
 
 [[package]]
 name = "sysfs-class"
-version = "0.1.1"
-source = "git+https://github.com/pop-os/sysfs-class#7bc914e0ac41df18a671ede0691fcd7d1f7e8add"
+version = "0.1.2"
+source = "git+https://github.com/pop-os/sysfs-class#25c8ab30c9dc7895bf9c3f76d0109b8c7da32181"
 dependencies = [
  "numtoa 0.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "system76-power"
-version = "1.0.1"
+version = "1.1.2"
 dependencies = [
  "clap 2.33.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "dbus 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -226,7 +226,7 @@ dependencies = [
  "intel-pstate 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.66 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "sysfs-class 0.1.1 (git+https://github.com/pop-os/sysfs-class)",
+ "sysfs-class 0.1.2 (git+https://github.com/pop-os/sysfs-class)",
  "vergen 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -330,7 +330,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum strsim 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)" = "8ea5119cdb4c55b55d432abb513a0429384878c15dde60cc77b1c99de1a95a6a"
 "checksum syn 0.15.34 (registry+https://github.com/rust-lang/crates.io-index)" = "a1393e4a97a19c01e900df2aec855a29f71cf02c402e2f443b8d2747c25c5dbe"
 "checksum synstructure 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)" = "73687139bf99285483c96ac0add482c3776528beac1d97d444f6e91f203a2015"
-"checksum sysfs-class 0.1.1 (git+https://github.com/pop-os/sysfs-class)" = "<none>"
+"checksum sysfs-class 0.1.2 (git+https://github.com/pop-os/sysfs-class)" = "<none>"
 "checksum termion 1.5.2 (registry+https://github.com/rust-lang/crates.io-index)" = "dde0593aeb8d47accea5392b39350015b5eccb12c0d98044d856983d89548dea"
 "checksum textwrap 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)" = "d326610f408c7a4eb6f51c37c330e496b08506c9457c9d34287ecc38809fb060"
 "checksum time 0.1.42 (registry+https://github.com/rust-lang/crates.io-index)" = "db8dcfca086c1143c9270ac42a2bbd8a7ee477b78ac8e45b19abfb0cbede4b6f"
