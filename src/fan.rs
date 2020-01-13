@@ -30,9 +30,11 @@ impl FanDaemon {
             .unwrap_or(String::new());
         let mut daemon = FanDaemon {
             curve: match model.trim() {
-                "thelio-major-r1" |
-                "thelio-major-r2" => FanCurve::threadripper(),
-                "thelio-major-b1" => FanCurve::corex(),
+                "thelio-major-r1" | 
+                "thelio-major-r2" | 
+                "thelio-mega-r1" => FanCurve::threadripper(),
+                "thelio-major-b1" | 
+                "thelio-mega-b1" => FanCurve::corex(),
                 "thelio-massive-b1" => FanCurve::xeon(),
                 _ => FanCurve::standard()
             },
