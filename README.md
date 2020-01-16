@@ -38,10 +38,8 @@ drivers currently do not support display offload sink ("reverse PRIME") when
 configured for render offloading.
 
 NVIDIA driver power management is only fully implemented for Turing cards. This
-allows them to enter a low power state when not used. It currently requires
-manually adding some [udev rules] to work correctly. Pascal cards are not
+allows them to enter a low power state when not used. Pascal cards are not
 supported and will remain on, even when not in use.
 
 
 [GLVND]: https://github.com/NVIDIA/libglvnd
-[udev rules]: https://download.nvidia.com/XFree86/Linux-x86_64/435.21/README/dynamicpowermanagement.html#AutomatedSetup803b0
