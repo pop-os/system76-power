@@ -30,9 +30,9 @@ impl FanDaemon {
             .unwrap_or(String::new());
         let mut daemon = FanDaemon {
             curve: match model.trim() {
-                "thelio-major-r1" | 
+                "thelio-major-r1" => FanCurve::threadripper(),
                 "thelio-major-r2" | 
-                "thelio-mega-r1" => FanCurve::threadripper(),
+                "thelio-mega-r1" => FanCurve::threadripper3(),
                 "thelio-major-b1" | 
                 "thelio-mega-b1" => FanCurve::corex(),
                 "thelio-massive-b1" => FanCurve::xeon(),
@@ -252,6 +252,19 @@ impl FanCurve {
             .append(66_25, 100_00)
     }
 
+    /// Adjusted fan curve for threadripper 3
+    pub fn threadripper3() -> Self {
+        Self::default()
+            .append(00_00,  30_00)
+            .append(50_00,  35_00)
+            .append(60_00,  45_00)
+            .append(70_00,  55_00)
+            .append(74_00,  60_00)
+            .append(76_00,  70_00)
+            .append(78_00,  80_00)
+            .append(81_00, 100_00)
+    }
+
     /// Adjusted fan curve for xeon
     pub fn xeon() -> Self {
         Self::default()
@@ -344,6 +357,21 @@ mod tests {
         assert_eq!(standard.get_duty(7500), Some(4500));
         assert_eq!(standard.get_duty(8000), Some(5000));
         assert_eq!(standard.get_duty(9000), Some(10000));
+        assert_eq!(standard.get_duty(10000), Some(10000));
+    }
+
+    #[test]
+    fn threadripper3_points() {
+        let threadripper3 = FanCurve::threadripper3();
+
+        assert_eq!(standard.get_duty(0), Some(3000));
+        assert_eq!(standard.get_duty(5000), Some(3500));
+        assert_eq!(standard.get_duty(6000), Some(4500));
+        assert_eq!(standard.get_duty(7000), Some(5500));
+        assert_eq!(standard.get_duty(7400), Some(6000));
+        assert_eq!(standard.get_duty(7600), Some(7000));
+        assert_eq!(standard.get_duty(7800), Some(8000));
+        assert_eq!(standard.get_duty(8100), Some(10000));
         assert_eq!(standard.get_duty(10000), Some(10000));
     }
 
