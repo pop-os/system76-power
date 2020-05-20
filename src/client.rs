@@ -145,7 +145,7 @@ pub fn client(subcommand: &str, matches: &ArgMatches) -> Result<(), String> {
         },
         "graphics" => match matches.subcommand() {
             ("hybrid", _) => client.set_graphics("hybrid"),
-            ("intel", _) => client.set_graphics("intel"),
+            ("integrated", _) | ("intel", _) => client.set_graphics("integrated"),
             ("nvidia", _) => client.set_graphics("nvidia"),
             ("switchable", _) => {
                 if client.get_switchable()? {
