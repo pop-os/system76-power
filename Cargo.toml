@@ -5,15 +5,15 @@ authors = ["Jeremy Soller <jackpot51@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-dbus = "0.7.1"
-libc = "0.2"
-clap = "2.32"
-log = "0.4.3"
-fern = "0.5.6"
-intel-pstate = "0.2.0"
+dbus = "0.8.3"
+libc = "0.2.71"
+clap = "2.33.1"
+log = "0.4.8"
+fern = "0.6.0"
+intel-pstate = "0.2.1"
 sysfs-class = { git = "https://github.com/pop-os/sysfs-class" }
-err-derive = "0.1.5"
+err-derive = "0.2.4"
 
 
 [build-dependencies]
-vergen = "0.1.1"
+vergen = "3.1.0"
