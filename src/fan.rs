@@ -365,15 +365,15 @@ mod tests {
     fn threadripper3_points() {
         let threadripper3 = FanCurve::threadripper3();
 
-        assert_eq!(standard.get_duty(0), Some(3000));
-        assert_eq!(standard.get_duty(5000), Some(3500));
-        assert_eq!(standard.get_duty(6000), Some(4500));
-        assert_eq!(standard.get_duty(7000), Some(5500));
-        assert_eq!(standard.get_duty(7400), Some(6000));
-        assert_eq!(standard.get_duty(7600), Some(7000));
-        assert_eq!(standard.get_duty(7800), Some(8000));
-        assert_eq!(standard.get_duty(8100), Some(10000));
-        assert_eq!(standard.get_duty(10000), Some(10000));
+        assert_eq!(threadripper3.get_duty(0), Some(3000));
+        assert_eq!(threadripper3.get_duty(5000), Some(3500));
+        assert_eq!(threadripper3.get_duty(6000), Some(4500));
+        assert_eq!(threadripper3.get_duty(7000), Some(5500));
+        assert_eq!(threadripper3.get_duty(7400), Some(6000));
+        assert_eq!(threadripper3.get_duty(7600), Some(7000));
+        assert_eq!(threadripper3.get_duty(7800), Some(8000));
+        assert_eq!(threadripper3.get_duty(8100), Some(10000));
+        assert_eq!(threadripper3.get_duty(10000), Some(10000));
     }
 
     #[test]
@@ -394,17 +394,17 @@ mod tests {
     fn xeon_points() {
         let xeon = FanCurve::xeon();
 
-        assert_eq!(corex.get_duty(0), Some(4000));
-        assert_eq!(corex.get_duty(5000), Some(4000));
-        assert_eq!(corex.get_duty(5500), Some(4500));
-        assert_eq!(corex.get_duty(6000), Some(5000));
-        assert_eq!(corex.get_duty(6500), Some(5500));
-        assert_eq!(corex.get_duty(7000), Some(6000));
-        assert_eq!(corex.get_duty(7500), Some(6500));
-        assert_eq!(corex.get_duty(7700), Some(8000));
-        assert_eq!(corex.get_duty(7900), Some(8500));
-        assert_eq!(corex.get_duty(8100), Some(9000));
-        assert_eq!(corex.get_duty(8300), Some(10000));
-        assert_eq!(corex.get_duty(10000), Some(10000));
+        assert_eq!(xeon.get_duty(0), Some(4000));
+        assert_eq!(xeon.get_duty(5000), Some(4000));
+        assert_eq!(xeon.get_duty(5500), Some(4500));
+        assert_eq!(xeon.get_duty(6000), Some(5000));
+        assert_eq!(xeon.get_duty(6500), Some(5500));
+        assert_eq!(xeon.get_duty(7000), Some(6000));
+        assert_eq!(xeon.get_duty(7500), Some(6500));
+        assert_eq!(xeon.get_duty(7700), Some(8000));
+        assert_eq!(xeon.get_duty(7900), Some(8500));
+        assert_eq!(xeon.get_duty(8100), Some(9000));
+        assert_eq!(xeon.get_duty(8300), Some(10000));
+        assert_eq!(xeon.get_duty(10000), Some(10000));
     }
 }
