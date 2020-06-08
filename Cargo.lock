@@ -282,7 +282,7 @@ dependencies = [
 
 [[package]]
 name = "system76-power"
-version = "1.1.4"
+version = "1.1.5"
 dependencies = [
  "clap 2.33.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "dbus 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",

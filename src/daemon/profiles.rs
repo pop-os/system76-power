@@ -1,12 +1,17 @@
 use super::pci_runtime_pm_support;
 use crate::{
     disks::{DiskPower, Disks},
-    errors::{BacklightError, DiskPowerError, PciDeviceError, ProfileError, ScsiHostError},
+    errors::{BacklightError, DiskPowerError, ModelError, PciDeviceError, ProfileError, ScsiHostError},
     kernel_parameters::{DeviceList, Dirty, KernelParameter, LaptopMode},
     radeon::RadeonDevice,
 };
 use pstate::{PState, PStateError};
-use std::io;
+use std::{
+    fs,
+    io::{self, Read, Seek, SeekFrom, Write},
+    path::Path,
+    process::Command,
+};
 use sysfs_class::{
     Backlight, Brightness, Leds, PciDevice, RuntimePM, RuntimePowerManagement, ScsiHost, SysClass,
 };
@@ -59,6 +64,10 @@ pub fn balanced(errors: &mut Vec<ProfileError>, set_brightness: bool) {
 
     // Control Intel PState values, if they exist.
     catch!(errors, pstate_values(0, 100, false));
+
+    if let Some(model_profiles) = ModelProfiles::new() {
+        catch!(errors, model_profiles.balanced.set());
+    }
 }
 
 /// Sets parameters for the performance profile
@@ -72,6 +81,10 @@ pub fn performance(errors: &mut Vec<ProfileError>, _set_brightness: bool) {
 
     if pci_runtime_pm_support() {
         catch!(errors, pci_device_runtime_pm(RuntimePowerManagement::Off));
+    }
+
+    if let Some(model_profiles) = ModelProfiles::new() {
+        catch!(errors, model_profiles.performance.set());
     }
 }
 
@@ -91,6 +104,10 @@ pub fn battery(errors: &mut Vec<ProfileError>, set_brightness: bool) {
 
     if pci_runtime_pm_support() {
         catch!(errors, pci_device_runtime_pm(RuntimePowerManagement::On));
+    }
+
+    if let Some(model_profiles) = ModelProfiles::new() {
+        catch!(errors, model_profiles.battery.set());
     }
 }
 
@@ -176,4 +193,88 @@ fn set_disk_power(apm_level: u8, autosuspend_delay: i32) -> Result<(), DiskPower
     disks.set_apm_level(apm_level)?;
     disks.set_autosuspend_delay(autosuspend_delay)?;
     Ok(())
+}
+
+pub struct ModelProfile {
+    pl1: u8,
+    pl2: u8,
+    tcc_offset: u8,
+}
+
+impl ModelProfile {
+    //TODO pub fn get() -> Result<Self, ModelError> {}
+
+    pub fn set(&self) -> Result<(), ModelError> {
+        // Thermald sets pl1 and pl2 on its own, conflicting with system76-power
+        let _status = Command::new("systemctl").arg("stop").arg("thermald.service")
+            .status().map_err(ModelError::Thermald)?;
+        //TODO: check status, allow thermald to be missing
+
+        // Set PL1
+        fs::write(
+            "/sys/class/powercap/intel-rapl:0/constraint_0_power_limit_uw",
+            format!("{}", (self.pl1 as u64) * 1_000_000)
+        ).map_err(ModelError::Pl1)?;
+
+        // Set PL2
+        fs::write(
+            "/sys/class/powercap/intel-rapl:0/constraint_1_power_limit_uw",
+            format!("{}", (self.pl2 as u64) * 1_000_000)
+        ).map_err(ModelError::Pl2)?;
+
+        // Set TCC
+        {
+            let path = Path::new("/dev/cpu/0/msr");
+            if ! path.is_file() {
+                let status = Command::new("modprobe").arg("msr")
+                    .status().map_err(ModelError::ModprobeIo)?;
+                if ! status.success() {
+                    return Err(ModelError::ModprobeExitStatus(status));
+                }
+            }
+
+            let mut file = fs::OpenOptions::new().read(true).write(true).open(path)
+                .map_err(ModelError::MsrOpen)?;
+            file.seek(SeekFrom::Start(0x1A2)).map_err(ModelError::MsrSeek)?;
+            let mut data = [0; 8];
+            file.read_exact(&mut data).map_err(ModelError::MsrRead)?;
+            data[3] = self.tcc_offset;
+            file.write_all(&data).map_err(ModelError::MsrWrite)?;
+        }
+
+        Ok(())
+    }
+}
+
+pub struct ModelProfiles {
+    pub balanced: ModelProfile,
+    pub performance: ModelProfile,
+    pub battery: ModelProfile,
+}
+
+impl ModelProfiles {
+    pub fn new() -> Option<Self> {
+        let model_line = fs::read_to_string("/sys/class/dmi/id/product_version")
+            .unwrap_or(String::new());
+        match model_line.trim() {
+            "lemp9" => Some(ModelProfiles {
+                balanced: ModelProfile {
+                    pl1: 20,
+                    pl2: 40, // Upped from 30
+                    tcc_offset: 12, // 88 C
+                },
+                performance: ModelProfile {
+                    pl1: 30,
+                    pl2: 50,
+                    tcc_offset: 2, // 98 C
+                },
+                battery: ModelProfile {
+                    pl1: 10,
+                    pl2: 30,
+                    tcc_offset: 32, // 68 C
+                }
+            }),
+            _ => None,
+        }
+    }
 }

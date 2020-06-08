@@ -1,5 +1,5 @@
 use pstate::PStateError;
-use std::{io, path::PathBuf};
+use std::{io, path::PathBuf, process};
 
 #[derive(Debug, Error)]
 pub enum ProfileError {
@@ -7,6 +7,8 @@ pub enum ProfileError {
     Backlight(BacklightError),
     #[error(display = "failed to set disk power profiles: {}", _0)]
     DiskPower(DiskPowerError),
+    #[error(display = "failed to set model profiles: {}", _0)]
+    Model(ModelError),
     #[error(display = "failed to set pci device profiles: {}", _0)]
     PciDevice(PciDeviceError),
     #[error(display = "failed to set pstate profiles: {}", _0)]
@@ -21,6 +23,10 @@ impl From<BacklightError> for ProfileError {
 
 impl From<DiskPowerError> for ProfileError {
     fn from(why: DiskPowerError) -> ProfileError { ProfileError::DiskPower(why) }
+}
+
+impl From<ModelError> for ProfileError {
+    fn from(why: ModelError) -> ProfileError { ProfileError::Model(why) }
 }
 
 impl From<PciDeviceError> for ProfileError {
@@ -47,6 +53,30 @@ pub enum DiskPowerError {
     ApmLevel(PathBuf, u8, io::Error),
     #[error(display = "failed to set disk autosuspend delay on {:?} to {}: {}", _0, _1, _2)]
     AutosuspendDelay(PathBuf, i32, io::Error),
+}
+
+#[derive(Debug, Error)]
+pub enum ModelError {
+    #[error(display = "failed to stop thermald: {}", _0)]
+    Thermald(io::Error),
+    #[error(display = "failed to set PL1: {}", _0)]
+    Pl1(io::Error),
+    #[error(display = "failed to set PL2: {}", _0)]
+    Pl2(io::Error),
+    #[error(display = "failed to modprobe msr: {}", _0)]
+    ModprobeIo(io::Error),
+    #[error(display = "failed to modprobe msr: {}", _0)]
+    ModprobeExitStatus(process::ExitStatus),
+    #[error(display = "failed to open msr: {}", _0)]
+    MsrOpen(io::Error),
+    #[error(display = "failed to seek msr: {}", _0)]
+    MsrSeek(io::Error),
+    #[error(display = "failed to read msr: {}", _0)]
+    MsrRead(io::Error),
+    #[error(display = "failed to write msr: {}", _0)]
+    MsrWrite(io::Error),
+    #[error(display = "failed to set TCC: {}", _0)]
+    Tcc(io::Error),
 }
 
 #[derive(Debug, Error)]
