@@ -1,3 +1,9 @@
+system76-power (1.1.6) focal; urgency=medium
+
+  * Add oryp6
+
+ -- Tim Crawford <tcrawford@system76.com>  Tue, 09 Jun 2020 06:42:46 -0600
+
 system76-power (1.1.5) focal; urgency=medium
 
   * Add model-specific power profile for lemp9
