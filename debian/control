@@ -19,6 +19,7 @@ Replaces: nvidia-prime
 Depends:
   dbus,
   systemd,
+  ubuntu-drivers-common,
   ${misc:Depends},
   ${shlib:Depends}
 Description: System76 Power Management
