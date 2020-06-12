@@ -32,6 +32,7 @@ impl FanDaemon {
             curve: match model.trim() {
                 "thelio-major-r1" => FanCurve::threadripper(),
                 "thelio-major-r2" | 
+                "thelio-major-b2" |
                 "thelio-mega-r1" => FanCurve::threadripper3(),
                 "thelio-major-b1" | 
                 "thelio-mega-b1" => FanCurve::corex(),
