@@ -1,3 +1,9 @@
+system76-power (1.1.5) focal; urgency=medium
+
+  * Add model-specific power profile for lemp9
+
+ -- Jeremy Soller <jeremy@system76.com>  Mon, 08 Jun 2020 12:09:14 -0600
+
 system76-power (1.1.4) focal; urgency=medium
 
   * Add addw2 and gaze15
