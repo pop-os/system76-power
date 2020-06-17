@@ -144,6 +144,7 @@ pub fn client(subcommand: &str, matches: &ArgMatches) -> Result<(), String> {
             _ => profile(&mut client).map_err(err_str),
         },
         "graphics" => match matches.subcommand() {
+            ("compute", _) => client.set_graphics("compute"),
             ("hybrid", _) => client.set_graphics("hybrid"),
             ("integrated", _) | ("intel", _) => client.set_graphics("integrated"),
             ("nvidia", _) => client.set_graphics("nvidia"),
