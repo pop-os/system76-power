@@ -59,6 +59,9 @@ fn main() {
                      it is a valid profile",
                 )
                 .subcommand(
+                    SubCommand::with_name("compute")
+                        .about("Like integrated, but the dGPU is available for compute"))
+                .subcommand(
                     SubCommand::with_name("hybrid")
                         .about("Set the graphics mode to Hybrid (PRIME)"),
                 )
