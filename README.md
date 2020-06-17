@@ -41,5 +41,9 @@ NVIDIA driver power management is only fully implemented for Turing cards. This
 allows them to enter a low power state when not used. Pascal cards are not
 supported and will remain on, even when not in use.
 
+[GLVND]: https://gitlab.freedesktop.org/glvnd/libglvnd
 
-[GLVND]: https://github.com/NVIDIA/libglvnd
+### Compute
+
+The integrated graphics controller is used exclusively for rendering. The dGPU
+is made available as a compute node.
