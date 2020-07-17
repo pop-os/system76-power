@@ -96,9 +96,9 @@ Instructions for interacting with features for first-time testers.
     ```
 - Query discrete graphics power state
     ```sh
-    ssytem76-power graphics power
+    system76-power graphics power
     ```
 - Set discrete graphics power state
     ```sh
-    ssytem76-power graphics power [ on | off]
+    system76-power graphics power [ on | off]
     ```
