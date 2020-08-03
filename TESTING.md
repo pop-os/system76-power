@@ -17,10 +17,16 @@ Tasks which test the behavior of the CLI client.
         - Command returns `switchable` on a laptop with switchable graphics
     - [ ] Switching from Integrated to NVIDIA
     - [ ] Switching from Integrated to Hybrid
+    - [ ] Switching from Integrated to Compute
     - [ ] Switching from NVIDIA to Integrated
     - [ ] Switching from NVIDIA to Hybrid
+    - [ ] Switching from NVIDIA to Compute
     - [ ] Switching from Hybrid to Integrated
     - [ ] Switching from Hybrid to NVIDIA
+    - [ ] Switching from Hybrid to Compute
+    - [ ] Switching from Compute to Integrated
+    - [ ] Switching from Compute to NVIDIA
+    - [ ] Switching from Compute to Hybrid
     - [ ] Discrete graphics power state can be queried and set
 
 
@@ -38,10 +44,16 @@ Tasks which test the behavior of the shell extension.
 - [ ] Laptop with switchable graphics:
     - [ ] Switching from Integrated to NVIDIA
     - [ ] Switching from Integrated to Hybrid
+    - [ ] Switching from Integrated to Compute
     - [ ] Switching from NVIDIA to Integrated
     - [ ] Switching from NVIDIA to Hybrid
+    - [ ] Switching from NVIDIA to Compute
     - [ ] Switching from Hybrid to Integrated
     - [ ] Switching from Hybrid to NVIDIA
+    - [ ] Switching from Hybrid to Compute
+    - [ ] Switching from Compute to Integrated
+    - [ ] Switching from Compute to NVIDIA
+    - [ ] Switching from Compute to Hybrid
     - [ ] Test that switchable graphics changes from the CLI are reflected in the extension
 
 ## How To
@@ -78,11 +90,15 @@ Instructions for interacting with features for first-time testers.
     ```sh
     system76-power graphics hybrid
     ```
+- Set graphics to compute mode
+    ```sh
+    system76-power graphics compute
+    ```
 - Query discrete graphics power state
     ```sh
-    ssytem76-power graphics power
+    system76-power graphics power
     ```
 - Set discrete graphics power state
     ```sh
-    ssytem76-power graphics power [ on | off]
+    system76-power graphics power [ on | off]
     ```
