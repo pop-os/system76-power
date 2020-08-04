@@ -7,12 +7,12 @@ use sysfs_class::{Backlight, Brightness, Leds, SysClass};
 
 static TIMEOUT: i32 = 60 * 1000;
 
-struct PowerClient {
+pub struct PowerClient {
     bus: Connection,
 }
 
 impl PowerClient {
-    fn new() -> Result<PowerClient, String> {
+    pub fn new() -> Result<PowerClient, String> {
         let bus = Connection::new_system().map_err(err_str)?;
         Ok(PowerClient { bus })
     }
