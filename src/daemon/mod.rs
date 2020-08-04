@@ -4,6 +4,8 @@ use dbus::{
 };
 use std::{
     cell::RefCell,
+    collections::HashMap,
+    fs,
     rc::Rc,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -25,6 +27,8 @@ use crate::{
 mod profiles;
 
 use self::profiles::*;
+
+const KBD_BACKLIGHT_DIR: &str = "/sys/class/leds/system76::kbd_backlight";
 
 static CONTINUE: AtomicBool = AtomicBool::new(true);
 
@@ -146,6 +150,31 @@ impl Power for PowerDaemon {
     fn auto_graphics_power(&mut self) -> Result<(), String> {
         self.graphics.auto_power().map_err(err_str)
     }
+
+    fn get_keyboard_colors(&mut self) -> Result<HashMap<String, String>, String> {
+        let mut colors = HashMap::new();
+        for entry in fs::read_dir(KBD_BACKLIGHT_DIR).map_err(err_str)? {
+            let entry = entry.map_err(err_str)?;
+            if let Some(name) = entry.file_name().to_str() {
+                if name.starts_with("color") {
+                    let color = fs::read_to_string(entry.path()).map_err(err_str)?.trim().to_string();
+                    colors.insert(name.to_string(), color);
+                }
+            }
+        }
+        Ok(colors)
+    }
+
+    fn set_keyboard_colors(&mut self, colors: HashMap<String, String>) -> Result<(), String> {
+        for (k, v) in colors.iter() {
+            if k.contains('/') {
+                return Err(format!("Keyboard color key '{}' is invalid", k));
+            }
+            let path = format!("{}/{}", KBD_BACKLIGHT_DIR, k);
+            fs::write(path, v).map_err(err_str)?;
+        }
+        Ok(())
+    }
 }
 
 pub fn daemon() -> Result<(), String> {
@@ -208,7 +237,7 @@ pub fn daemon() -> Result<(), String> {
     macro_rules! get_value {
         (true, $name:expr, $daemon:ident, $m:ident, $method:tt) => {{
             let value = $m.msg.read1()?;
-            info!("DBUS Received {}({}) method", $name, value);
+            info!("DBUS Received {}({:?}) method", $name, value);
             $daemon.borrow_mut().$method(value)
         }};
 
@@ -263,6 +292,14 @@ pub fn daemon() -> Result<(), String> {
                         .inarg::<bool, _>("power"),
                 )
                 .add_m(method!(auto_graphics_power, "AutoGraphicsPower", false, false))
+                .add_m(
+                    method!(get_keyboard_colors, "GetKeyboardColors", true, false)
+                        .outarg::<HashMap<String, String>, _>("colors"),
+                )
+                .add_m(
+                    method!(set_keyboard_colors, "SetKeyboardColors", false, true)
+                        .inarg::<HashMap<String, String>, _>("colors"),
+                )
                 .add_s(hotplug_signal.clone())
                 .add_s(power_switch_signal.clone()),
         ),

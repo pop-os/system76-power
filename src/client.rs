@@ -2,6 +2,7 @@ use crate::{err_str, Power, DBUS_IFACE, DBUS_NAME, DBUS_PATH};
 use clap::ArgMatches;
 use dbus::{arg::Append, ffidisp::Connection, Message};
 use pstate::PState;
+use std::collections::HashMap;
 use std::io;
 use sysfs_class::{Backlight, Brightness, Leds, SysClass};
 
@@ -89,6 +90,15 @@ impl Power for PowerClient {
     fn auto_graphics_power(&mut self) -> Result<(), String> {
         println!("setting discrete graphics to turn off when not in use");
         self.call_method::<bool>("AutoGraphicsPower", None).map(|_| ())
+    }
+
+    fn get_keyboard_colors(&mut self) -> Result<HashMap<String, String>, String> {
+        let r = self.call_method::<HashMap<String, String>>("GetKeyboardColors", None)?;
+        r.get1().ok_or_else(|| "return value not found".to_string())
+    }
+
+    fn set_keyboard_colors(&mut self, colors: HashMap<String, String>) -> Result<(), String> {
+        self.call_method::<HashMap<String, String>>("SetKeyboardColors", Some(colors)).map(|_| ())
     }
 }
 
