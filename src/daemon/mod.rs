@@ -9,6 +9,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
+    thread,
 };
 
 use crate::{
@@ -16,6 +17,7 @@ use crate::{
     errors::ProfileError,
     fan::FanDaemon,
     graphics::Graphics,
+    hid_backlight,
     hotplug::HotPlugDetect,
     kernel_parameters::{KernelParameter, NmiWatchdog},
     mux::DisplayPortMux,
@@ -271,6 +273,9 @@ pub fn daemon() -> Result<(), String> {
     tree.set_registered(&c, true).map_err(err_str)?;
 
     c.add_handler(tree);
+
+    // Spawn hid backlight daemon
+    let _hid_backlight = thread::spawn(|| hid_backlight::daemon());
 
     let mut fan_daemon = FanDaemon::new(nvidia_exists);
 

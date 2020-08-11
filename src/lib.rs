@@ -10,6 +10,7 @@ pub mod disks;
 pub mod errors;
 pub mod fan;
 pub mod graphics;
+pub mod hid_backlight;
 pub mod hotplug;
 pub mod kernel_parameters;
 pub mod logging;
