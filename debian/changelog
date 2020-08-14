@@ -1,3 +1,9 @@
+system76-power (1.1.8) focal; urgency=medium
+
+  * Make HID keyboard backlight update block for events
+
+ -- Jeremy Soller <jeremy@system76.com>  Fri, 14 Aug 2020 13:54:45 -0600
+
 system76-power (1.1.7) focal; urgency=medium
 
   * Add HID keyboard backlight support

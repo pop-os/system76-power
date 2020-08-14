@@ -129,7 +129,7 @@ pub fn daemon() {
             break;
         }
 
-        for event in inotify.read_events(&mut buffer).unwrap() {
+        for event in inotify.read_events_blocking(&mut buffer).unwrap() {
             trace!("{:?}", event);
         }
     }
