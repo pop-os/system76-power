@@ -1,5 +1,8 @@
 use crate::sideband::{Sideband, SidebandError};
-use std::{fs::read_to_string, io};
+use std::{
+    fs::{read_dir, read_to_string},
+    io
+};
 
 #[derive(Debug, Error)]
 pub enum HotPlugDetectError {
@@ -19,6 +22,19 @@ pub struct HotPlugDetect {
     sideband: Sideband,
     port:     u8,
     pins:     [u8; 4],
+}
+
+fn get_realtek_subsystem_device() -> io::Result<String> {
+    for entry in read_dir("/sys/bus/pci/drivers/r8169/")? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.to_string_lossy().contains("0000") {
+            let subsystem_device = path.join("subsystem_device");
+            return read_to_string(subsystem_device);
+        }
+    }
+
+    Err(io::Error::new(io::ErrorKind::NotFound, "PCI device not found"))
 }
 
 impl HotPlugDetect {
@@ -48,7 +64,7 @@ impl HotPlugDetect {
                 ],
             }),
             "gaze14" => {
-                let variant = read_to_string("/sys/bus/pci/devices/0000:00:00.0/subsystem_device")
+                let variant = get_realtek_subsystem_device()
                     .map_err(|why| HotPlugDetectError::SubsystemDevice { model: "gaze14", why })?;
 
                 match variant.trim() {
@@ -83,7 +99,7 @@ impl HotPlugDetect {
                 }
             },
             "gaze15" => {
-                let variant = read_to_string("/sys/bus/pci/devices/0000:00:00.0/subsystem_device")
+                let variant = get_realtek_subsystem_device()
                     .map_err(|why| HotPlugDetectError::SubsystemDevice { model: "gaze15", why })?;
 
                 match variant.trim() {
