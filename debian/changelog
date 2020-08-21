@@ -1,3 +1,10 @@
+system76-power (1.1.9) focal; urgency=medium
+
+  * Make PowerClient type public
+  * Determine gaze15 variant by NVIDIA device
+
+ -- Tim Crawford <tcrawford@system76.com>  Fri, 21 Aug 2020 10:07:16 -0600
+
 system76-power (1.1.8) focal; urgency=medium
 
   * Make HID keyboard backlight update block for events
