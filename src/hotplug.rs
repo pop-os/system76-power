@@ -22,7 +22,7 @@ pub struct HotPlugDetect {
 }
 
 impl HotPlugDetect {
-    pub unsafe fn new() -> Result<HotPlugDetect, HotPlugDetectError> {
+    pub unsafe fn new(nvidia_device: Option<String>) -> Result<HotPlugDetect, HotPlugDetectError> {
         let model = read_to_string("/sys/class/dmi/id/product_version")
             .map_err(HotPlugDetectError::ProductVersion)?;
 
@@ -83,12 +83,11 @@ impl HotPlugDetect {
                 }
             },
             "gaze15" => {
-                let variant = read_to_string("/sys/bus/pci/devices/0000:00:00.0/subsystem_device")
-                    .map_err(|why| HotPlugDetectError::SubsystemDevice { model: "gaze15", why })?;
+                let variant = nvidia_device.unwrap_or("unknown".to_string());
 
                 match variant.trim() {
                     // NVIDIA GTX 1660 Ti
-                    "0x8520" | "0x8521" => Ok(HotPlugDetect {
+                    "0x2191" => Ok(HotPlugDetect {
                         sideband: Sideband::new(0xFD00_0000)
                             .map_err(HotPlugDetectError::Sideband)?,
                         port:     0x6A,
@@ -99,8 +98,8 @@ impl HotPlugDetect {
                             0x00, // Not Connected
                         ],
                     }),
-                    // NVIDIA GTX 1650 Ti
-                    "0x8535" | "0x8536" => Ok(HotPlugDetect {
+                    // NVIDIA GTX 1650, 1650 Ti
+                     "0x1f99" | "0x1f95" => Ok(HotPlugDetect {
                         sideband: Sideband::new(0xFD00_0000)
                             .map_err(HotPlugDetectError::Sideband)?,
                         port:     0x6A,
