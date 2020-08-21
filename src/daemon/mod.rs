@@ -4,6 +4,7 @@ use dbus::{
 };
 use std::{
     cell::RefCell,
+    fs,
     rc::Rc,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -175,6 +176,13 @@ pub fn daemon() -> Result<(), String> {
     info!("Disabling NMI Watchdog (for kernel debugging only)");
     NmiWatchdog::default().set(b"0");
 
+    // Get the NVIDIA device ID before potentially removing it.
+    let nvidia_device_id = if nvidia_exists {
+        fs::read_to_string("/sys/bus/pci/devices/0000:01:00.0/device").ok()
+    } else {
+        None
+    };
+
     info!("Setting automatic graphics power");
     match daemon.borrow_mut().auto_graphics_power() {
         Ok(()) => (),
@@ -279,7 +287,7 @@ pub fn daemon() -> Result<(), String> {
 
     let mut fan_daemon = FanDaemon::new(nvidia_exists);
 
-    let hpd_res = unsafe { HotPlugDetect::new() };
+    let hpd_res = unsafe { HotPlugDetect::new(nvidia_device_id) };
 
     let mux_res = unsafe { DisplayPortMux::new() };
 
