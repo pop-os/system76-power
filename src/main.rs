@@ -1,3 +1,4 @@
+use anyhow::Error;
 use clap::{App, AppSettings, Arg, SubCommand};
 use log::LevelFilter;
 use std::process;
@@ -101,7 +102,7 @@ fn main() {
             if unsafe { libc::geteuid() } == 0 {
                 daemon::daemon()
             } else {
-                Err("must be run as root".to_string())
+                Err(Error::msg("must be run as root"))
             }
         }
         (subcommand, Some(matches)) => client::client(subcommand, matches),

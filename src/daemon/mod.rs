@@ -1,3 +1,5 @@
+use anyhow::{Error, Result};
+
 use dbus::{
     ffidisp::{Connection, NameFlag},
     tree::{Factory, MethodErr, Signal},
@@ -14,7 +16,6 @@ use std::{
 };
 
 use crate::{
-    err_str,
     errors::ProfileError,
     fan::FanDaemon,
     graphics::Graphics,
@@ -67,8 +68,8 @@ impl PowerDaemon {
     fn new(
         power_switch_signal: Arc<Signal<()>>,
         dbus_connection: Arc<Connection>,
-    ) -> Result<PowerDaemon, String> {
-        let graphics = Graphics::new().map_err(err_str)?;
+    ) -> Result<PowerDaemon> {
+        let graphics = Graphics::new()?;
         Ok(PowerDaemon {
             initial_set: false,
             graphics,
@@ -83,7 +84,7 @@ impl PowerDaemon {
         &mut self,
         func: fn(&mut Vec<ProfileError>, bool),
         name: &str,
-    ) -> Result<(), String> {
+    ) -> Result<()> {
         if &self.power_profile == name {
             info!("profile was already set");
             return Ok(())
@@ -108,50 +109,50 @@ impl PowerDaemon {
                 error_message = format!("{}\n    - {}", error_message, error);
             }
 
-            Err(error_message)
+            Err(Error::msg(error_message))
         }
     }
 }
 
 impl Power for PowerDaemon {
-    fn battery(&mut self) -> Result<(), String> {
-        self.apply_profile(battery, "Battery").map_err(err_str)
+    fn battery(&mut self) -> Result<()> {
+        self.apply_profile(battery, "Battery")
     }
 
-    fn balanced(&mut self) -> Result<(), String> {
-        self.apply_profile(balanced, "Balanced").map_err(err_str)
+    fn balanced(&mut self) -> Result<()> {
+        self.apply_profile(balanced, "Balanced")
     }
 
-    fn performance(&mut self) -> Result<(), String> {
-        self.apply_profile(performance, "Performance").map_err(err_str)
+    fn performance(&mut self) -> Result<()> {
+        self.apply_profile(performance, "Performance")
     }
 
-    fn get_graphics(&mut self) -> Result<String, String> {
-        self.graphics.get_vendor().map_err(err_str)
+    fn get_graphics(&mut self) -> Result<String> {
+        self.graphics.get_vendor().map_err(Error::new)
     }
 
-    fn get_profile(&mut self) -> Result<String, String> { Ok(self.power_profile.clone()) }
+    fn get_profile(&mut self) -> Result<String> { Ok(self.power_profile.clone()) }
 
-    fn get_switchable(&mut self) -> Result<bool, String> { Ok(self.graphics.can_switch()) }
+    fn get_switchable(&mut self) -> Result<bool> { Ok(self.graphics.can_switch()) }
 
-    fn set_graphics(&mut self, vendor: &str) -> Result<(), String> {
-        self.graphics.set_vendor(vendor).map_err(err_str)
+    fn set_graphics(&mut self, vendor: &str) -> Result<()> {
+        self.graphics.set_vendor(vendor).map_err(Error::new)
     }
 
-    fn get_graphics_power(&mut self) -> Result<bool, String> {
-        self.graphics.get_power().map_err(err_str)
+    fn get_graphics_power(&mut self) -> Result<bool> {
+        self.graphics.get_power().map_err(Error::new)
     }
 
-    fn set_graphics_power(&mut self, power: bool) -> Result<(), String> {
-        self.graphics.set_power(power).map_err(err_str)
+    fn set_graphics_power(&mut self, power: bool) -> Result<()> {
+        self.graphics.set_power(power).map_err(Error::new)
     }
 
-    fn auto_graphics_power(&mut self) -> Result<(), String> {
-        self.graphics.auto_power().map_err(err_str)
+    fn auto_graphics_power(&mut self) -> Result<()> {
+        self.graphics.auto_power().map_err(Error::new)
     }
 }
 
-pub fn daemon() -> Result<(), String> {
+pub fn daemon() -> Result<()> {
     signal_handling();
     let pci_runtime_pm = std::env::var("S76_POWER_PCI_RUNTIME_PM").ok().map_or(false, |v| v == "1");
 
@@ -162,7 +163,7 @@ pub fn daemon() -> Result<(), String> {
     PCI_RUNTIME_PM.store(pci_runtime_pm, Ordering::SeqCst);
 
     info!("Connecting to dbus system bus");
-    let c = Arc::new(Connection::new_system().map_err(err_str)?);
+    let c = Arc::new(Connection::new_system()?);
 
     let f = Factory::new_fn::<()>();
     let hotplug_signal = Arc::new(f.signal("HotPlugDetect", ()).sarg::<u64, _>("port"));
@@ -202,7 +203,7 @@ pub fn daemon() -> Result<(), String> {
     }
 
     info!("Registering dbus name {}", DBUS_NAME);
-    c.register_name(DBUS_NAME, NameFlag::ReplaceExisting as u32).map_err(err_str)?;
+    c.register_name(DBUS_NAME, NameFlag::ReplaceExisting as u32)?;
 
     // Defines whether the value returned by the method should be appended.
     macro_rules! append {
@@ -278,7 +279,7 @@ pub fn daemon() -> Result<(), String> {
         ),
     );
 
-    tree.set_registered(&c, true).map_err(err_str)?;
+    tree.set_registered(&c, true)?;
 
     c.add_handler(tree);
 
@@ -312,7 +313,7 @@ pub fn daemon() -> Result<(), String> {
             if hpd[i] != last[i] && hpd[i] {
                 info!("HotPlugDetect {}", i);
                 c.send(hotplug_signal.msg(&DBUS_PATH.into(), &DBUS_NAME.into()).append1(i as u64))
-                    .map_err(|()| "failed to send message".to_string())?;
+                    .map_err(|_| Error::msg("failed to send message"))?;
             }
         }
 
