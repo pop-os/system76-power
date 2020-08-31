@@ -32,9 +32,11 @@ impl FanDaemon {
             curve: match model.trim() {
                 "thelio-major-r1" => FanCurve::threadripper2(),
                 "thelio-major-r2" |
+                "thelio-major-r2.1" |
                 "thelio-major-b1" |
                 "thelio-major-b2" |
-                "thelio-mega-r1" => FanCurve::hedt(),
+                "thelio-mega-r1" |
+                "thelio-mega-r1.1" => FanCurve::hedt(),
                 "thelio-massive-b1" => FanCurve::xeon(),
                 _ => FanCurve::standard()
             },
@@ -241,7 +243,7 @@ impl FanCurve {
             .append(66_25, 100_00)
     }
 
-    /// Fan curve for HEDT systems 
+    /// Fan curve for HEDT systems
     pub fn hedt() -> Self {
         Self::default()
             .append(00_00,  30_00)

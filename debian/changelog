@@ -1,3 +1,9 @@
+system76-power (1.1.11) focal; urgency=medium
+
+  * Add thelio-major-r2.1 and thelio-mega-r1.1
+
+ -- Jeremy Soller <jeremy@system76.com>  Mon, 31 Aug 2020 09:08:48 -0600
+
 system76-power (1.1.10) focal; urgency=medium
 
   * Add bonw14 displayport mux support
