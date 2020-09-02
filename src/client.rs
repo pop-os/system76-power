@@ -1,11 +1,12 @@
 use crate::{err_str, Power, DBUS_IFACE, DBUS_NAME, DBUS_PATH};
 use clap::ArgMatches;
-use dbus::{arg::Append, ffidisp::Connection, Message};
+use dbus::{arg::Append, blocking::{BlockingSender, Connection}, Message};
 use pstate::PState;
 use std::io;
+use std::time::Duration;
 use sysfs_class::{Backlight, Brightness, Leds, SysClass};
 
-static TIMEOUT: i32 = 60 * 1000;
+static TIMEOUT: u64 = 60 * 1000;
 
 pub struct PowerClient {
     bus: Connection,
@@ -29,7 +30,7 @@ impl PowerClient {
 
         let r = self
             .bus
-            .send_with_reply_and_block(m, TIMEOUT)
+            .send_with_reply_and_block(m, Duration::from_millis(TIMEOUT))
             .map_err(|why| format!("daemon returned an error message: {}", err_str(why)))?;
 
         Ok(r)
@@ -62,7 +63,7 @@ impl Power for PowerClient {
 
     fn get_profile(&mut self) -> Result<String, String> {
         let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "GetProfile")?;
-        let r = self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
+        let r = self.bus.send_with_reply_and_block(m, Duration::from_millis(TIMEOUT)).map_err(err_str)?;
         r.get1().ok_or_else(|| "return value not found".to_string())
     }
 
