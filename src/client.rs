@@ -1,4 +1,5 @@
-use crate::{err_str, Power, DBUS_IFACE, DBUS_NAME, DBUS_PATH};
+use anyhow::{Context, Error, Result};
+use crate::{Power, DBUS_IFACE, DBUS_NAME, DBUS_PATH};
 use clap::ArgMatches;
 use dbus::{arg::Append, ffidisp::Connection, Message};
 use pstate::PState;
@@ -12,8 +13,8 @@ pub struct PowerClient {
 }
 
 impl PowerClient {
-    pub fn new() -> Result<PowerClient, String> {
-        let bus = Connection::new_system().map_err(err_str)?;
+    pub fn new() -> Result<PowerClient> {
+        let bus = Connection::new_system()?;
         Ok(PowerClient { bus })
     }
 
@@ -21,8 +22,8 @@ impl PowerClient {
         &mut self,
         method: &str,
         append: Option<A>,
-    ) -> Result<Message, String> {
-        let mut m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, method)?;
+    ) -> Result<Message> {
+        let mut m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, method).map_err(Error::msg)?;
         if let Some(arg) = append {
             m = m.append1(arg);
         }
@@ -30,12 +31,13 @@ impl PowerClient {
         let r = self
             .bus
             .send_with_reply_and_block(m, TIMEOUT)
-            .map_err(|why| format!("daemon returned an error message: {}", err_str(why)))?;
+            .map_err(Error::new)
+            .context("daemon returned an error message")?;
 
         Ok(r)
     }
 
-    fn set_profile(&mut self, profile: &str) -> Result<(), String> {
+    fn set_profile(&mut self, profile: &str) -> Result<()> {
         println!("setting power profile to {}", profile);
         self.call_method::<bool>(profile, None)?;
         Ok(())
@@ -43,50 +45,50 @@ impl PowerClient {
 }
 
 impl Power for PowerClient {
-    fn performance(&mut self) -> Result<(), String> {
+    fn performance(&mut self) -> Result<()> {
         self.set_profile("Performance")
     }
 
-    fn balanced(&mut self) -> Result<(), String> {
+    fn balanced(&mut self) -> Result<()> {
         self.set_profile("Balanced")
     }
 
-    fn battery(&mut self) -> Result<(), String> {
+    fn battery(&mut self) -> Result<()> {
         self.set_profile("Battery")
     }
 
-    fn get_graphics(&mut self) -> Result<String, String> {
+    fn get_graphics(&mut self) -> Result<String> {
         let r = self.call_method::<bool>("GetGraphics", None)?;
-        r.get1().ok_or_else(|| "return value not found".to_string())
+        r.get1().ok_or_else(|| Error::msg("return value not found"))
     }
 
-    fn get_profile(&mut self) -> Result<String, String> {
-        let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "GetProfile")?;
-        let r = self.bus.send_with_reply_and_block(m, TIMEOUT).map_err(err_str)?;
-        r.get1().ok_or_else(|| "return value not found".to_string())
+    fn get_profile(&mut self) -> Result<String> {
+        let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "GetProfile").map_err(Error::msg)?;
+        let r = self.bus.send_with_reply_and_block(m, TIMEOUT)?;
+        r.get1().ok_or_else(|| Error::msg("return value not found"))
     }
 
-    fn get_switchable(&mut self) -> Result<bool, String> {
+    fn get_switchable(&mut self) -> Result<bool> {
         let r = self.call_method::<bool>("GetSwitchable", None)?;
-        r.get1().ok_or_else(|| "return value not found".to_string())
+        r.get1().ok_or_else(|| Error::msg("return value not found"))
     }
 
-    fn set_graphics(&mut self, vendor: &str) -> Result<(), String> {
+    fn set_graphics(&mut self, vendor: &str) -> Result<()> {
         println!("setting graphics to {}", vendor);
         self.call_method::<&str>("SetGraphics", Some(vendor)).map(|_| ())
     }
 
-    fn get_graphics_power(&mut self) -> Result<bool, String> {
+    fn get_graphics_power(&mut self) -> Result<bool> {
         let r = self.call_method::<bool>("GetGraphicsPower", None)?;
-        r.get1().ok_or_else(|| "return value not found".to_string())
+        r.get1().ok_or_else(|| Error::msg("return value not found"))
     }
 
-    fn set_graphics_power(&mut self, power: bool) -> Result<(), String> {
+    fn set_graphics_power(&mut self, power: bool) -> Result<()> {
         println!("turning discrete graphics {}", if power { "on" } else { "off " });
         self.call_method::<bool>("SetGraphicsPower", Some(power)).map(|_| ())
     }
 
-    fn auto_graphics_power(&mut self) -> Result<(), String> {
+    fn auto_graphics_power(&mut self) -> Result<()> {
         println!("setting discrete graphics to turn off when not in use");
         self.call_method::<bool>("AutoGraphicsPower", None).map(|_| ())
     }
@@ -133,7 +135,7 @@ fn profile(client: &mut PowerClient) -> io::Result<()> {
     Ok(())
 }
 
-pub fn client(subcommand: &str, matches: &ArgMatches) -> Result<(), String> {
+pub fn client(subcommand: &str, matches: &ArgMatches) -> Result<()> {
     let mut client = PowerClient::new()?;
 
     match subcommand {
@@ -141,7 +143,7 @@ pub fn client(subcommand: &str, matches: &ArgMatches) -> Result<(), String> {
             Some("balanced") => client.balanced(),
             Some("battery") => client.battery(),
             Some("performance") => client.performance(),
-            _ => profile(&mut client).map_err(err_str),
+            _ => profile(&mut client).map_err(Error::new),
         },
         "graphics" => match matches.subcommand() {
             ("compute", _) => client.set_graphics("compute"),
@@ -174,6 +176,6 @@ pub fn client(subcommand: &str, matches: &ArgMatches) -> Result<(), String> {
                 Ok(())
             }
         },
-        _ => Err(format!("unknown sub-command {}", subcommand)),
+        _ => Err(Error::msg(format!("unknown sub-command {}", subcommand))),
     }
 }
