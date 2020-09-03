@@ -1,6 +1,7 @@
 use dbus::{
     blocking::SyncConnection,
-    channel::Sender,
+    channel::{MatchingReceiver, Sender},
+    message::MatchRule,
     tree::{Factory, MethodErr, Signal},
 };
 use std::{
@@ -251,7 +252,7 @@ pub fn daemon() -> Result<(), String> {
 
     info!("Adding dbus path {} with interface {}", DBUS_PATH, DBUS_IFACE);
     let tree = f.tree(()).add(
-        f.object_path(DBUS_PATH, ()).introspectable().add(
+        f.object_path(DBUS_PATH, ()).introspectable().object_manager().add(
             f.interface(DBUS_IFACE, ())
                 .add_m(method!(performance, "Performance", false, false))
                 .add_m(method!(balanced, "Balanced", false, false))
@@ -278,8 +279,17 @@ pub fn daemon() -> Result<(), String> {
                 .add_s(power_switch_signal.clone()),
         ),
     ).add(f.object_path("/", ()).introspectable());
+    let tree = Arc::new(Mutex::new(tree));
 
-    tree.start_receive_sync(c.as_ref());
+    // Equivalent to tree.start_receive_sync, but taking a
+    // Arc<Mutex<Tree<_, _>>> instead of consuming the tree.
+    let tree_clone = tree.clone();
+    c.start_receive(MatchRule::new_method_call(), Box::new(move |msg, c| {
+        if let Some(replies) = tree_clone.lock().unwrap().handle(&msg) {
+            for r in replies { let _ = c.send(r); }
+        }
+        true
+    }));
 
     // Spawn hid backlight daemon
     let _hid_backlight = thread::spawn(|| hid_backlight::daemon());
@@ -289,6 +299,9 @@ pub fn daemon() -> Result<(), String> {
     let hpd_res = unsafe { HotPlugDetect::new(nvidia_device_id) };
 
     let mux_res = unsafe { DisplayPortMux::new() };
+
+    let c_clone = c.clone();
+    thread::spawn(move || crate::keyboard::daemon(c_clone, tree));
 
     let hpd = || -> [bool; 4] {
         if let Ok(ref hpd) = hpd_res {
