@@ -33,7 +33,7 @@ distclean:
 	rm -rf .cargo vendor vendor.tar.xz
 
 install: all
-	install -D -m 04755 "target/release/$(BIN)" "$(DESTDIR)$(bindir)/$(BIN)"
+	install -D -m 0755 "target/release/$(BIN)" "$(DESTDIR)$(bindir)/$(BIN)"
 	install -D -m 0644 "data/$(BIN).conf" "$(DESTDIR)$(sysconfdir)/dbus-1/system.d/$(BIN).conf"
 	install -D -m 0644 "debian/$(BIN).service" "$(DESTDIR)$(sysconfdir)/systemd/system/$(BIN).service"
 

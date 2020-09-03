@@ -30,12 +30,13 @@ impl FanDaemon {
             .unwrap_or(String::new());
         let mut daemon = FanDaemon {
             curve: match model.trim() {
-                "thelio-major-r1" => FanCurve::threadripper(),
-                "thelio-major-r2" | 
+                "thelio-major-r1" => FanCurve::threadripper2(),
+                "thelio-major-r2" |
+                "thelio-major-r2.1" |
+                "thelio-major-b1" |
                 "thelio-major-b2" |
-                "thelio-mega-r1" => FanCurve::threadripper3(),
-                "thelio-major-b1" | 
-                "thelio-mega-b1" => FanCurve::corex(),
+                "thelio-mega-r1" |
+                "thelio-mega-r1.1" => FanCurve::hedt(),
                 "thelio-massive-b1" => FanCurve::xeon(),
                 _ => FanCurve::standard()
             },
@@ -231,21 +232,10 @@ impl FanCurve {
             .append(90_00, 100_00)
     }
 
-    /// Adjusted fan curve for core-x
-    pub fn corex() -> Self {
+    /// Fan curve for threadripper 2
+    pub fn threadripper2() -> Self {
         Self::default()
-            .append(44_99,   0_00)
-            .append(45_00,  40_00)
-            .append(55_00,  50_00)
-            .append(65_00,  65_00)
-            .append(75_00,  85_00)
-            .append(80_00, 100_00)
-    }
-
-    /// Adjusted fan curve for threadripper
-    pub fn threadripper() -> Self {
-        Self::default()
-            .append(39_99,   0_00)
+            .append(00_00,  30_00)
             .append(40_00,  40_00)
             .append(47_50,  50_00)
             .append(55_00,  65_00)
@@ -253,8 +243,8 @@ impl FanCurve {
             .append(66_25, 100_00)
     }
 
-    /// Adjusted fan curve for threadripper 3
-    pub fn threadripper3() -> Self {
+    /// Fan curve for HEDT systems
+    pub fn hedt() -> Self {
         Self::default()
             .append(00_00,  30_00)
             .append(50_00,  35_00)
@@ -266,7 +256,7 @@ impl FanCurve {
             .append(81_00, 100_00)
     }
 
-    /// Adjusted fan curve for xeon
+    /// Fan curve for xeon
     pub fn xeon() -> Self {
         Self::default()
             .append(00_00,  40_00)
@@ -362,32 +352,31 @@ mod tests {
     }
 
     #[test]
-    fn threadripper3_points() {
-        let threadripper3 = FanCurve::threadripper3();
+    fn hedt_points() {
+        let hedt = FanCurve::hedt();
 
-        assert_eq!(threadripper3.get_duty(0), Some(3000));
-        assert_eq!(threadripper3.get_duty(5000), Some(3500));
-        assert_eq!(threadripper3.get_duty(6000), Some(4500));
-        assert_eq!(threadripper3.get_duty(7000), Some(5500));
-        assert_eq!(threadripper3.get_duty(7400), Some(6000));
-        assert_eq!(threadripper3.get_duty(7600), Some(7000));
-        assert_eq!(threadripper3.get_duty(7800), Some(8000));
-        assert_eq!(threadripper3.get_duty(8100), Some(10000));
-        assert_eq!(threadripper3.get_duty(10000), Some(10000));
+        assert_eq!(hedt.get_duty(0), Some(3000));
+        assert_eq!(hedt.get_duty(5000), Some(3500));
+        assert_eq!(hedt.get_duty(6000), Some(4500));
+        assert_eq!(hedt.get_duty(7000), Some(5500));
+        assert_eq!(hedt.get_duty(7400), Some(6000));
+        assert_eq!(hedt.get_duty(7600), Some(7000));
+        assert_eq!(hedt.get_duty(7800), Some(8000));
+        assert_eq!(hedt.get_duty(8100), Some(10000));
+        assert_eq!(hedt.get_duty(10000), Some(10000));
     }
 
     #[test]
-    fn corex_points() {
-        let corex = FanCurve::corex();
+    fn threadripper2_points() {
+        let threadripper2 = FanCurve::threadripper2();
 
-        assert_eq!(corex.get_duty(0), Some(0));
-        assert_eq!(corex.get_duty(4499), Some(0));
-        assert_eq!(corex.get_duty(4500), Some(4000));
-        assert_eq!(corex.get_duty(5500), Some(5000));
-        assert_eq!(corex.get_duty(6500), Some(6500));
-        assert_eq!(corex.get_duty(7500), Some(8500));
-        assert_eq!(corex.get_duty(8000), Some(10000));
-        assert_eq!(corex.get_duty(10000), Some(10000));
+        assert_eq!(threadripper2.get_duty(0), Some(3000));
+        assert_eq!(threadripper2.get_duty(4000), Some(4000));
+        assert_eq!(threadripper2.get_duty(4750), Some(5000));
+        assert_eq!(threadripper2.get_duty(5500), Some(6500));
+        assert_eq!(threadripper2.get_duty(6250), Some(8500));
+        assert_eq!(threadripper2.get_duty(6625), Some(10000));
+        assert_eq!(threadripper2.get_duty(10000), Some(10000));
     }
 
     #[test]
