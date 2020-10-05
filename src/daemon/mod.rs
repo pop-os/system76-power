@@ -1,15 +1,17 @@
 use dbus::{
-    ffidisp::{Connection, NameFlag},
+    blocking::SyncConnection,
+    channel::{MatchingReceiver, Sender},
+    message::MatchRule,
     tree::{Factory, MethodErr, Signal},
 };
 use std::{
-    cell::RefCell,
     fs,
-    rc::Rc,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
+        Mutex,
     },
+    time::Duration,
     thread,
 };
 
@@ -59,14 +61,14 @@ struct PowerDaemon {
     graphics:            Graphics,
     power_profile:       String,
     profile_errors:      Vec<ProfileError>,
-    dbus_connection:     Arc<Connection>,
+    dbus_connection:     Arc<SyncConnection>,
     power_switch_signal: Arc<Signal<()>>,
 }
 
 impl PowerDaemon {
     fn new(
         power_switch_signal: Arc<Signal<()>>,
-        dbus_connection: Arc<Connection>,
+        dbus_connection: Arc<SyncConnection>,
     ) -> Result<PowerDaemon, String> {
         let graphics = Graphics::new().map_err(err_str)?;
         Ok(PowerDaemon {
@@ -162,16 +164,16 @@ pub fn daemon() -> Result<(), String> {
     PCI_RUNTIME_PM.store(pci_runtime_pm, Ordering::SeqCst);
 
     info!("Connecting to dbus system bus");
-    let c = Arc::new(Connection::new_system().map_err(err_str)?);
+    let c = Arc::new(SyncConnection::new_system().map_err(err_str)?);
 
-    let f = Factory::new_fn::<()>();
+    let f = Factory::new_sync::<()>();
     let hotplug_signal = Arc::new(f.signal("HotPlugDetect", ()).sarg::<u64, _>("port"));
     let power_switch_signal =
         Arc::new(f.signal("PowerProfileSwitch", ()).sarg::<&str, _>("profile"));
 
     let daemon = PowerDaemon::new(power_switch_signal.clone(), c.clone())?;
     let nvidia_exists = !daemon.graphics.nvidia.is_empty();
-    let daemon = Rc::new(RefCell::new(daemon));
+    let daemon = Arc::new(Mutex::new(daemon));
 
     info!("Disabling NMI Watchdog (for kernel debugging only)");
     NmiWatchdog::default().set(b"0");
@@ -184,7 +186,7 @@ pub fn daemon() -> Result<(), String> {
     };
 
     info!("Setting automatic graphics power");
-    match daemon.borrow_mut().auto_graphics_power() {
+    match daemon.lock().unwrap().auto_graphics_power() {
         Ok(()) => (),
         Err(err) => {
             warn!("Failed to set automatic graphics power: {}", err);
@@ -193,7 +195,7 @@ pub fn daemon() -> Result<(), String> {
 
     {
         info!("Initializing with the balanced profile");
-        let mut daemon = daemon.borrow_mut();
+        let mut daemon = daemon.lock().unwrap();
         if let Err(why) = daemon.balanced() {
             warn!("Failed to set initial profile: {}", why);
         }
@@ -202,7 +204,7 @@ pub fn daemon() -> Result<(), String> {
     }
 
     info!("Registering dbus name {}", DBUS_NAME);
-    c.register_name(DBUS_NAME, NameFlag::ReplaceExisting as u32).map_err(err_str)?;
+    c.request_name(DBUS_NAME, false, true, false).map_err(err_str)?;
 
     // Defines whether the value returned by the method should be appended.
     macro_rules! append {
@@ -219,12 +221,12 @@ pub fn daemon() -> Result<(), String> {
         (true, $name:expr, $daemon:ident, $m:ident, $method:tt) => {{
             let value = $m.msg.read1()?;
             info!("DBUS Received {}({}) method", $name, value);
-            $daemon.borrow_mut().$method(value)
+            $daemon.lock().unwrap().$method(value)
         }};
 
         (false, $name:expr, $daemon:ident, $m:ident, $method:tt) => {{
             info!("DBUS Received {} method", $name);
-            $daemon.borrow_mut().$method()
+            $daemon.lock().unwrap().$method()
         }};
     }
 
@@ -250,7 +252,7 @@ pub fn daemon() -> Result<(), String> {
 
     info!("Adding dbus path {} with interface {}", DBUS_PATH, DBUS_IFACE);
     let tree = f.tree(()).add(
-        f.object_path(DBUS_PATH, ()).introspectable().add(
+        f.object_path(DBUS_PATH, ()).introspectable().object_manager().add(
             f.interface(DBUS_IFACE, ())
                 .add_m(method!(performance, "Performance", false, false))
                 .add_m(method!(balanced, "Balanced", false, false))
@@ -276,11 +278,18 @@ pub fn daemon() -> Result<(), String> {
                 .add_s(hotplug_signal.clone())
                 .add_s(power_switch_signal.clone()),
         ),
-    );
+    ).add(f.object_path("/", ()).introspectable());
+    let tree = Arc::new(Mutex::new(tree));
 
-    tree.set_registered(&c, true).map_err(err_str)?;
-
-    c.add_handler(tree);
+    // Equivalent to tree.start_receive_sync, but taking a
+    // Arc<Mutex<Tree<_, _>>> instead of consuming the tree.
+    let tree_clone = tree.clone();
+    c.start_receive(MatchRule::new_method_call(), Box::new(move |msg, c| {
+        if let Some(replies) = tree_clone.lock().unwrap().handle(&msg) {
+            for r in replies { let _ = c.send(r); }
+        }
+        true
+    }));
 
     // Spawn hid backlight daemon
     let _hid_backlight = thread::spawn(|| hid_backlight::daemon());
@@ -290,6 +299,9 @@ pub fn daemon() -> Result<(), String> {
     let hpd_res = unsafe { HotPlugDetect::new(nvidia_device_id) };
 
     let mux_res = unsafe { DisplayPortMux::new() };
+
+    let c_clone = c.clone();
+    thread::spawn(move || crate::keyboard::daemon(c_clone, tree));
 
     let hpd = || -> [bool; 4] {
         if let Ok(ref hpd) = hpd_res {
@@ -303,7 +315,9 @@ pub fn daemon() -> Result<(), String> {
 
     info!("Handling dbus requests");
     while CONTINUE.load(Ordering::SeqCst) {
-        c.incoming(1000).next();
+        if let Err(err) = c.process(Duration::from_millis(1000)) {
+            error!("{}", err);
+        }
 
         fan_daemon.step();
 

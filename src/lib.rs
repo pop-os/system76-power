@@ -13,6 +13,7 @@ pub mod graphics;
 pub mod hid_backlight;
 pub mod hotplug;
 pub mod kernel_parameters;
+pub mod keyboard;
 pub mod logging;
 pub mod modprobe;
 pub mod module;
@@ -29,6 +30,7 @@ include!(concat!(env!("OUT_DIR"), "/version.rs"));
 pub static DBUS_NAME: &'static str = "com.system76.PowerDaemon";
 pub static DBUS_PATH: &'static str = "/com/system76/PowerDaemon";
 pub static DBUS_IFACE: &'static str = "com.system76.PowerDaemon";
+pub static DBUS_KEYBOARD_IFACE: &'static str = "com.system76.PowerDaemon.Keyboard";
 
 pub trait Power {
     fn performance(&mut self) -> Result<(), String>;
