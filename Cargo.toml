@@ -5,7 +5,8 @@ authors = ["Jeremy Soller <jackpot51@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-dbus = "0.8.4"
+dbus = "0.9.0"
+dbus-tree = "0.9.0"
 libc = "0.2.76"
 clap = "2.33.3"
 log = "0.4.11"
