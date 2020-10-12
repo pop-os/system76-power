@@ -1,8 +1,8 @@
 use dbus::{
     blocking::SyncConnection,
     channel::Sender,
-    tree::{Factory, MethodErr, Signal},
 };
+use dbus_tree::{Factory, MethodErr, Signal};
 use std::{
     fs,
     sync::{
