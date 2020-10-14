@@ -265,11 +265,11 @@ impl FanCurve {
             .append(60_00,  50_00)
             .append(65_00,  55_00)
             .append(70_00,  60_00)
-            .append(75_00,  65_00)
-            .append(77_00,  80_00)
-            .append(79_00,  85_00)
-            .append(81_00,  90_00)
-            .append(83_00, 100_00)
+            .append(72_00,  65_00)
+            .append(74_00,  80_00)
+            .append(76_00,  85_00)
+            .append(77_00,  90_00)
+            .append(78_00, 100_00)
     }
 
     pub fn get_duty(&self, temp: i16) -> Option<u16> {
@@ -389,11 +389,11 @@ mod tests {
         assert_eq!(xeon.get_duty(6000), Some(5000));
         assert_eq!(xeon.get_duty(6500), Some(5500));
         assert_eq!(xeon.get_duty(7000), Some(6000));
-        assert_eq!(xeon.get_duty(7500), Some(6500));
-        assert_eq!(xeon.get_duty(7700), Some(8000));
-        assert_eq!(xeon.get_duty(7900), Some(8500));
-        assert_eq!(xeon.get_duty(8100), Some(9000));
-        assert_eq!(xeon.get_duty(8300), Some(10000));
+        assert_eq!(xeon.get_duty(7200), Some(6500));
+        assert_eq!(xeon.get_duty(7400), Some(8000));
+        assert_eq!(xeon.get_duty(7600), Some(8500));
+        assert_eq!(xeon.get_duty(7700), Some(9000));
+        assert_eq!(xeon.get_duty(7800), Some(10000));
         assert_eq!(xeon.get_duty(10000), Some(10000));
     }
 }
