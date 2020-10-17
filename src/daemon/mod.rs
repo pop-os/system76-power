@@ -1,14 +1,26 @@
 use dbus::{
+    arg,
     blocking::SyncConnection,
-    channel::Sender,
+    channel::{
+        MatchingReceiver,
+        Sender,
+    },
+    message::{
+        MatchRule,
+        Message,
+    },
 };
-use dbus_tree::{Factory, MethodErr, Signal};
+use dbus_crossroads::{
+    Crossroads,
+    IfaceBuilder,
+    MethodErr,
+};
 use std::{
+    fmt::Debug,
     fs,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
-        Mutex,
     },
     time::Duration,
     thread,
@@ -61,12 +73,10 @@ struct PowerDaemon {
     power_profile:       String,
     profile_errors:      Vec<ProfileError>,
     dbus_connection:     Arc<SyncConnection>,
-    power_switch_signal: Arc<Signal<()>>,
 }
 
 impl PowerDaemon {
     fn new(
-        power_switch_signal: Arc<Signal<()>>,
         dbus_connection: Arc<SyncConnection>,
     ) -> Result<PowerDaemon, String> {
         let graphics = Graphics::new().map_err(err_str)?;
@@ -75,7 +85,6 @@ impl PowerDaemon {
             graphics,
             power_profile: String::new(),
             profile_errors: Vec::new(),
-            power_switch_signal,
             dbus_connection,
         })
     }
@@ -93,7 +102,7 @@ impl PowerDaemon {
         func(&mut self.profile_errors, self.initial_set);
 
         let message =
-            self.power_switch_signal.msg(&DBUS_PATH.into(), &DBUS_NAME.into()).append1(name);
+            Message::new_signal(DBUS_PATH, DBUS_NAME, "PowerProfileSwitch").unwrap().append1(name);
 
         if let Err(()) = self.dbus_connection.send(message) {
             error!("failed to send power profile switch message");
@@ -165,14 +174,8 @@ pub fn daemon() -> Result<(), String> {
     info!("Connecting to dbus system bus");
     let c = Arc::new(SyncConnection::new_system().map_err(err_str)?);
 
-    let f = Factory::new_sync::<()>();
-    let hotplug_signal = Arc::new(f.signal("HotPlugDetect", ()).sarg::<u64, _>("port"));
-    let power_switch_signal =
-        Arc::new(f.signal("PowerProfileSwitch", ()).sarg::<&str, _>("profile"));
-
-    let daemon = PowerDaemon::new(power_switch_signal.clone(), c.clone())?;
+    let mut daemon = PowerDaemon::new(c.clone())?;
     let nvidia_exists = !daemon.graphics.nvidia.is_empty();
-    let daemon = Arc::new(Mutex::new(daemon));
 
     info!("Disabling NMI Watchdog (for kernel debugging only)");
     NmiWatchdog::default().set(b"0");
@@ -185,102 +188,45 @@ pub fn daemon() -> Result<(), String> {
     };
 
     info!("Setting automatic graphics power");
-    match daemon.lock().unwrap().auto_graphics_power() {
+    match daemon.auto_graphics_power() {
         Ok(()) => (),
         Err(err) => {
             warn!("Failed to set automatic graphics power: {}", err);
         }
     }
 
-    {
-        info!("Initializing with the balanced profile");
-        let mut daemon = daemon.lock().unwrap();
-        if let Err(why) = daemon.balanced() {
-            warn!("Failed to set initial profile: {}", why);
-        }
-
-        daemon.initial_set = true;
+    info!("Initializing with the balanced profile");
+    if let Err(why) = daemon.balanced() {
+        warn!("Failed to set initial profile: {}", why);
     }
+    daemon.initial_set = true;
 
     info!("Registering dbus name {}", DBUS_NAME);
     c.request_name(DBUS_NAME, false, true, false).map_err(err_str)?;
 
-    // Defines whether the value returned by the method should be appended.
-    macro_rules! append {
-        (true, $m:ident, $value:ident) => {
-            $m.msg.method_return().append1($value)
-        };
-        (false, $m:ident, $value:ident) => {
-            $m.msg.method_return()
-        };
-    }
-
-    // Programs the message that should be printed.
-    macro_rules! get_value {
-        (true, $name:expr, $daemon:ident, $m:ident, $method:tt) => {{
-            let value = $m.msg.read1()?;
-            info!("DBUS Received {}({}) method", $name, value);
-            $daemon.lock().unwrap().$method(value)
-        }};
-
-        (false, $name:expr, $daemon:ident, $m:ident, $method:tt) => {{
-            info!("DBUS Received {} method", $name);
-            $daemon.lock().unwrap().$method()
-        }};
-    }
-
-    // Creates a new dbus method from an existing method in the daemon.
-    macro_rules! method {
-        ($method:tt, $name:expr, $append:tt, $print:tt) => {{
-            let daemon = daemon.clone();
-            f.method($name, (), move |m| {
-                let result = get_value!($print, $name, daemon, m, $method);
-                match result {
-                    Ok(_value) => {
-                        let mret = append!($append, m, _value);
-                        Ok(vec![mret])
-                    }
-                    Err(err) => {
-                        error!("{}", err);
-                        Err(MethodErr::failed(&err))
-                    }
-                }
-            })
-        }};
-    }
-
     info!("Adding dbus path {} with interface {}", DBUS_PATH, DBUS_IFACE);
-    let tree = f.tree(()).add(
-        f.object_path(DBUS_PATH, ()).introspectable().add(
-            f.interface(DBUS_IFACE, ())
-                .add_m(method!(performance, "Performance", false, false))
-                .add_m(method!(balanced, "Balanced", false, false))
-                .add_m(method!(battery, "Battery", false, false))
-                .add_m(
-                    method!(get_graphics, "GetGraphics", true, false).outarg::<&str, _>("vendor"),
-                )
-                .add_m(method!(get_profile, "GetProfile", true, false).outarg::<&str, _>("vendor"))
-                .add_m(method!(set_graphics, "SetGraphics", false, true).inarg::<&str, _>("vendor"))
-                .add_m(
-                    method!(get_switchable, "GetSwitchable", true, false)
-                        .outarg::<bool, _>("switchable"),
-                )
-                .add_m(
-                    method!(get_graphics_power, "GetGraphicsPower", true, false)
-                        .outarg::<bool, _>("power"),
-                )
-                .add_m(
-                    method!(set_graphics_power, "SetGraphicsPower", false, true)
-                        .inarg::<bool, _>("power"),
-                )
-                .add_m(method!(auto_graphics_power, "AutoGraphicsPower", false, false))
-                .add_s(hotplug_signal.clone())
-                .add_s(power_switch_signal.clone()),
-        ),
-    ).add(f.object_path("/", ()).introspectable());
+    let mut cr = Crossroads::new();
+    let iface_token = cr.register(DBUS_IFACE, |b| {
+        sync_action_method(b, "Performance", PowerDaemon::performance);
+        sync_action_method(b, "Balanced", PowerDaemon::balanced);
+        sync_action_method(b, "Battery", PowerDaemon::battery);
+        sync_get_method(b, "GetGraphics", "vendor", PowerDaemon::get_graphics);
+        sync_set_method(b, "SetGraphics", "vendor", |d, s: String| d.set_graphics(&s));
+        sync_get_method(b, "GetProfile", "profile", PowerDaemon::get_profile);
+        sync_get_method(b, "GetSwitchable", "switchable", PowerDaemon::get_switchable);
+        sync_get_method(b, "GetGraphicsPower", "power", PowerDaemon::get_graphics_power);
+        sync_set_method(b, "SetGraphicsPower", "power", PowerDaemon::set_graphics_power);
+        b.signal::<(u64,), _>("HotPlugDetect", ("port",));
+        b.signal::<(&str,), _>("PowerProfileSwitch", ("profile",));
+    });
+    cr.insert(DBUS_PATH, &[iface_token], daemon);
 
-    tree.start_receive_sync(c.as_ref());
-
+    let cr = Arc::new(std::sync::Mutex::new(cr));
+    c.start_receive(MatchRule::new_method_call(), Box::new(move |msg, c| {
+        cr.lock().unwrap().handle_message(msg, c).unwrap();
+        true
+    }));
+         
     // Spawn hid backlight daemon
     let _hid_backlight = thread::spawn(|| hid_backlight::daemon());
 
@@ -312,7 +258,7 @@ pub fn daemon() -> Result<(), String> {
         for i in 0..hpd.len() {
             if hpd[i] != last[i] && hpd[i] {
                 info!("HotPlugDetect {}", i);
-                c.send(hotplug_signal.msg(&DBUS_PATH.into(), &DBUS_NAME.into()).append1(i as u64))
+                c.send(Message::new_signal(DBUS_PATH, DBUS_NAME, "HotPlugDetect").unwrap().append1(i as u64))
                     .map_err(|()| "failed to send message".to_string())?;
             }
         }
@@ -328,4 +274,48 @@ pub fn daemon() -> Result<(), String> {
 
     info!("daemon exited from loop");
     Ok(())
+}
+
+fn sync_method<IA, OA, F>(b: &mut IfaceBuilder<PowerDaemon>, name: &'static str, input_args: IA::strs, output_args: OA::strs, f: F)
+    where 
+          IA: arg::ArgAll + arg::ReadAll + Debug,
+          OA: arg::ArgAll + arg::AppendAll,
+          F: Fn(&mut PowerDaemon, IA) -> Result<OA, String> + Send + 'static
+{
+    b.method_with_cr(name, input_args, output_args, move |ctx, cr, args| {
+        info!("DBUS Received {}{:?} method", name, args);
+        match cr.data_mut(ctx.path()) {
+            Some(daemon) => match f(daemon, args) {
+                    Ok(ret) => Ok(ret),
+                    Err(err) => Err(MethodErr::failed(&err)),
+                }
+            None => Err(MethodErr::no_path(ctx.path()))
+        }
+    });
+}
+
+/// DBus wrapper for a method taking no argument and returning no values
+fn sync_action_method<F>(b: &mut IfaceBuilder<PowerDaemon>, name: &'static str, f: F)
+    where 
+          F: Fn(&mut PowerDaemon) -> Result<(), String> + Send + 'static
+{
+    sync_method(b, name, (), (), move |d, _: ()| f(d));
+}
+
+/// DBus wrapper for method taking no arguments and returning one value
+fn sync_get_method<T, F>(b: &mut IfaceBuilder<PowerDaemon>, name: &'static str, output_arg: &'static str, f: F)
+    where 
+          T: arg::Arg + arg::Append + Debug,
+          F: Fn(&mut PowerDaemon) -> Result<T, String> + Send + 'static
+{
+    sync_method(b, name, (), (output_arg,), move |d, _: ()| f(d).map(|x| (x,)));
+}
+
+/// DBus wrapper for method taking one argument and returning no values
+fn sync_set_method<T, F>(b: &mut IfaceBuilder<PowerDaemon>, name: &'static str, input_arg: &'static str, f: F)
+    where 
+          T: arg::Arg + for<'z> arg::Get<'z> + Debug,
+          F: Fn(&mut PowerDaemon, T) -> Result<(), String> + Send + 'static
+{
+    sync_method(b, name, (input_arg,), (), move |d, (arg,)| f(d, arg))
 }

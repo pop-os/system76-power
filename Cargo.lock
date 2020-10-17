@@ -77,8 +77,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "dbus-tree"
-version = "0.9.0"
+name = "dbus-crossroads"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "dbus 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -389,7 +389,7 @@ version = "1.1.11"
 dependencies = [
  "clap 2.33.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "dbus 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "dbus-tree 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "dbus-crossroads 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "err-derive 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "fern 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "hidapi 1.2.3 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -513,7 +513,7 @@ dependencies = [
 "checksum chrono 0.4.15 (registry+https://github.com/rust-lang/crates.io-index)" = "942f72db697d8767c22d46a598e01f2d3b475501ea43d0db4f16d90259182d0b"
 "checksum clap 2.33.3 (registry+https://github.com/rust-lang/crates.io-index)" = "37e58ac78573c40708d45522f0d80fa2f01cc4f9b4e2bf749807255454312002"
 "checksum dbus 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)" = "22c08adfeb70c940c14d8af988fa854dcb5529e6141f2397e4e0fa4c9375d094"
-"checksum dbus-tree 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)" = "26a1c139b794d571d930124e17fa4cae8a904dc8e916abf551ab763b00e93a63"
+"checksum dbus-crossroads 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "0a816e8ae3382c7b1bccfa6f2778346ee5b13f80e0eccf80cf8f2912af73995a"
 "checksum err-derive 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)" = "22deed3a8124cff5fa835713fa105621e43bbdc46690c3a6b68328a012d350d4"
 "checksum fern 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)" = "8c9a4820f0ccc8a7afd67c39a0f1a0f4b07ca1725164271a64939d7aeb9af065"
 "checksum fuchsia-zircon 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)" = "2e9763c69ebaae630ba35f74888db465e49e259ba1bc0eda7d06f4a067615d82"
