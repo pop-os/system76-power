@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 dbus = "0.9.0"
-dbus-tree = "0.9.0"
+dbus-crossroads = "0.3"
 libc = "0.2.76"
 clap = "2.33.3"
 log = "0.4.11"
