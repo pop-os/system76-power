@@ -33,6 +33,7 @@ use tokio::{
 };
 
 use crate::{
+    charge_thresholds::{get_charge_thresholds, set_charge_thresholds},
     err_str,
     errors::ProfileError,
     fan::FanDaemon,
@@ -41,12 +42,15 @@ use crate::{
     hotplug::HotPlugDetect,
     kernel_parameters::{KernelParameter, NmiWatchdog},
     mux::DisplayPortMux,
+    polkit,
     Power, DBUS_IFACE, DBUS_NAME, DBUS_PATH,
 };
 
 mod profiles;
 
 use self::profiles::*;
+
+const THRESHOLD_POLICY: &str = "com.system76.powerdaemon.set-charge-thresholds";
 
 static CONTINUE: AtomicBool = AtomicBool::new(true);
 
@@ -171,6 +175,15 @@ impl Power for PowerDaemon {
     fn auto_graphics_power(&mut self) -> Result<(), String> {
         self.graphics.auto_power().map_err(err_str)
     }
+
+    fn get_charge_thresholds(&mut self) -> Result<(u8, u8), String> {
+        get_charge_thresholds()
+    }
+
+    fn set_charge_thresholds(&mut self, thresholds: (u8, u8)) -> Result<(), String> {
+        // NOTE: This method is not actually called by daemon
+        set_charge_thresholds(thresholds)
+    }
 }
 
 #[tokio::main]
@@ -237,6 +250,29 @@ pub async fn daemon() -> Result<(), String> {
         sync_get_method(b, "GetSwitchable", "switchable", PowerDaemon::get_switchable);
         sync_get_method(b, "GetGraphicsPower", "power", PowerDaemon::get_graphics_power);
         sync_set_method(b, "SetGraphicsPower", "power", PowerDaemon::set_graphics_power);
+        sync_get_method(b, "GetChargeThresholds", "thresholds", PowerDaemon::get_charge_thresholds);
+        let c_clone = c.clone();
+        b.method_with_cr_async("SetChargeThresholds", ("thresholds",), (), move |mut ctx, _cr, (thresholds,): ((u8, u8),)| {
+            let sender = ctx.message().sender().unwrap().into_static();
+            let c = c_clone.clone();
+            let res = async move {
+                let pid = polkit::get_connection_unix_process_id(&c, sender).await.map_err(err_str)?;
+                let permitted = if pid == 0 {
+                    true
+                } else {
+                    polkit::check_authorization(&c, pid, 0, THRESHOLD_POLICY).await.map_err(err_str)?
+                };
+                if permitted {
+                    set_charge_thresholds(thresholds)?;
+                    Ok(())
+                } else {
+                    Err("Operation not permitted by Polkit".to_string())
+                }
+            };
+            async move {
+                ctx.reply(res.await.map_err(|e| MethodErr::failed(&e)))
+            }
+        });
         b.signal::<(u64,), _>("HotPlugDetect", ("port",));
         b.signal::<(&str,), _>("PowerProfileSwitch", ("profile",));
     });
