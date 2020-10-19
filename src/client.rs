@@ -31,7 +31,7 @@ impl PowerClient {
         let r = self
             .bus
             .send_with_reply_and_block(m, Duration::from_millis(TIMEOUT))
-            .map_err(|why| format!("daemon returned an error message: {}", err_str(why)))?;
+            .map_err(|why| format!("daemon returned an error message: \"{}\"", err_str(why.message().unwrap_or(""))))?;
 
         Ok(r)
     }
@@ -72,8 +72,7 @@ impl Power for PowerClient {
     }
 
     fn get_profile(&mut self) -> Result<String, String> {
-        let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "GetProfile")?;
-        let r = self.bus.send_with_reply_and_block(m, Duration::from_millis(TIMEOUT)).map_err(err_str)?;
+        let r = self.call_method::<bool>("GetProfile", None)?;
         r.get1().ok_or_else(|| "return value not found".to_string())
     }
 
@@ -100,6 +99,15 @@ impl Power for PowerClient {
     fn auto_graphics_power(&mut self) -> Result<(), String> {
         println!("setting discrete graphics to turn off when not in use");
         self.call_method::<bool>("AutoGraphicsPower", None).map(|_| ())
+    }
+
+    fn get_charge_thresholds(&mut self) -> Result<(u8, u8), String> {
+        let r = self.call_method::<bool>("GetChargeThresholds", None)?;
+        r.get1().ok_or_else(|| "return value not found".to_string())
+    }
+
+    fn set_charge_thresholds(&mut self, thresholds: (u8, u8)) -> Result<(), String> {
+        self.call_method::<(u8, u8)>("SetChargeThresholds", Some(thresholds)).map(|_| ())
     }
 }
 
@@ -182,6 +190,23 @@ pub fn client(subcommand: &str, matches: &ArgMatches) -> Result<(), String> {
             },
             _ => {
                 println!("{}", client.get_graphics()?);
+                Ok(())
+            }
+        },
+        "charge-thresholds" => match matches.values_of("thresholds") {
+            Some(mut thresholds) => {
+                assert_eq!(thresholds.len(), 2);
+                let start = thresholds.next().unwrap();
+                let end = thresholds.next().unwrap();
+                let start = u8::from_str_radix(start, 10).map_err(err_str)?;
+                let end = u8::from_str_radix(end, 10).map_err(err_str)?;
+                client.set_charge_thresholds((start, end))?;
+                Ok(())
+            }
+            None => {
+                let (start, end) = client.get_charge_thresholds()?;
+                println!("Start: {}", start);
+                println!("End: {}", end);
                 Ok(())
             }
         },
