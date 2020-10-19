@@ -83,6 +83,28 @@ fn main() {
                         ),
                 ),
         )
+        .subcommand(
+            SubCommand::with_name("charge-thresholds")
+                .about("Set thresholds for battery charging")
+                .arg(
+                    Arg::with_name("thresholds")
+                        .help("Charge thresholds")
+                        .validator(|s| {
+                            if let Ok(v) = u8::from_str_radix(&s, 10) {
+                                if v <= 100 {
+                                    return Ok(());
+                                }
+                            }
+                            Err("Not an integer between 0 and 100".to_string())
+                        })
+                        .number_of_values(2)
+                        // `number_of_values` seems insufficient:
+                        // https://github.com/clap-rs/clap/issues/2229
+                        .max_values(2)
+                        .value_names(&["start", "end"])
+                        .required(false),
+                ),
+        )
         .get_matches();
 
     let res = match matches.subcommand() {
