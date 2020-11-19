@@ -18,6 +18,3 @@ err-derive = "0.2.4"
 hidapi = "1.2.3"
 inotify = "0.8.3"
 tokio = { version = "0.2", features = ["signal", "time"] }
-
-[build-dependencies]
-vergen = "3.1.0"

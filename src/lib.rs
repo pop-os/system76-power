@@ -24,8 +24,6 @@ pub mod snd;
 pub mod util;
 pub mod wifi;
 
-include!(concat!(env!("OUT_DIR"), "/version.rs"));
-
 pub static DBUS_NAME: &'static str = "com.system76.PowerDaemon";
 pub static DBUS_PATH: &'static str = "/com/system76/PowerDaemon";
 pub static DBUS_IFACE: &'static str = "com.system76.PowerDaemon";
