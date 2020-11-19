@@ -2,7 +2,6 @@ use hidapi::{HidApi, HidDevice, HidResult};
 use inotify::{Inotify, WatchMask};
 use std::{
     fs,
-    os::unix::io::AsRawFd,
     path::Path,
 };
 
