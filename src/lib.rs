@@ -32,6 +32,7 @@ pub trait Power {
     fn performance(&mut self) -> Result<(), String>;
     fn balanced(&mut self) -> Result<(), String>;
     fn battery(&mut self) -> Result<(), String>;
+    fn get_default_graphics(&mut self) -> Result<String, String>;
     fn get_graphics(&mut self) -> Result<String, String>;
     fn get_profile(&mut self) -> Result<String, String>;
     fn get_switchable(&mut self) -> Result<bool, String>;
