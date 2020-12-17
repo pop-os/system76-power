@@ -140,6 +140,10 @@ impl Power for PowerDaemon {
         self.apply_profile(performance, "Performance").map_err(err_str)
     }
 
+    fn get_default_graphics(&mut self) -> Result<String, String> {
+        self.graphics.get_default_graphics().map_err(err_str)
+    }
+
     fn get_graphics(&mut self) -> Result<String, String> {
         self.graphics.get_vendor().map_err(err_str)
     }
@@ -221,6 +225,7 @@ pub async fn daemon() -> Result<(), String> {
         sync_action_method(b, "Performance", PowerDaemon::performance);
         sync_action_method(b, "Balanced", PowerDaemon::balanced);
         sync_action_method(b, "Battery", PowerDaemon::battery);
+        sync_get_method(b, "GetDefaultGraphics", "vendor", PowerDaemon::get_default_graphics);
         sync_get_method(b, "GetGraphics", "vendor", PowerDaemon::get_graphics);
         sync_set_method(b, "SetGraphics", "vendor", |d, s: String| d.set_graphics(&s));
         sync_get_method(b, "GetProfile", "profile", PowerDaemon::get_profile);
