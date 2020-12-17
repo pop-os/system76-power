@@ -51,6 +51,8 @@ pub enum GraphicsDeviceError {
     Command { cmd: &'static str, why: io::Error },
     #[error(display = "{} in use by {}", func, driver)]
     DeviceInUse { func: String, driver: String },
+    #[error(display = "failed to read DMI info: {}", _0)]
+    Dmi(io::Error),
     #[error(display = "failed to open system76-power modprobe file: {}", _0)]
     ModprobeFileOpen(io::Error),
     #[error(display = "failed to write to system76-power modprobe file: {}", _0)]
@@ -217,6 +219,33 @@ impl Graphics {
 
     pub fn can_switch(&self) -> bool {
         !self.nvidia.is_empty() && (!self.intel.is_empty() || !self.amd.is_empty())
+    }
+
+    pub fn get_default_graphics(&self) -> Result<String, GraphicsDeviceError> {
+        const DEFAULT_INTEGRATED: &[&str] = &[
+            "galp5", // XXX: Bug in NVIDIA driver
+            "oryp4",
+            "oryp4-b",
+        ];
+
+        self.switchable_or_fail()?;
+
+        let product = fs::read_to_string("/sys/class/dmi/id/product_version")
+            .map_err(GraphicsDeviceError::Dmi)
+            .map(|s| s.trim().to_string())?;
+
+        // Only default to hybrid on System76 models
+        let vendor = fs::read_to_string("/sys/class/dmi/id/sys_vendor")
+            .map_err(GraphicsDeviceError::Dmi)
+            .map(|s| s.trim().to_string())?;
+
+        if vendor != "System76" {
+            Ok("nvidia".to_string())
+        } else if DEFAULT_INTEGRATED.contains(&product.as_str()) {
+            Ok("integrated".to_string())
+        } else {
+            Ok("hybrid".to_string())
+        }
     }
 
     fn get_prime_discrete() -> Result<String, GraphicsDeviceError> {
