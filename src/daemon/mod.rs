@@ -140,6 +140,10 @@ impl Power for PowerDaemon {
         self.apply_profile(performance, "Performance").map_err(err_str)
     }
 
+    fn get_external_displays_require_dgpu(&mut self) -> Result<bool, String> {
+        self.graphics.get_external_displays_require_dgpu().map_err(err_str)
+    }
+
     fn get_default_graphics(&mut self) -> Result<String, String> {
         self.graphics.get_default_graphics().map_err(err_str)
     }
@@ -225,6 +229,7 @@ pub async fn daemon() -> Result<(), String> {
         sync_action_method(b, "Performance", PowerDaemon::performance);
         sync_action_method(b, "Balanced", PowerDaemon::balanced);
         sync_action_method(b, "Battery", PowerDaemon::battery);
+        sync_get_method(b, "GetExternalDisplaysRequireDGPU", "required", PowerDaemon::get_external_displays_require_dgpu);
         sync_get_method(b, "GetDefaultGraphics", "vendor", PowerDaemon::get_default_graphics);
         sync_get_method(b, "GetGraphics", "vendor", PowerDaemon::get_graphics);
         sync_set_method(b, "SetGraphics", "vendor", |d, s: String| d.set_graphics(&s));
@@ -242,7 +247,7 @@ pub async fn daemon() -> Result<(), String> {
         cr.lock().unwrap().handle_message(msg, c).unwrap();
         true
     }));
-         
+
     // Spawn hid backlight daemon
     let _hid_backlight = thread::spawn(|| hid_backlight::daemon());
 
