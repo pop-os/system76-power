@@ -1,4 +1,4 @@
-use crate::{module::Module, pci::PciBus};
+use crate::{hotplug, module::Module, pci::PciBus};
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
@@ -238,6 +238,15 @@ impl Graphics {
 
     pub fn can_switch(&self) -> bool {
         !self.nvidia.is_empty() && (!self.intel.is_empty() || !self.amd.is_empty())
+    }
+
+    pub fn get_external_displays_require_dgpu(&self) -> Result<bool, GraphicsDeviceError> {
+        self.switchable_or_fail()?;
+
+        let model = fs::read_to_string("/sys/class/dmi/id/product_version")
+            .map_err(GraphicsDeviceError::SysFs)?;
+
+        Ok(hotplug::REQUIRES_NVIDIA.contains(&model.trim()))
     }
 
     fn nvidia_version(&self) -> Result<String, GraphicsDeviceError> {
