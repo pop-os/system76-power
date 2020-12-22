@@ -21,6 +21,17 @@ pub struct HotPlugDetect {
     pins:     [u8; 4],
 }
 
+pub const REQUIRES_NVIDIA: &[&str] = &[
+    "addw1",
+    "addw2",
+    "gaze14",
+    "gaze15",
+    "oryp4",
+    "oryp4-b",
+    "oryp5",
+    "oryp6",
+];
+
 impl HotPlugDetect {
     pub unsafe fn new(nvidia_device: Option<String>) -> Result<HotPlugDetect, HotPlugDetectError> {
         let model = read_to_string("/sys/class/dmi/id/product_version")

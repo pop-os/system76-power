@@ -56,6 +56,11 @@ impl Power for PowerClient {
         self.set_profile("Battery")
     }
 
+    fn get_external_displays_require_dgpu(&mut self) -> Result<bool, String> {
+        let r = self.call_method::<bool>("GetExternalDisplaysRequireDGPU", None)?;
+        r.get1().ok_or_else(|| "return value not found".to_string())
+    }
+
     fn get_default_graphics(&mut self) -> Result<String, String> {
         let r = self.call_method::<bool>("GetDefaultGraphics", None)?;
         r.get1().ok_or_else(|| "return value not found".to_string())
