@@ -1,4 +1,5 @@
 use crate::{module::Module, pci::PciBus};
+use serde::{Deserialize, Serialize};
 use std::{
     fs,
     io::{self, Write},
@@ -51,8 +52,8 @@ pub enum GraphicsDeviceError {
     Command { cmd: &'static str, why: io::Error },
     #[error(display = "{} in use by {}", func, driver)]
     DeviceInUse { func: String, driver: String },
-    #[error(display = "failed to read DMI info: {}", _0)]
-    Dmi(io::Error),
+    #[error(display = "failed to probe driver features: {}", _0)]
+    Json(io::Error),
     #[error(display = "failed to open system76-power modprobe file: {}", _0)]
     ModprobeFileOpen(io::Error),
     #[error(display = "failed to write to system76-power modprobe file: {}", _0)]
@@ -71,6 +72,8 @@ pub enum GraphicsDeviceError {
     Remove { device: String, why: io::Error },
     #[error(display = "failed to rescan PCI bus: {}", _0)]
     Rescan(io::Error),
+    #[error(display = "failed to read sysfs info: {}", _0)]
+    SysFs(io::Error),
     #[error(display = "failed to unbind {} on PCI driver {}: {}", func, driver, why)]
     Unbind { func: String, driver: String, why: io::Error },
     #[error(display = "update-initramfs failed with {} status", _0)]
@@ -153,6 +156,22 @@ impl GraphicsDevice {
     }
 }
 
+// supported-gpus.json
+#[derive(Serialize, Deserialize, Debug)]
+struct NvidiaDevice {
+    devid: String,
+    subdeviceid: Option<String>,
+    subvendorid: Option<String>,
+    name: String,
+    legacybranch: Option<String>,
+    features: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct SupportedGpus {
+    chips: Vec<NvidiaDevice>,
+}
+
 pub struct Graphics {
     pub bus:    PciBus,
     pub amd:    Vec<GraphicsDevice>,
@@ -221,30 +240,80 @@ impl Graphics {
         !self.nvidia.is_empty() && (!self.intel.is_empty() || !self.amd.is_empty())
     }
 
+    fn nvidia_version(&self) -> Result<String, GraphicsDeviceError> {
+        fs::read_to_string("/sys/module/nvidia/version")
+            .map_err(GraphicsDeviceError::SysFs)
+            .map(|s| s.trim().to_string())
+    }
+
+    fn get_nvidia_device_id(&self) -> Result<u32, GraphicsDeviceError> {
+        let device = format!("/sys/bus/pci/devices/{}/device", self.nvidia[0].id);
+        let id = fs::read_to_string(device).map_err(GraphicsDeviceError::SysFs)?;
+        let id = id.trim_start_matches("0x").trim();
+        u32::from_str_radix(&id, 16)
+            .map_err(|e| GraphicsDeviceError::SysFs(
+                io::Error::new(io::ErrorKind::InvalidData, e.to_string())
+            ))
+    }
+
+    fn get_nvidia_device(&self, id: u32) -> Result<NvidiaDevice, GraphicsDeviceError> {
+        let version = self.nvidia_version()?;
+        let major = version.split(".")
+            .next()
+            .unwrap_or_default()
+            .parse::<u32>()
+            .unwrap_or_default();
+
+        let supported_gpus = format!("/usr/share/doc/nvidia-driver-{}/supported-gpus.json", major);
+        let raw = fs::read_to_string(supported_gpus).map_err(GraphicsDeviceError::Json)?;
+        let gpus: SupportedGpus = serde_json::from_str(&raw)
+            .map_err(|e| GraphicsDeviceError::Json(
+                io::Error::new(io::ErrorKind::InvalidData, e.to_string())
+            ))?;
+
+        // There may be multiple entries that share the same device ID.
+        for dev in gpus.chips {
+            let did = dev.devid.trim_start_matches("0x").trim();
+            let did = u32::from_str_radix(&did, 16).unwrap_or_default();
+            if did == id {
+                return Ok(dev);
+            }
+        }
+
+        Err(GraphicsDeviceError::Json(io::Error::new(io::ErrorKind::NotFound, "GPU device not found")))
+    }
+
+    fn gpu_supports_runtimepm(&self) -> Result<bool, GraphicsDeviceError> {
+        let id = self.get_nvidia_device_id()?;
+        let dev = self.get_nvidia_device(id)?;
+        info!("Device 0x{:04} features: {:?}", id, dev.features);
+        Ok(dev.features.contains(&"runtimepm".to_string()))
+    }
+
     pub fn get_default_graphics(&self) -> Result<String, GraphicsDeviceError> {
+        // Models that support runtimepm, but should not use hybrid graphics
         const DEFAULT_INTEGRATED: &[&str] = &[
-            "galp5", // XXX: Bug in NVIDIA driver
-            "oryp4",
-            "oryp4-b",
+            "galp5", // Bug in NVIDIA driver
         ];
 
         self.switchable_or_fail()?;
 
         let product = fs::read_to_string("/sys/class/dmi/id/product_version")
-            .map_err(GraphicsDeviceError::Dmi)
+            .map_err(GraphicsDeviceError::SysFs)
             .map(|s| s.trim().to_string())?;
+        let blacklisted = DEFAULT_INTEGRATED.contains(&product.as_str());
 
         // Only default to hybrid on System76 models
         let vendor = fs::read_to_string("/sys/class/dmi/id/sys_vendor")
-            .map_err(GraphicsDeviceError::Dmi)
+            .map_err(GraphicsDeviceError::SysFs)
             .map(|s| s.trim().to_string())?;
 
         if vendor != "System76" {
             Ok("nvidia".to_string())
-        } else if DEFAULT_INTEGRATED.contains(&product.as_str()) {
-            Ok("integrated".to_string())
-        } else {
+        } else if self.gpu_supports_runtimepm()? && !blacklisted {
             Ok("hybrid".to_string())
+        } else {
+            Ok("integrated".to_string())
         }
     }
 
