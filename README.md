@@ -33,13 +33,32 @@ with `__NV_PRIME_RENDER_OFFLOAD=1` to render on the dGPU. GLX applications must
 be launched with `__NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia`
 to render on the dGPU.
 
-External displays connected to the dGPU ports cannot be used. The NVIDIA
-drivers currently do not support display offload sink ("reverse PRIME") when
-configured for render offloading.
+Display offload sinks ("reverse PRIME") require 450.57 NVIDIA drivers or later.
+This feature allows using external displays while in this mode.
 
-NVIDIA driver power management is only fully implemented for Turing cards. This
-allows them to enter a low power state when not used. Pascal cards are not
-supported and will remain on, even when not in use.
+GPU support for run-time power management is required for the device to enter
+a low power state when not used. Only Turing cards and newer fully implement
+this functionality. Support for run-time power manage can be checked in the
+`supported-gpus.json` file provided by the driver. e.g.:
+
+```
+$ cat /sys/bus/pci/devices/0000:01:00.0/device
+0x1f15
+$ jq '.chips[] | select(.devid=="0x1F15")' < /usr/share/doc/nvidia-driver-460/supported-gpus.json
+{
+  "devid": "0x1F15",
+  "name": "GeForce RTX 2060",
+  "features": [
+    "dpycbcr420",
+    "dpgsynccompatible",
+    "hdmi4k60rgb444",
+    "hdmigsynccompatible",
+    "geforce",
+    "runtimepm",
+    "vdpaufeaturesetJ"
+  ]
+}
+```
 
 [GLVND]: https://gitlab.freedesktop.org/glvnd/libglvnd
 
