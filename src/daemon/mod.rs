@@ -33,7 +33,12 @@ use tokio::{
 };
 
 use crate::{
-    charge_thresholds::{get_charge_thresholds, set_charge_thresholds},
+    charge_thresholds::{
+        ChargeProfile,
+        get_charge_profiles,
+        get_charge_thresholds,
+        set_charge_thresholds,
+    },
     err_str,
     errors::ProfileError,
     fan::FanDaemon,
@@ -184,6 +189,10 @@ impl Power for PowerDaemon {
         // NOTE: This method is not actually called by daemon
         set_charge_thresholds(thresholds)
     }
+
+    fn get_charge_profiles(&mut self) -> Result<Vec<ChargeProfile>, String> {
+        Ok(get_charge_profiles())
+    }
 }
 
 #[tokio::main]
@@ -273,6 +282,7 @@ pub async fn daemon() -> Result<(), String> {
                 ctx.reply(res.await.map_err(|e| MethodErr::failed(&e)))
             }
         });
+        sync_get_method(b, "GetChargeProfiles", "profiles", PowerDaemon::get_charge_profiles);
         b.signal::<(u64,), _>("HotPlugDetect", ("port",));
         b.signal::<(&str,), _>("PowerProfileSwitch", ("profile",));
     });

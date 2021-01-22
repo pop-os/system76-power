@@ -1,4 +1,5 @@
 use crate::{err_str, Power, DBUS_IFACE, DBUS_NAME, DBUS_PATH};
+use crate::charge_thresholds::ChargeProfile;
 use clap::ArgMatches;
 use dbus::{arg::Append, blocking::{BlockingSender, Connection}, Message};
 use pstate::PState;
@@ -108,6 +109,11 @@ impl Power for PowerClient {
 
     fn set_charge_thresholds(&mut self, thresholds: (u8, u8)) -> Result<(), String> {
         self.call_method::<(u8, u8)>("SetChargeThresholds", Some(thresholds)).map(|_| ())
+    }
+
+    fn get_charge_profiles(&mut self) -> Result<Vec<ChargeProfile>, String> {
+        let r = self.call_method::<bool>("GetChargeProfiles", None)?;
+        r.get1().ok_or_else(|| "return value not found".to_string())
     }
 }
 

@@ -26,6 +26,8 @@ pub mod snd;
 pub mod util;
 pub mod wifi;
 
+use charge_thresholds::ChargeProfile;
+
 pub static DBUS_NAME: &'static str = "com.system76.PowerDaemon";
 pub static DBUS_PATH: &'static str = "/com/system76/PowerDaemon";
 pub static DBUS_IFACE: &'static str = "com.system76.PowerDaemon";
@@ -45,6 +47,7 @@ pub trait Power {
     fn auto_graphics_power(&mut self) -> Result<(), String>;
     fn get_charge_thresholds(&mut self) -> Result<(u8, u8), String>;
     fn set_charge_thresholds(&mut self, thresholds: (u8, u8)) -> Result<(), String>;
+    fn get_charge_profiles(&mut self) -> Result<Vec<ChargeProfile>, String>;
 }
 
 // Helper function for errors
