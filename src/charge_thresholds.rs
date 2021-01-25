@@ -90,7 +90,7 @@ fn supports_thresholds() -> bool {
     Path::new(START_THRESHOLD).exists() && Path::new(END_THRESHOLD).exists()
 }
 
-pub(crate) fn get_charge_profiles() -> Vec<ChargeProfile> {
+pub fn get_charge_profiles() -> Vec<ChargeProfile> {
     vec![
         ChargeProfile {
             id: "full_charge".to_string(),
