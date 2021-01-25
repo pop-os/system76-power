@@ -1,3 +1,9 @@
+system76-power (1.1.12) focal; urgency=medium
+
+  * Use hybrid graphics by default for galp5
+
+ -- Jeremy Soller <jeremy@system76.com>  Mon, 25 Jan 2021 09:06:03 -0700
+
 system76-power (1.1.11) focal; urgency=medium
 
   * Add thelio-major-r2.1 and thelio-mega-r1.1
