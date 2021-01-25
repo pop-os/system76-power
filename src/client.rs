@@ -199,22 +199,43 @@ pub fn client(subcommand: &str, matches: &ArgMatches) -> Result<(), String> {
                 Ok(())
             }
         },
-        "charge-thresholds" => match matches.values_of("thresholds") {
-            Some(mut thresholds) => {
+        "charge-thresholds" => {
+            let profiles = client.get_charge_profiles()?;
+
+            if let Some(mut thresholds) = matches.values_of("thresholds") {
                 assert_eq!(thresholds.len(), 2);
                 let start = thresholds.next().unwrap();
                 let end = thresholds.next().unwrap();
                 let start = u8::from_str_radix(start, 10).map_err(err_str)?;
                 let end = u8::from_str_radix(end, 10).map_err(err_str)?;
                 client.set_charge_thresholds((start, end))?;
-                Ok(())
+            } else if let Some(name) = matches.value_of("profile") {
+                if let Some(profile) = profiles.iter().find(|p| p.id == name) {
+                    client.set_charge_thresholds((profile.start, profile.end))?;
+                } else {
+                    return Err(format!("No such profile '{}'", name));
+                }
+            } else if matches.is_present("list-profiles") {
+                for profile in &profiles {
+                    println!("{}", profile.id);
+                    println!("  Title: {}", profile.title);
+                    println!("  Description: {}", profile.description);
+                    println!("  Start: {}", profile.start);
+                    println!("  End: {}", profile.end);
+                }
+                return Ok(());
             }
-            None => {
-                let (start, end) = client.get_charge_thresholds()?;
-                println!("Start: {}", start);
-                println!("End: {}", end);
-                Ok(())
+
+            let (start, end) = client.get_charge_thresholds()?;
+            if let Some(profile) = profiles.iter().find(|p| p.start == start && p.end == end) {
+                println!("Profile: {} ({})", profile.title, profile.id);
+            } else {
+                println!("Profile: Custom");
             }
+            println!("Start: {}", start);
+            println!("End: {}", end);
+
+            Ok(())
         },
         _ => Err(format!("unknown sub-command {}", subcommand)),
     }
