@@ -302,7 +302,6 @@ impl Graphics {
     pub fn get_default_graphics(&self) -> Result<String, GraphicsDeviceError> {
         // Models that support runtimepm, but should not use hybrid graphics
         const DEFAULT_INTEGRATED: &[&str] = &[
-            "galp5", // Bug in NVIDIA driver
         ];
 
         self.switchable_or_fail()?;
