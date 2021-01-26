@@ -196,9 +196,9 @@ fn set_disk_power(apm_level: u8, autosuspend_delay: i32) -> Result<(), DiskPower
 }
 
 pub struct ModelProfile {
-    pl1: u8,
-    pl2: u8,
-    tcc_offset: u8,
+    pl1: Option<u8>,
+    pl2: Option<u8>,
+    tcc_offset: Option<u8>,
 }
 
 impl ModelProfile {
@@ -211,19 +211,23 @@ impl ModelProfile {
         //TODO: check status, allow thermald to be missing
 
         // Set PL1
-        fs::write(
-            "/sys/class/powercap/intel-rapl:0/constraint_0_power_limit_uw",
-            format!("{}", (self.pl1 as u64) * 1_000_000)
-        ).map_err(ModelError::Pl1)?;
+        if let Some(pl1) = self.pl1 {
+            fs::write(
+                "/sys/class/powercap/intel-rapl:0/constraint_0_power_limit_uw",
+                format!("{}", (pl1 as u64) * 1_000_000)
+            ).map_err(ModelError::Pl1)?;
+        }
 
         // Set PL2
-        fs::write(
-            "/sys/class/powercap/intel-rapl:0/constraint_1_power_limit_uw",
-            format!("{}", (self.pl2 as u64) * 1_000_000)
-        ).map_err(ModelError::Pl2)?;
+        if let Some(pl2) = self.pl2 {
+            fs::write(
+                "/sys/class/powercap/intel-rapl:0/constraint_1_power_limit_uw",
+                format!("{}", (pl2 as u64) * 1_000_000)
+            ).map_err(ModelError::Pl2)?;
+        }
 
         // Set TCC
-        {
+        if let Some(tcc_offset) = self.tcc_offset {
             let path = Path::new("/dev/cpu/0/msr");
             if ! path.is_file() {
                 let status = Command::new("modprobe").arg("msr")
@@ -238,7 +242,7 @@ impl ModelProfile {
             file.seek(SeekFrom::Start(0x1A2)).map_err(ModelError::MsrSeek)?;
             let mut data = [0; 8];
             file.read_exact(&mut data).map_err(ModelError::MsrRead)?;
-            data[3] = self.tcc_offset;
+            data[3] = tcc_offset;
             file.write_all(&data).map_err(ModelError::MsrWrite)?;
         }
 
@@ -257,21 +261,38 @@ impl ModelProfiles {
         let model_line = fs::read_to_string("/sys/class/dmi/id/product_version")
             .unwrap_or(String::new());
         match model_line.trim() {
-            "lemp9" => Some(ModelProfiles {
+            "galp5" => Some(ModelProfiles {
                 balanced: ModelProfile {
-                    pl1: 20,
-                    pl2: 40, // Upped from 30
-                    tcc_offset: 12, // 88 C
+                    pl1: Some(28),
+                    pl2: None, // galp5 doesn't like setting pl2
+                    tcc_offset: Some(12), // 88 C
                 },
                 performance: ModelProfile {
-                    pl1: 30,
-                    pl2: 50,
-                    tcc_offset: 2, // 98 C
+                    pl1: Some(40),
+                    pl2: None, // galp5 doesn't like setting pl2
+                    tcc_offset: Some(7), // 93 C
                 },
                 battery: ModelProfile {
-                    pl1: 10,
-                    pl2: 30,
-                    tcc_offset: 32, // 68 C
+                    pl1: Some(12),
+                    pl2: None, // galp5 doesn't like setting pl2
+                    tcc_offset: Some(32), // 68 C
+                }
+            }),
+            "lemp9" => Some(ModelProfiles {
+                balanced: ModelProfile {
+                    pl1: Some(20),
+                    pl2: Some(40), // Upped from 30
+                    tcc_offset: Some(12), // 88 C
+                },
+                performance: ModelProfile {
+                    pl1: Some(30),
+                    pl2: Some(50),
+                    tcc_offset: Some(2), // 98 C
+                },
+                battery: ModelProfile {
+                    pl1: Some(10),
+                    pl2: Some(30),
+                    tcc_offset: Some(32), // 68 C
                 }
             }),
             _ => None,
