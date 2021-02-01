@@ -1,3 +1,9 @@
+system76-power (1.1.13) focal; urgency=medium
+
+  * Add CLI and DBus API for charge thresholds/profiles
+
+ -- Ian Douglas Scott <idscott@system76.com>  Mon, 01 Feb 2021 13:05:03 -0800
+
 system76-power (1.1.12) focal; urgency=medium
 
   * Use hybrid graphics by default for galp5
