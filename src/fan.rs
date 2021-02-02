@@ -35,6 +35,7 @@ impl FanDaemon {
                 "thelio-major-r2.1" |
                 "thelio-major-b1" |
                 "thelio-major-b2" |
+                "thelio-major-b3" |
                 "thelio-mega-r1" |
                 "thelio-mega-r1.1" => FanCurve::hedt(),
                 "thelio-massive-b1" => FanCurve::xeon(),
