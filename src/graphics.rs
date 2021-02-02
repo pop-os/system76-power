@@ -302,7 +302,6 @@ impl Graphics {
     pub fn get_default_graphics(&self) -> Result<String, GraphicsDeviceError> {
         // Models that support runtimepm, but should not use hybrid graphics
         const DEFAULT_INTEGRATED: &[&str] = &[
-            "galp5", // Bug in NVIDIA driver
         ];
 
         self.switchable_or_fail()?;
@@ -312,6 +311,10 @@ impl Graphics {
             .map(|s| s.trim().to_string())?;
         let blacklisted = DEFAULT_INTEGRATED.contains(&product.as_str());
 
+        // If the NVIDIA device is not on the bus or the drivers are not
+        // loaded, then assume runtimepm is not supported.
+        let runtimepm = self.gpu_supports_runtimepm().unwrap_or_default();
+
         // Only default to hybrid on System76 models
         let vendor = fs::read_to_string("/sys/class/dmi/id/sys_vendor")
             .map_err(GraphicsDeviceError::SysFs)
@@ -319,7 +322,7 @@ impl Graphics {
 
         if vendor != "System76" {
             Ok("nvidia".to_string())
-        } else if self.gpu_supports_runtimepm()? && !blacklisted {
+        } else if runtimepm && !blacklisted {
             Ok("hybrid".to_string())
         } else {
             Ok("integrated".to_string())

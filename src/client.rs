@@ -1,4 +1,5 @@
 use crate::{err_str, Power, DBUS_IFACE, DBUS_NAME, DBUS_PATH};
+use crate::charge_thresholds::ChargeProfile;
 use clap::ArgMatches;
 use dbus::{arg::Append, blocking::{BlockingSender, Connection}, Message};
 use pstate::PState;
@@ -31,7 +32,7 @@ impl PowerClient {
         let r = self
             .bus
             .send_with_reply_and_block(m, Duration::from_millis(TIMEOUT))
-            .map_err(|why| format!("daemon returned an error message: {}", err_str(why)))?;
+            .map_err(|why| format!("daemon returned an error message: \"{}\"", err_str(why.message().unwrap_or(""))))?;
 
         Ok(r)
     }
@@ -72,8 +73,7 @@ impl Power for PowerClient {
     }
 
     fn get_profile(&mut self) -> Result<String, String> {
-        let m = Message::new_method_call(DBUS_NAME, DBUS_PATH, DBUS_IFACE, "GetProfile")?;
-        let r = self.bus.send_with_reply_and_block(m, Duration::from_millis(TIMEOUT)).map_err(err_str)?;
+        let r = self.call_method::<bool>("GetProfile", None)?;
         r.get1().ok_or_else(|| "return value not found".to_string())
     }
 
@@ -100,6 +100,20 @@ impl Power for PowerClient {
     fn auto_graphics_power(&mut self) -> Result<(), String> {
         println!("setting discrete graphics to turn off when not in use");
         self.call_method::<bool>("AutoGraphicsPower", None).map(|_| ())
+    }
+
+    fn get_charge_thresholds(&mut self) -> Result<(u8, u8), String> {
+        let r = self.call_method::<bool>("GetChargeThresholds", None)?;
+        r.get1().ok_or_else(|| "return value not found".to_string())
+    }
+
+    fn set_charge_thresholds(&mut self, thresholds: (u8, u8)) -> Result<(), String> {
+        self.call_method::<(u8, u8)>("SetChargeThresholds", Some(thresholds)).map(|_| ())
+    }
+
+    fn get_charge_profiles(&mut self) -> Result<Vec<ChargeProfile>, String> {
+        let r = self.call_method::<bool>("GetChargeProfiles", None)?;
+        r.get1().ok_or_else(|| "return value not found".to_string())
     }
 }
 
@@ -184,6 +198,44 @@ pub fn client(subcommand: &str, matches: &ArgMatches) -> Result<(), String> {
                 println!("{}", client.get_graphics()?);
                 Ok(())
             }
+        },
+        "charge-thresholds" => {
+            let profiles = client.get_charge_profiles()?;
+
+            if let Some(mut thresholds) = matches.values_of("thresholds") {
+                assert_eq!(thresholds.len(), 2);
+                let start = thresholds.next().unwrap();
+                let end = thresholds.next().unwrap();
+                let start = u8::from_str_radix(start, 10).map_err(err_str)?;
+                let end = u8::from_str_radix(end, 10).map_err(err_str)?;
+                client.set_charge_thresholds((start, end))?;
+            } else if let Some(name) = matches.value_of("profile") {
+                if let Some(profile) = profiles.iter().find(|p| p.id == name) {
+                    client.set_charge_thresholds((profile.start, profile.end))?;
+                } else {
+                    return Err(format!("No such profile '{}'", name));
+                }
+            } else if matches.is_present("list-profiles") {
+                for profile in &profiles {
+                    println!("{}", profile.id);
+                    println!("  Title: {}", profile.title);
+                    println!("  Description: {}", profile.description);
+                    println!("  Start: {}", profile.start);
+                    println!("  End: {}", profile.end);
+                }
+                return Ok(());
+            }
+
+            let (start, end) = client.get_charge_thresholds()?;
+            if let Some(profile) = profiles.iter().find(|p| p.start == start && p.end == end) {
+                println!("Profile: {} ({})", profile.title, profile.id);
+            } else {
+                println!("Profile: Custom");
+            }
+            println!("Start: {}", start);
+            println!("End: {}", end);
+
+            Ok(())
         },
         _ => Err(format!("unknown sub-command {}", subcommand)),
     }

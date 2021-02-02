@@ -4,6 +4,7 @@ extern crate intel_pstate as pstate;
 #[macro_use]
 extern crate log;
 
+pub mod charge_thresholds;
 pub mod client;
 pub mod daemon;
 pub mod disks;
@@ -18,11 +19,14 @@ pub mod modprobe;
 pub mod module;
 pub mod mux;
 pub mod pci;
+pub mod polkit;
 pub mod radeon;
 pub mod sideband;
 pub mod snd;
 pub mod util;
 pub mod wifi;
+
+use charge_thresholds::ChargeProfile;
 
 pub static DBUS_NAME: &'static str = "com.system76.PowerDaemon";
 pub static DBUS_PATH: &'static str = "/com/system76/PowerDaemon";
@@ -41,6 +45,9 @@ pub trait Power {
     fn get_graphics_power(&mut self) -> Result<bool, String>;
     fn set_graphics_power(&mut self, power: bool) -> Result<(), String>;
     fn auto_graphics_power(&mut self) -> Result<(), String>;
+    fn get_charge_thresholds(&mut self) -> Result<(u8, u8), String>;
+    fn set_charge_thresholds(&mut self, thresholds: (u8, u8)) -> Result<(), String>;
+    fn get_charge_profiles(&mut self) -> Result<Vec<ChargeProfile>, String>;
 }
 
 // Helper function for errors
