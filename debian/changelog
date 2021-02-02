@@ -1,3 +1,9 @@
+system76-power (1.1.14) focal; urgency=medium
+
+  * Add thelio-major-b3
+
+ -- Jeremy Soller <jeremy@system76.com>  Tue, 02 Feb 2021 09:14:24 -0700
+
 system76-power (1.1.13) focal; urgency=medium
 
   * Add CLI and DBus API for charge thresholds/profiles
