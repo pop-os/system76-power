@@ -228,9 +228,12 @@ impl FanCurve {
             .append(45_00,  30_00)
             .append(55_00,  35_00)
             .append(65_00,  40_00)
-            .append(75_00,  45_00)
-            .append(80_00,  50_00)
-            .append(90_00, 100_00)
+            .append(75_00,  50_00)
+            .append(78_00,  60_00)
+            .append(81_00,  70_00)
+            .append(84_00,  80_00)
+            .append(86_00,  90_00)
+            .append(88_00, 100_00)
     }
 
     /// Fan curve for threadripper 2
@@ -346,9 +349,12 @@ mod tests {
         assert_eq!(standard.get_duty(4500), Some(3000));
         assert_eq!(standard.get_duty(5500), Some(3500));
         assert_eq!(standard.get_duty(6500), Some(4000));
-        assert_eq!(standard.get_duty(7500), Some(4500));
-        assert_eq!(standard.get_duty(8000), Some(5000));
-        assert_eq!(standard.get_duty(9000), Some(10000));
+        assert_eq!(standard.get_duty(7500), Some(5000));
+        assert_eq!(standard.get_duty(7800), Some(6000));
+        assert_eq!(standard.get_duty(8100), Some(7000));
+        assert_eq!(standard.get_duty(8400), Some(8000));
+        assert_eq!(standard.get_duty(8600), Some(9000));
+        assert_eq!(standard.get_duty(8800), Some(10000));
         assert_eq!(standard.get_duty(10000), Some(10000));
     }
 
