@@ -1,3 +1,9 @@
+system76-power (1.1.15) focal; urgency=medium
+
+  * Improved Standard curve for Thelio and Mira
+
+ -- Jeremy Soller <jeremy@system76.com>  Fri, 05 Feb 2021 08:19:52 -0700
+
 system76-power (1.1.14) focal; urgency=medium
 
   * Add thelio-major-b3
