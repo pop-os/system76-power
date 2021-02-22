@@ -1,3 +1,9 @@
+system76-power (1.1.16) focal; urgency=medium
+
+  * Add oryp7
+
+ -- Jeremy Soller <jeremy@system76.com>  Mon, 22 Feb 2021 08:20:25 -0700
+
 system76-power (1.1.15) focal; urgency=medium
 
   * Improved Standard curve for Thelio and Mira

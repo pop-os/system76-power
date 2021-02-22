@@ -30,6 +30,7 @@ pub const REQUIRES_NVIDIA: &[&str] = &[
     "oryp4-b",
     "oryp5",
     "oryp6",
+    "oryp7",
 ];
 
 impl HotPlugDetect {
@@ -137,7 +138,7 @@ impl HotPlugDetect {
                     0x00, // Not Connected
                 ],
             }),
-            "oryp6" => Ok(HotPlugDetect {
+            "oryp6" | "oryp7" => Ok(HotPlugDetect {
                 sideband: Sideband::new(0xFD00_0000).map_err(HotPlugDetectError::Sideband)?,
                 port:     0x6A,
                 pins:     [
