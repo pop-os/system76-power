@@ -3,9 +3,8 @@ Section: admin
 Priority: optional
 Maintainer: Jeremy Soller <jeremy@system76.com>
 Build-Depends:
-  debhelper (>=9),
+  debhelper (>=9.20160709),
   cargo,
-  dh-systemd,
   libdbus-1-dev,
   libusb-1.0-0-dev,
   pkg-config
