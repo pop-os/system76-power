@@ -4,7 +4,7 @@ export VENDORED ?= 1
 CLEAN ?= 1
 
 %:
-	dh $@ --with=systemd
+	dh $@
 
 override_dh_auto_build:
 	env CARGO_HOME="$$(pwd)/target/cargo" \
