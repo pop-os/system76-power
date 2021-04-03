@@ -1,7 +1,9 @@
 use super::pci_runtime_pm_support;
 use crate::{
     disks::{DiskPower, Disks},
-    errors::{BacklightError, DiskPowerError, ModelError, PciDeviceError, ProfileError, ScsiHostError},
+    errors::{
+        BacklightError, DiskPowerError, ModelError, PciDeviceError, ProfileError, ScsiHostError,
+    },
     kernel_parameters::{DeviceList, Dirty, KernelParameter, LaptopMode},
     radeon::RadeonDevice,
 };
@@ -53,7 +55,10 @@ pub fn balanced(errors: &mut Vec<ProfileError>, set_brightness: bool) {
         catch!(errors, iterate_backlights(Backlight::iter(), &Brightness::set_if_lower_than, 40));
 
         // Manage keyboard backlights.
-        catch!(errors, iterate_backlights(Leds::iter_keyboards(), &Brightness::set_if_lower_than, 50));
+        catch!(
+            errors,
+            iterate_backlights(Leds::iter_keyboards(), &Brightness::set_if_lower_than, 50)
+        );
     }
 
     // Parameters which may cause on certain systems.
@@ -196,48 +201,56 @@ fn set_disk_power(apm_level: u8, autosuspend_delay: i32) -> Result<(), DiskPower
 }
 
 pub struct ModelProfile {
-    pl1: Option<u8>,
-    pl2: Option<u8>,
+    pl1:        Option<u8>,
+    pl2:        Option<u8>,
     tcc_offset: Option<u8>,
 }
 
 impl ModelProfile {
-    //TODO pub fn get() -> Result<Self, ModelError> {}
+    // TODO pub fn get() -> Result<Self, ModelError> {}
 
     pub fn set(&self) -> Result<(), ModelError> {
         // Thermald sets pl1 and pl2 on its own, conflicting with system76-power
-        let _status = Command::new("systemctl").arg("stop").arg("thermald.service")
-            .status().map_err(ModelError::Thermald)?;
-        //TODO: check status, allow thermald to be missing
+        let _status = Command::new("systemctl")
+            .arg("stop")
+            .arg("thermald.service")
+            .status()
+            .map_err(ModelError::Thermald)?;
+        // TODO: check status, allow thermald to be missing
 
         // Set PL1
         if let Some(pl1) = self.pl1 {
             fs::write(
                 "/sys/class/powercap/intel-rapl:0/constraint_0_power_limit_uw",
-                format!("{}", (pl1 as u64) * 1_000_000)
-            ).map_err(ModelError::Pl1)?;
+                format!("{}", (pl1 as u64) * 1_000_000),
+            )
+            .map_err(ModelError::Pl1)?;
         }
 
         // Set PL2
         if let Some(pl2) = self.pl2 {
             fs::write(
                 "/sys/class/powercap/intel-rapl:0/constraint_1_power_limit_uw",
-                format!("{}", (pl2 as u64) * 1_000_000)
-            ).map_err(ModelError::Pl2)?;
+                format!("{}", (pl2 as u64) * 1_000_000),
+            )
+            .map_err(ModelError::Pl2)?;
         }
 
         // Set TCC
         if let Some(tcc_offset) = self.tcc_offset {
             let path = Path::new("/dev/cpu/0/msr");
-            if ! path.is_file() {
-                let status = Command::new("modprobe").arg("msr")
-                    .status().map_err(ModelError::ModprobeIo)?;
-                if ! status.success() {
+            if !path.is_file() {
+                let status =
+                    Command::new("modprobe").arg("msr").status().map_err(ModelError::ModprobeIo)?;
+                if !status.success() {
                     return Err(ModelError::ModprobeExitStatus(status));
                 }
             }
 
-            let mut file = fs::OpenOptions::new().read(true).write(true).open(path)
+            let mut file = fs::OpenOptions::new()
+                .read(true)
+                .write(true)
+                .open(path)
                 .map_err(ModelError::MsrOpen)?;
             file.seek(SeekFrom::Start(0x1A2)).map_err(ModelError::MsrSeek)?;
             let mut data = [0; 8];
@@ -251,49 +264,49 @@ impl ModelProfile {
 }
 
 pub struct ModelProfiles {
-    pub balanced: ModelProfile,
+    pub balanced:    ModelProfile,
     pub performance: ModelProfile,
-    pub battery: ModelProfile,
+    pub battery:     ModelProfile,
 }
 
 impl ModelProfiles {
     pub fn new() -> Option<Self> {
-        let model_line = fs::read_to_string("/sys/class/dmi/id/product_version")
-            .unwrap_or(String::new());
+        let model_line =
+            fs::read_to_string("/sys/class/dmi/id/product_version").unwrap_or(String::new());
         match model_line.trim() {
             "galp5" => Some(ModelProfiles {
-                balanced: ModelProfile {
-                    pl1: Some(28),
-                    pl2: None, // galp5 doesn't like setting pl2
+                balanced:    ModelProfile {
+                    pl1:        Some(28),
+                    pl2:        None,     // galp5 doesn't like setting pl2
                     tcc_offset: Some(12), // 88 C
                 },
                 performance: ModelProfile {
-                    pl1: Some(40),
-                    pl2: None, // galp5 doesn't like setting pl2
+                    pl1:        Some(40),
+                    pl2:        None,    // galp5 doesn't like setting pl2
                     tcc_offset: Some(7), // 93 C
                 },
-                battery: ModelProfile {
-                    pl1: Some(12),
-                    pl2: None, // galp5 doesn't like setting pl2
+                battery:     ModelProfile {
+                    pl1:        Some(12),
+                    pl2:        None,     // galp5 doesn't like setting pl2
                     tcc_offset: Some(32), // 68 C
-                }
+                },
             }),
             "lemp9" => Some(ModelProfiles {
-                balanced: ModelProfile {
-                    pl1: Some(20),
-                    pl2: Some(40), // Upped from 30
+                balanced:    ModelProfile {
+                    pl1:        Some(20),
+                    pl2:        Some(40), // Upped from 30
                     tcc_offset: Some(12), // 88 C
                 },
                 performance: ModelProfile {
-                    pl1: Some(30),
-                    pl2: Some(50),
+                    pl1:        Some(30),
+                    pl2:        Some(50),
                     tcc_offset: Some(2), // 98 C
                 },
-                battery: ModelProfile {
-                    pl1: Some(10),
-                    pl2: Some(30),
+                battery:     ModelProfile {
+                    pl1:        Some(10),
+                    pl2:        Some(30),
                     tcc_offset: Some(32), // 68 C
-                }
+                },
             }),
             _ => None,
         }

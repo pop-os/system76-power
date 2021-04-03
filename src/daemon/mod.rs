@@ -1,20 +1,10 @@
 use dbus::{
     arg,
-    channel::{
-        MatchingReceiver,
-        Sender,
-    },
+    channel::{MatchingReceiver, Sender},
+    message::{MatchRule, Message},
     nonblock::SyncConnection,
-    message::{
-        MatchRule,
-        Message,
-    },
 };
-use dbus_crossroads::{
-    Crossroads,
-    IfaceBuilder,
-    MethodErr,
-};
+use dbus_crossroads::{Crossroads, IfaceBuilder, MethodErr};
 use dbus_tokio::connection;
 use std::{
     fmt::Debug,
@@ -23,8 +13,8 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
-    time::Duration,
     thread,
+    time::Duration,
 };
 use tokio::{
     signal::unix::{signal, SignalKind},
@@ -34,10 +24,7 @@ use tokio::{
 
 use crate::{
     charge_thresholds::{
-        ChargeProfile,
-        get_charge_profiles,
-        get_charge_thresholds,
-        set_charge_thresholds,
+        get_charge_profiles, get_charge_thresholds, set_charge_thresholds, ChargeProfile,
     },
     err_str,
     errors::ProfileError,
@@ -47,8 +34,7 @@ use crate::{
     hotplug::HotPlugDetect,
     kernel_parameters::{KernelParameter, NmiWatchdog},
     mux::DisplayPortMux,
-    polkit,
-    Power, DBUS_IFACE, DBUS_NAME, DBUS_PATH,
+    polkit, Power, DBUS_IFACE, DBUS_NAME, DBUS_PATH,
 };
 
 mod profiles;
@@ -81,17 +67,15 @@ static PCI_RUNTIME_PM: AtomicBool = AtomicBool::new(false);
 fn pci_runtime_pm_support() -> bool { PCI_RUNTIME_PM.load(Ordering::SeqCst) }
 
 struct PowerDaemon {
-    initial_set:         bool,
-    graphics:            Graphics,
-    power_profile:       String,
-    profile_errors:      Vec<ProfileError>,
-    dbus_connection:     Arc<SyncConnection>,
+    initial_set:     bool,
+    graphics:        Graphics,
+    power_profile:   String,
+    profile_errors:  Vec<ProfileError>,
+    dbus_connection: Arc<SyncConnection>,
 }
 
 impl PowerDaemon {
-    fn new(
-        dbus_connection: Arc<SyncConnection>,
-    ) -> Result<PowerDaemon, String> {
+    fn new(dbus_connection: Arc<SyncConnection>) -> Result<PowerDaemon, String> {
         let graphics = Graphics::new().map_err(err_str)?;
         Ok(PowerDaemon {
             initial_set: false,
@@ -109,7 +93,7 @@ impl PowerDaemon {
     ) -> Result<(), String> {
         if &self.power_profile == name {
             info!("profile was already set");
-            return Ok(())
+            return Ok(());
         }
 
         func(&mut self.profile_errors, self.initial_set);
@@ -181,9 +165,7 @@ impl Power for PowerDaemon {
         self.graphics.auto_power().map_err(err_str)
     }
 
-    fn get_charge_thresholds(&mut self) -> Result<(u8, u8), String> {
-        get_charge_thresholds()
-    }
+    fn get_charge_thresholds(&mut self) -> Result<(u8, u8), String> { get_charge_thresholds() }
 
     fn set_charge_thresholds(&mut self, thresholds: (u8, u8)) -> Result<(), String> {
         // NOTE: This method is not actually called by daemon
@@ -246,12 +228,22 @@ pub async fn daemon() -> Result<(), String> {
 
     info!("Adding dbus path {} with interface {}", DBUS_PATH, DBUS_IFACE);
     let mut cr = Crossroads::new();
-    cr.set_async_support(Some((c.clone(), Box::new(|x| { tokio::spawn(x); }))));
+    cr.set_async_support(Some((
+        c.clone(),
+        Box::new(|x| {
+            tokio::spawn(x);
+        }),
+    )));
     let iface_token = cr.register(DBUS_IFACE, |b| {
         sync_action_method(b, "Performance", PowerDaemon::performance);
         sync_action_method(b, "Balanced", PowerDaemon::balanced);
         sync_action_method(b, "Battery", PowerDaemon::battery);
-        sync_get_method(b, "GetExternalDisplaysRequireDGPU", "required", PowerDaemon::get_external_displays_require_dgpu);
+        sync_get_method(
+            b,
+            "GetExternalDisplaysRequireDGPU",
+            "required",
+            PowerDaemon::get_external_displays_require_dgpu,
+        );
         sync_get_method(b, "GetDefaultGraphics", "vendor", PowerDaemon::get_default_graphics);
         sync_get_method(b, "GetGraphics", "vendor", PowerDaemon::get_graphics);
         sync_set_method(b, "SetGraphics", "vendor", |d, s: String| d.set_graphics(&s));
@@ -261,27 +253,34 @@ pub async fn daemon() -> Result<(), String> {
         sync_set_method(b, "SetGraphicsPower", "power", PowerDaemon::set_graphics_power);
         sync_get_method(b, "GetChargeThresholds", "thresholds", PowerDaemon::get_charge_thresholds);
         let c_clone = c.clone();
-        b.method_with_cr_async("SetChargeThresholds", ("thresholds",), (), move |mut ctx, _cr, (thresholds,): ((u8, u8),)| {
-            let sender = ctx.message().sender().unwrap().into_static();
-            let c = c_clone.clone();
-            let res = async move {
-                let pid = polkit::get_connection_unix_process_id(&c, sender).await.map_err(err_str)?;
-                let permitted = if pid == 0 {
-                    true
-                } else {
-                    polkit::check_authorization(&c, pid, 0, THRESHOLD_POLICY).await.map_err(err_str)?
+        b.method_with_cr_async(
+            "SetChargeThresholds",
+            ("thresholds",),
+            (),
+            move |mut ctx, _cr, (thresholds,): ((u8, u8),)| {
+                let sender = ctx.message().sender().unwrap().into_static();
+                let c = c_clone.clone();
+                let res = async move {
+                    let pid = polkit::get_connection_unix_process_id(&c, sender)
+                        .await
+                        .map_err(err_str)?;
+                    let permitted = if pid == 0 {
+                        true
+                    } else {
+                        polkit::check_authorization(&c, pid, 0, THRESHOLD_POLICY)
+                            .await
+                            .map_err(err_str)?
+                    };
+                    if permitted {
+                        set_charge_thresholds(thresholds)?;
+                        Ok(())
+                    } else {
+                        Err("Operation not permitted by Polkit".to_string())
+                    }
                 };
-                if permitted {
-                    set_charge_thresholds(thresholds)?;
-                    Ok(())
-                } else {
-                    Err("Operation not permitted by Polkit".to_string())
-                }
-            };
-            async move {
-                ctx.reply(res.await.map_err(|e| MethodErr::failed(&e)))
-            }
-        });
+                async move { ctx.reply(res.await.map_err(|e| MethodErr::failed(&e))) }
+            },
+        );
         sync_get_method(b, "GetChargeProfiles", "profiles", PowerDaemon::get_charge_profiles);
         b.signal::<(u64,), _>("HotPlugDetect", ("port",));
         b.signal::<(&str,), _>("PowerProfileSwitch", ("profile",));
@@ -289,10 +288,13 @@ pub async fn daemon() -> Result<(), String> {
     cr.insert(DBUS_PATH, &[iface_token], daemon);
 
     let cr = Arc::new(std::sync::Mutex::new(cr));
-    c.start_receive(MatchRule::new_method_call(), Box::new(move |msg, c| {
-        cr.lock().unwrap().handle_message(msg, c).unwrap();
-        true
-    }));
+    c.start_receive(
+        MatchRule::new_method_call(),
+        Box::new(move |msg, c| {
+            cr.lock().unwrap().handle_message(msg, c).unwrap();
+            true
+        }),
+    );
 
     // Spawn hid backlight daemon
     let _hid_backlight = thread::spawn(|| hid_backlight::daemon());
@@ -323,8 +325,12 @@ pub async fn daemon() -> Result<(), String> {
         for i in 0..hpd.len() {
             if hpd[i] != last[i] && hpd[i] {
                 info!("HotPlugDetect {}", i);
-                c.send(Message::new_signal(DBUS_PATH, DBUS_NAME, "HotPlugDetect").unwrap().append1(i as u64))
-                    .map_err(|()| "failed to send message".to_string())?;
+                c.send(
+                    Message::new_signal(DBUS_PATH, DBUS_NAME, "HotPlugDetect")
+                        .unwrap()
+                        .append1(i as u64),
+                )
+                .map_err(|()| "failed to send message".to_string())?;
             }
         }
 
@@ -341,46 +347,59 @@ pub async fn daemon() -> Result<(), String> {
     Ok(())
 }
 
-fn sync_method<IA, OA, F>(b: &mut IfaceBuilder<PowerDaemon>, name: &'static str, input_args: IA::strs, output_args: OA::strs, f: F)
-    where 
-          IA: arg::ArgAll + arg::ReadAll + Debug,
-          OA: arg::ArgAll + arg::AppendAll,
-          F: Fn(&mut PowerDaemon, IA) -> Result<OA, String> + Send + 'static
+fn sync_method<IA, OA, F>(
+    b: &mut IfaceBuilder<PowerDaemon>,
+    name: &'static str,
+    input_args: IA::strs,
+    output_args: OA::strs,
+    f: F,
+) where
+    IA: arg::ArgAll + arg::ReadAll + Debug,
+    OA: arg::ArgAll + arg::AppendAll,
+    F: Fn(&mut PowerDaemon, IA) -> Result<OA, String> + Send + 'static,
 {
     b.method_with_cr(name, input_args, output_args, move |ctx, cr, args| {
         info!("DBUS Received {}{:?} method", name, args);
         match cr.data_mut(ctx.path()) {
             Some(daemon) => match f(daemon, args) {
-                    Ok(ret) => Ok(ret),
-                    Err(err) => Err(MethodErr::failed(&err)),
-                }
-            None => Err(MethodErr::no_path(ctx.path()))
+                Ok(ret) => Ok(ret),
+                Err(err) => Err(MethodErr::failed(&err)),
+            },
+            None => Err(MethodErr::no_path(ctx.path())),
         }
     });
 }
 
 /// DBus wrapper for a method taking no argument and returning no values
 fn sync_action_method<F>(b: &mut IfaceBuilder<PowerDaemon>, name: &'static str, f: F)
-    where 
-          F: Fn(&mut PowerDaemon) -> Result<(), String> + Send + 'static
+where
+    F: Fn(&mut PowerDaemon) -> Result<(), String> + Send + 'static,
 {
     sync_method(b, name, (), (), move |d, _: ()| f(d));
 }
 
 /// DBus wrapper for method taking no arguments and returning one value
-fn sync_get_method<T, F>(b: &mut IfaceBuilder<PowerDaemon>, name: &'static str, output_arg: &'static str, f: F)
-    where 
-          T: arg::Arg + arg::Append + Debug,
-          F: Fn(&mut PowerDaemon) -> Result<T, String> + Send + 'static
+fn sync_get_method<T, F>(
+    b: &mut IfaceBuilder<PowerDaemon>,
+    name: &'static str,
+    output_arg: &'static str,
+    f: F,
+) where
+    T: arg::Arg + arg::Append + Debug,
+    F: Fn(&mut PowerDaemon) -> Result<T, String> + Send + 'static,
 {
     sync_method(b, name, (), (output_arg,), move |d, _: ()| f(d).map(|x| (x,)));
 }
 
 /// DBus wrapper for method taking one argument and returning no values
-fn sync_set_method<T, F>(b: &mut IfaceBuilder<PowerDaemon>, name: &'static str, input_arg: &'static str, f: F)
-    where 
-          T: arg::Arg + for<'z> arg::Get<'z> + Debug,
-          F: Fn(&mut PowerDaemon, T) -> Result<(), String> + Send + 'static
+fn sync_set_method<T, F>(
+    b: &mut IfaceBuilder<PowerDaemon>,
+    name: &'static str,
+    input_arg: &'static str,
+    f: F,
+) where
+    T: arg::Arg + for<'z> arg::Get<'z> + Debug,
+    F: Fn(&mut PowerDaemon, T) -> Result<(), String> + Send + 'static,
 {
     sync_method(b, name, (input_arg,), (), move |d, (arg,)| f(d, arg))
 }

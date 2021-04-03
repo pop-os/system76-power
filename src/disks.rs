@@ -28,7 +28,8 @@ impl Default for Disks {
         for device in blocks.flat_map(Result::ok) {
             if device.path().join("slaves").exists() {
                 if let Ok(name) = device.file_name().into_string() {
-                    if name.starts_with("loop") || name.starts_with("dm") || name.starts_with("md") {
+                    if name.starts_with("loop") || name.starts_with("dm") || name.starts_with("md")
+                    {
                         continue;
                     }
 
