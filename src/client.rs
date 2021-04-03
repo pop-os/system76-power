@@ -1,10 +1,12 @@
-use crate::{err_str, Power, DBUS_IFACE, DBUS_NAME, DBUS_PATH};
-use crate::charge_thresholds::ChargeProfile;
+use crate::{charge_thresholds::ChargeProfile, err_str, Power, DBUS_IFACE, DBUS_NAME, DBUS_PATH};
 use clap::ArgMatches;
-use dbus::{arg::Append, blocking::{BlockingSender, Connection}, Message};
+use dbus::{
+    arg::Append,
+    blocking::{BlockingSender, Connection},
+    Message,
+};
 use pstate::PState;
-use std::io;
-use std::time::Duration;
+use std::{io, time::Duration};
 use sysfs_class::{Backlight, Brightness, Leds, SysClass};
 
 static TIMEOUT: u64 = 60 * 1000;
@@ -29,10 +31,14 @@ impl PowerClient {
             m = m.append1(arg);
         }
 
-        let r = self
-            .bus
-            .send_with_reply_and_block(m, Duration::from_millis(TIMEOUT))
-            .map_err(|why| format!("daemon returned an error message: \"{}\"", err_str(why.message().unwrap_or(""))))?;
+        let r = self.bus.send_with_reply_and_block(m, Duration::from_millis(TIMEOUT)).map_err(
+            |why| {
+                format!(
+                    "daemon returned an error message: \"{}\"",
+                    err_str(why.message().unwrap_or(""))
+                )
+            },
+        )?;
 
         Ok(r)
     }
@@ -45,17 +51,11 @@ impl PowerClient {
 }
 
 impl Power for PowerClient {
-    fn performance(&mut self) -> Result<(), String> {
-        self.set_profile("Performance")
-    }
+    fn performance(&mut self) -> Result<(), String> { self.set_profile("Performance") }
 
-    fn balanced(&mut self) -> Result<(), String> {
-        self.set_profile("Balanced")
-    }
+    fn balanced(&mut self) -> Result<(), String> { self.set_profile("Balanced") }
 
-    fn battery(&mut self) -> Result<(), String> {
-        self.set_profile("Battery")
-    }
+    fn battery(&mut self) -> Result<(), String> { self.set_profile("Battery") }
 
     fn get_external_displays_require_dgpu(&mut self) -> Result<bool, String> {
         let r = self.call_method::<bool>("GetExternalDisplaysRequireDGPU", None)?;
@@ -236,7 +236,7 @@ pub fn client(subcommand: &str, matches: &ArgMatches) -> Result<(), String> {
             println!("End: {}", end);
 
             Ok(())
-        },
+        }
         _ => Err(format!("unknown sub-command {}", subcommand)),
     }
 }

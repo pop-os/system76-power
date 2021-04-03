@@ -159,12 +159,12 @@ impl GraphicsDevice {
 // supported-gpus.json
 #[derive(Serialize, Deserialize, Debug)]
 struct NvidiaDevice {
-    devid: String,
-    subdeviceid: Option<String>,
-    subvendorid: Option<String>,
-    name: String,
+    devid:        String,
+    subdeviceid:  Option<String>,
+    subvendorid:  Option<String>,
+    name:         String,
     legacybranch: Option<String>,
-    features: Vec<String>,
+    features:     Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -259,26 +259,21 @@ impl Graphics {
         let device = format!("/sys/bus/pci/devices/{}/device", self.nvidia[0].id);
         let id = fs::read_to_string(device).map_err(GraphicsDeviceError::SysFs)?;
         let id = id.trim_start_matches("0x").trim();
-        u32::from_str_radix(&id, 16)
-            .map_err(|e| GraphicsDeviceError::SysFs(
-                io::Error::new(io::ErrorKind::InvalidData, e.to_string())
-            ))
+        u32::from_str_radix(&id, 16).map_err(|e| {
+            GraphicsDeviceError::SysFs(io::Error::new(io::ErrorKind::InvalidData, e.to_string()))
+        })
     }
 
     fn get_nvidia_device(&self, id: u32) -> Result<NvidiaDevice, GraphicsDeviceError> {
         let version = self.nvidia_version()?;
-        let major = version.split(".")
-            .next()
-            .unwrap_or_default()
-            .parse::<u32>()
-            .unwrap_or_default();
+        let major =
+            version.split(".").next().unwrap_or_default().parse::<u32>().unwrap_or_default();
 
         let supported_gpus = format!("/usr/share/doc/nvidia-driver-{}/supported-gpus.json", major);
         let raw = fs::read_to_string(supported_gpus).map_err(GraphicsDeviceError::Json)?;
-        let gpus: SupportedGpus = serde_json::from_str(&raw)
-            .map_err(|e| GraphicsDeviceError::Json(
-                io::Error::new(io::ErrorKind::InvalidData, e.to_string())
-            ))?;
+        let gpus: SupportedGpus = serde_json::from_str(&raw).map_err(|e| {
+            GraphicsDeviceError::Json(io::Error::new(io::ErrorKind::InvalidData, e.to_string()))
+        })?;
 
         // There may be multiple entries that share the same device ID.
         for dev in gpus.chips {
@@ -289,7 +284,10 @@ impl Graphics {
             }
         }
 
-        Err(GraphicsDeviceError::Json(io::Error::new(io::ErrorKind::NotFound, "GPU device not found")))
+        Err(GraphicsDeviceError::Json(io::Error::new(
+            io::ErrorKind::NotFound,
+            "GPU device not found",
+        )))
     }
 
     fn gpu_supports_runtimepm(&self) -> Result<bool, GraphicsDeviceError> {
@@ -301,8 +299,7 @@ impl Graphics {
 
     pub fn get_default_graphics(&self) -> Result<String, GraphicsDeviceError> {
         // Models that support runtimepm, but should not use hybrid graphics
-        const DEFAULT_INTEGRATED: &[&str] = &[
-        ];
+        const DEFAULT_INTEGRATED: &[&str] = &[];
 
         self.switchable_or_fail()?;
 
@@ -336,8 +333,7 @@ impl Graphics {
     }
 
     fn set_prime_discrete(mode: &str) -> Result<(), GraphicsDeviceError> {
-        fs::write(PRIME_DISCRETE_PATH, mode)
-            .map_err(GraphicsDeviceError::PrimeModeWrite)
+        fs::write(PRIME_DISCRETE_PATH, mode).map_err(GraphicsDeviceError::PrimeModeWrite)
     }
 
     pub fn get_vendor(&self) -> Result<String, GraphicsDeviceError> {

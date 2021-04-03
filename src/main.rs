@@ -1,8 +1,7 @@
 use clap::{App, AppSettings, Arg, ArgGroup, SubCommand};
 use log::LevelFilter;
 use std::process;
-use system76_power::{client, daemon, logging};
-use system76_power::charge_thresholds::get_charge_profiles;
+use system76_power::{charge_thresholds::get_charge_profiles, client, daemon, logging};
 
 fn main() {
     let matches = App::new("system76-power")
@@ -61,12 +60,16 @@ fn main() {
                 )
                 .subcommand(
                     SubCommand::with_name("compute")
-                        .about("Like integrated, but the dGPU is available for compute"))
+                        .about("Like integrated, but the dGPU is available for compute"),
+                )
                 .subcommand(
                     SubCommand::with_name("hybrid")
                         .about("Set the graphics mode to Hybrid (PRIME)"),
                 )
-                .subcommand(SubCommand::with_name("integrated").about("Set the graphics mode to integrated"))
+                .subcommand(
+                    SubCommand::with_name("integrated")
+                        .about("Set the graphics mode to integrated"),
+                )
                 .subcommand(
                     SubCommand::with_name("nvidia").about("Set the graphics mode to NVIDIA"),
                 )

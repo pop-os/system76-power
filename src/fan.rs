@@ -26,20 +26,15 @@ pub struct FanDaemon {
 
 impl FanDaemon {
     pub fn new(nvidia_exists: bool) -> Self {
-        let model = fs::read_to_string("/sys/class/dmi/id/product_version")
-            .unwrap_or(String::new());
+        let model =
+            fs::read_to_string("/sys/class/dmi/id/product_version").unwrap_or(String::new());
         let mut daemon = FanDaemon {
             curve: match model.trim() {
                 "thelio-major-r1" => FanCurve::threadripper2(),
-                "thelio-major-r2" |
-                "thelio-major-r2.1" |
-                "thelio-major-b1" |
-                "thelio-major-b2" |
-                "thelio-major-b3" |
-                "thelio-mega-r1" |
-                "thelio-mega-r1.1" => FanCurve::hedt(),
+                "thelio-major-r2" | "thelio-major-r2.1" | "thelio-major-b1" | "thelio-major-b2"
+                | "thelio-major-b3" | "thelio-mega-r1" | "thelio-mega-r1.1" => FanCurve::hedt(),
                 "thelio-massive-b1" => FanCurve::xeon(),
-                _ => FanCurve::standard()
+                _ => FanCurve::standard(),
             },
             amdgpus: Vec::new(),
             platforms: Vec::new(),
@@ -89,7 +84,9 @@ impl FanDaemon {
     /// Get the maximum measured temperature from any CPU / GPU on the system, in
     /// thousandths of a Celsius. Thousandths celsius is the standard Linux hwmon temperature unit.
     pub fn get_temp(&self) -> Option<u32> {
-        let mut temp_opt = self.cpus.iter()
+        let mut temp_opt = self
+            .cpus
+            .iter()
             .chain(self.amdgpus.iter())
             .filter_map(|sensor| sensor.temp(1).ok())
             .filter_map(|temp| temp.input().ok())
@@ -224,55 +221,55 @@ impl FanCurve {
     /// The standard fan curve
     pub fn standard() -> Self {
         Self::default()
-            .append(44_99,   0_00)
-            .append(45_00,  30_00)
-            .append(55_00,  35_00)
-            .append(65_00,  40_00)
-            .append(75_00,  50_00)
-            .append(78_00,  60_00)
-            .append(81_00,  70_00)
-            .append(84_00,  80_00)
-            .append(86_00,  90_00)
+            .append(44_99, 0_00)
+            .append(45_00, 30_00)
+            .append(55_00, 35_00)
+            .append(65_00, 40_00)
+            .append(75_00, 50_00)
+            .append(78_00, 60_00)
+            .append(81_00, 70_00)
+            .append(84_00, 80_00)
+            .append(86_00, 90_00)
             .append(88_00, 100_00)
     }
 
     /// Fan curve for threadripper 2
     pub fn threadripper2() -> Self {
         Self::default()
-            .append(00_00,  30_00)
-            .append(40_00,  40_00)
-            .append(47_50,  50_00)
-            .append(55_00,  65_00)
-            .append(62_50,  85_00)
+            .append(00_00, 30_00)
+            .append(40_00, 40_00)
+            .append(47_50, 50_00)
+            .append(55_00, 65_00)
+            .append(62_50, 85_00)
             .append(66_25, 100_00)
     }
 
     /// Fan curve for HEDT systems
     pub fn hedt() -> Self {
         Self::default()
-            .append(00_00,  30_00)
-            .append(50_00,  35_00)
-            .append(60_00,  45_00)
-            .append(70_00,  55_00)
-            .append(74_00,  60_00)
-            .append(76_00,  70_00)
-            .append(78_00,  80_00)
+            .append(00_00, 30_00)
+            .append(50_00, 35_00)
+            .append(60_00, 45_00)
+            .append(70_00, 55_00)
+            .append(74_00, 60_00)
+            .append(76_00, 70_00)
+            .append(78_00, 80_00)
             .append(81_00, 100_00)
     }
 
     /// Fan curve for xeon
     pub fn xeon() -> Self {
         Self::default()
-            .append(00_00,  40_00)
-            .append(50_00,  40_00)
-            .append(55_00,  45_00)
-            .append(60_00,  50_00)
-            .append(65_00,  55_00)
-            .append(70_00,  60_00)
-            .append(72_00,  65_00)
-            .append(74_00,  80_00)
-            .append(76_00,  85_00)
-            .append(77_00,  90_00)
+            .append(00_00, 40_00)
+            .append(50_00, 40_00)
+            .append(55_00, 45_00)
+            .append(60_00, 50_00)
+            .append(65_00, 55_00)
+            .append(70_00, 60_00)
+            .append(72_00, 65_00)
+            .append(74_00, 80_00)
+            .append(76_00, 85_00)
+            .append(77_00, 90_00)
             .append(78_00, 100_00)
     }
 
