@@ -1,3 +1,6 @@
+#![deny(clippy::all)]
+#![allow(clippy::missing_safety_doc)]
+
 #[macro_use]
 extern crate err_derive;
 extern crate intel_pstate as pstate;
@@ -28,9 +31,9 @@ pub mod wifi;
 
 use charge_thresholds::ChargeProfile;
 
-pub static DBUS_NAME: &'static str = "com.system76.PowerDaemon";
-pub static DBUS_PATH: &'static str = "/com/system76/PowerDaemon";
-pub static DBUS_IFACE: &'static str = "com.system76.PowerDaemon";
+pub static DBUS_NAME: &str = "com.system76.PowerDaemon";
+pub static DBUS_PATH: &str = "/com/system76/PowerDaemon";
+pub static DBUS_IFACE: &str = "com.system76.PowerDaemon";
 
 pub trait Power {
     fn performance(&mut self) -> Result<(), String>;

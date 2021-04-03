@@ -80,7 +80,7 @@ pub fn performance(errors: &mut Vec<ProfileError>, _set_brightness: bool) {
     Dirty::default().set_max_lost_work(15);
     LaptopMode::default().set(b"0");
     RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("high", "performance", "auto"));
-    catch!(errors, set_disk_power(254, 300000));
+    catch!(errors, set_disk_power(254, 300_000));
     catch!(errors, scsi_host_link_time_pm_policy(&["med_power_with_dipm", "max_performance"]));
     catch!(errors, pstate_values(50, 100, false));
 
@@ -272,7 +272,7 @@ pub struct ModelProfiles {
 impl ModelProfiles {
     pub fn new() -> Option<Self> {
         let model_line =
-            fs::read_to_string("/sys/class/dmi/id/product_version").unwrap_or(String::new());
+            fs::read_to_string("/sys/class/dmi/id/product_version").unwrap_or_default();
         match model_line.trim() {
             "galp5" => Some(ModelProfiles {
                 balanced:    ModelProfile {
