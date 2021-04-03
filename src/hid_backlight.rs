@@ -1,23 +1,17 @@
 use hidapi::{HidApi, HidDevice, HidResult};
 use inotify::{Inotify, WatchMask};
-use std::{
-    fs,
-    path::Path,
-};
+use std::{fs, path::Path};
 
 fn keyboard(device: &HidDevice, brightness: u8, color: u32) -> HidResult<()> {
-    //TODO: reset
+    // TODO: reset
     let raw_brightness = (((brightness as u16) * 10 + 254) / 255) as u8;
-    debug!(
-        "keyboard brightness {}/10 color #{:06X}",
-        raw_brightness,
-        color
-    );
+    debug!("keyboard brightness {}/10 color #{:06X}", raw_brightness, color);
 
     // Set all LED colors
     for led in 0..=255 {
         device.send_feature_report(&[
-            0xCC, 0x01,
+            0xCC,
+            0x01,
             led,
             (color >> 16) as u8,
             (color >> 8) as u8,
@@ -26,46 +20,37 @@ fn keyboard(device: &HidDevice, brightness: u8, color: u32) -> HidResult<()> {
     }
 
     // Set brightness
-    device.send_feature_report(&[
-        0xCC, 0x09,
-        raw_brightness,
-    ])?;
+    device.send_feature_report(&[0xCC, 0x09, raw_brightness])?;
 
     // Override boot effect
-    device.send_feature_report(&[
-        0xCC, 0x20, 0x01
-    ])?;
+    device.send_feature_report(&[0xCC, 0x20, 0x01])?;
 
     Ok(())
 }
 
 fn lightguide(device: &HidDevice, brightness: u8, color: u32) -> HidResult<()> {
-    //TODO: reset
+    // TODO: reset
     let raw_brightness = (((brightness as u16) * 4 + 254) / 255) as u8;
-    debug!(
-        "lightguide brightness {}/4 color #{:06X}",
-        raw_brightness,
-        color
-    );
+    debug!("lightguide brightness {}/4 color #{:06X}", raw_brightness, color);
 
     // Set all LED colors
     device.send_feature_report(&[
-        0xCC, 0xB0, 0x00, 0x00,
+        0xCC,
+        0xB0,
+        0x00,
+        0x00,
         (color >> 16) as u8,
         (color >> 8) as u8,
         color as u8,
     ])?;
 
     // Set brightness
-    device.send_feature_report(&[
-        0xCC, 0xBF,
-        raw_brightness,
-    ])?;
+    device.send_feature_report(&[0xCC, 0xBF, raw_brightness])?;
 
     Ok(())
 }
 
-//TODO: better error handling
+// TODO: better error handling
 pub fn daemon() {
     let api = match HidApi::new() {
         Ok(ok) => ok,
@@ -76,12 +61,12 @@ pub fn daemon() {
     };
 
     let dir = Path::new("/sys/class/leds/system76_acpi::kbd_backlight");
-    if ! dir.is_dir() {
+    if !dir.is_dir() {
         error!("hid_backlight: no system76_acpi::kbd_backlight led");
         return;
     }
 
-    //TODO: check for existence of files
+    // TODO: check for existence of files
     let brightness_file = dir.join("brightness");
     let brightness_hw_changed_file = dir.join("brightness_hw_changed");
     let color_file = dir.join("color");

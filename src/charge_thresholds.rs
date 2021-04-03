@@ -1,22 +1,8 @@
 use dbus::{
-    arg::{
-        Append,
-        Arg,
-        ArgType,
-        cast,
-        Get,
-        Iter,
-        IterAppend,
-        RefArg,
-        Variant,
-    },
+    arg::{cast, Append, Arg, ArgType, Get, Iter, IterAppend, RefArg, Variant},
     strings::Signature,
 };
-use std::{
-    collections::HashMap,
-    fs,
-    path::Path,
-};
+use std::{collections::HashMap, fs, path::Path};
 
 use crate::err_str;
 
@@ -28,11 +14,11 @@ const ORDER_ERROR: &str = "Charge end threshold must be strictly greater than st
 
 #[derive(Debug)]
 pub struct ChargeProfile {
-    pub id: String,
-    pub title: String,
+    pub id:          String,
+    pub title:       String,
     pub description: String,
-    pub start: u8,
-    pub end: u8,
+    pub start:       u8,
+    pub end:         u8,
 }
 
 type DbusChargeProfile<'a> = HashMap<&'a str, Variant<Box<dyn RefArg>>>;
@@ -51,11 +37,11 @@ impl ChargeProfile {
     fn from_dbus(map: &DbusChargeProfile) -> Option<Self> {
         type RefVariant = Variant<Box<dyn RefArg>>;
         Some(Self {
-            id: map.get("id")?.as_str()?.to_string(),
-            title: map.get("title")?.as_str()?.to_string(),
+            id:          map.get("id")?.as_str()?.to_string(),
+            title:       map.get("title")?.as_str()?.to_string(),
             description: map.get("description")?.as_str()?.to_string(),
-            start: *cast(&cast::<RefVariant>(map.get("start")?)?.0)?,
-            end: *cast(&cast::<RefVariant>(map.get("end")?)?.0)?,
+            start:       *cast(&cast::<RefVariant>(map.get("start")?)?.0)?,
+            end:         *cast(&cast::<RefVariant>(map.get("end")?)?.0)?,
         })
     }
 }
@@ -63,15 +49,11 @@ impl ChargeProfile {
 impl Arg for ChargeProfile {
     const ARG_TYPE: ArgType = DbusChargeProfile::ARG_TYPE;
 
-    fn signature() -> Signature<'static> {
-        DbusChargeProfile::signature()
-    }
+    fn signature() -> Signature<'static> { DbusChargeProfile::signature() }
 }
 
 impl Append for ChargeProfile {
-    fn append_by_ref(&self, i: &mut IterAppend) {
-        self.to_dbus().append_by_ref(i);
-    }
+    fn append_by_ref(&self, i: &mut IterAppend) { self.to_dbus().append_by_ref(i); }
 }
 
 impl<'a> Get<'a> for ChargeProfile {
@@ -93,25 +75,33 @@ fn supports_thresholds() -> bool {
 pub fn get_charge_profiles() -> Vec<ChargeProfile> {
     vec![
         ChargeProfile {
-            id: "full_charge".to_string(),
-            title: "Full Charge".to_string(),
-            description: "Battery is charged to its full capacity for the longest possible use on battery power. Charging resumes when the battery falls below 96% charge.".to_string(),
-            start: 96,
-            end: 100,
+            id:          "full_charge".to_string(),
+            title:       "Full Charge".to_string(),
+            description: "Battery is charged to its full capacity for the longest possible use on \
+                          battery power. Charging resumes when the battery falls below 96% charge."
+                .to_string(),
+            start:       96,
+            end:         100,
         },
         ChargeProfile {
-            id: "balanced".to_string(),
-            title: "Balanced".to_string(),
-            description: "Use this threshold when you unplug frequently but don't need the full battery capacity. Charging stops when the battery reaches 90% capacity and resumes when the battery falls below 85%.".to_string(),
-            start: 86,
-            end: 90,
+            id:          "balanced".to_string(),
+            title:       "Balanced".to_string(),
+            description: "Use this threshold when you unplug frequently but don't need the full \
+                          battery capacity. Charging stops when the battery reaches 90% capacity \
+                          and resumes when the battery falls below 85%."
+                .to_string(),
+            start:       86,
+            end:         90,
         },
         ChargeProfile {
-            id: "max_lifespan".to_string(),
-            title: "Maximum Lifespan".to_string(),
-            description: "Use this threshold if you rarely use the system on battery for extended periods. Charging stops when the battery reaches 60% capacity and resumes when the battery falls below 50%.".to_string(),
-            start: 50,
-            end: 60,
+            id:          "max_lifespan".to_string(),
+            title:       "Maximum Lifespan".to_string(),
+            description: "Use this threshold if you rarely use the system on battery for extended \
+                          periods. Charging stops when the battery reaches 60% capacity and \
+                          resumes when the battery falls below 50%."
+                .to_string(),
+            start:       50,
+            end:         60,
         },
     ]
 }
