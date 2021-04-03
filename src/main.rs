@@ -1,3 +1,5 @@
+#![deny(clippy::all)]
+
 use clap::{App, AppSettings, Arg, ArgGroup, SubCommand};
 use log::LevelFilter;
 use std::process;

@@ -91,7 +91,7 @@ impl PowerDaemon {
         func: fn(&mut Vec<ProfileError>, bool),
         name: &str,
     ) -> Result<(), String> {
-        if &self.power_profile == name {
+        if self.power_profile == name {
             info!("profile was already set");
             return Ok(());
         }
@@ -297,7 +297,7 @@ pub async fn daemon() -> Result<(), String> {
     );
 
     // Spawn hid backlight daemon
-    let _hid_backlight = thread::spawn(|| hid_backlight::daemon());
+    let _hid_backlight = thread::spawn(hid_backlight::daemon);
 
     let mut fan_daemon = FanDaemon::new(nvidia_exists);
 

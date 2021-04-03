@@ -210,8 +210,8 @@ impl Graphics {
         let mut other = Vec::new();
         for dev in devs.iter() {
             let c = dev.class()?;
-            match (c >> 16) & 0xFF {
-                0x03 => match dev.vendor()? {
+            if let 0x03 = (c >> 16) & 0xFF {
+                match dev.vendor()? {
                     0x1002 => {
                         info!("{}: AMD graphics", dev.id());
                         amd.push(GraphicsDevice::new(dev.id().to_owned(), functions(&dev)));
@@ -228,8 +228,7 @@ impl Graphics {
                         info!("{}: Other({:X}) graphics", dev.id(), vendor);
                         other.push(GraphicsDevice::new(dev.id().to_owned(), functions(&dev)));
                     }
-                },
-                _ => (),
+                }
             }
         }
 
@@ -267,7 +266,7 @@ impl Graphics {
     fn get_nvidia_device(&self, id: u32) -> Result<NvidiaDevice, GraphicsDeviceError> {
         let version = self.nvidia_version()?;
         let major =
-            version.split(".").next().unwrap_or_default().parse::<u32>().unwrap_or_default();
+            version.split('.').next().unwrap_or_default().parse::<u32>().unwrap_or_default();
 
         let supported_gpus = format!("/usr/share/doc/nvidia-driver-{}/supported-gpus.json", major);
         let raw = fs::read_to_string(supported_gpus).map_err(GraphicsDeviceError::Json)?;

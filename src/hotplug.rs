@@ -86,7 +86,7 @@ impl HotPlugDetect {
                 }
             }
             "gaze15" => {
-                let variant = nvidia_device.unwrap_or("unknown".to_string());
+                let variant = nvidia_device.unwrap_or_else(|| "unknown".to_string());
 
                 match variant.trim() {
                     // NVIDIA GTX 1660 Ti
@@ -145,8 +145,7 @@ impl HotPlugDetect {
 
     pub unsafe fn detect(&self) -> [bool; 4] {
         let mut hpd = [false; 4];
-        for i in 0..self.pins.len() {
-            let pin = self.pins[i];
+        for (i, &pin) in self.pins.iter().enumerate() {
             if pin > 0 {
                 let data = self.sideband.gpio(self.port, pin);
                 hpd[i] = data & 2 == 2;

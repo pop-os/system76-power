@@ -12,9 +12,9 @@ type Details<'l> = HashMap<&'l str, &'l str>;
 
 const ALLOW_USER_INTERACTION: u32 = 1;
 
-pub(crate) async fn get_connection_unix_process_id<'a>(
+pub(crate) async fn get_connection_unix_process_id(
     c: &SyncConnection,
-    sender: BusName<'a>,
+    sender: BusName<'_>,
 ) -> Result<u32, dbus::Error> {
     let proxy =
         Proxy::new("org.freedesktop.DBus", "/org/freedesktop/DBus", Duration::new(25, 0), c);

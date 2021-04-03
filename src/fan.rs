@@ -1,3 +1,5 @@
+#![allow(clippy::inconsistent_digit_grouping)]
+
 use std::{
     cell::Cell,
     cmp, fs, io,
@@ -26,8 +28,7 @@ pub struct FanDaemon {
 
 impl FanDaemon {
     pub fn new(nvidia_exists: bool) -> Self {
-        let model =
-            fs::read_to_string("/sys/class/dmi/id/product_version").unwrap_or(String::new());
+        let model = fs::read_to_string("/sys/class/dmi/id/product_version").unwrap_or_default();
         let mut daemon = FanDaemon {
             curve: match model.trim() {
                 "thelio-major-r1" => FanCurve::threadripper2(),
