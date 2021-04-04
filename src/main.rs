@@ -142,7 +142,7 @@ fn main() {
 
     let res = match matches.subcommand() {
         ("daemon", Some(matches)) => {
-            if let Err(why) = logging::setup_logging(if matches.is_present("verbose") {
+            if let Err(why) = logging::setup(if matches.is_present("verbose") {
                 LevelFilter::Debug
             } else if matches.is_present("quiet") {
                 LevelFilter::Off
