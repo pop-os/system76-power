@@ -192,7 +192,7 @@ impl Graphics {
         let functions = |parent: &PciDevice| -> Vec<PciDevice> {
             let mut functions = Vec::new();
             if let Some(parent_slot) = parent.id().split('.').next() {
-                for func in devs.iter() {
+                for func in &devs {
                     if let Some(func_slot) = func.id().split('.').next() {
                         if func_slot == parent_slot {
                             info!("{}: Function for {}", func.id(), parent.id());
@@ -208,7 +208,7 @@ impl Graphics {
         let mut intel = Vec::new();
         let mut nvidia = Vec::new();
         let mut other = Vec::new();
-        for dev in devs.iter() {
+        for dev in &devs {
             let c = dev.class()?;
             if let 0x03 = (c >> 16) & 0xFF {
                 match dev.vendor()? {
