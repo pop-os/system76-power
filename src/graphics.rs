@@ -93,7 +93,7 @@ impl GraphicsDevice {
     pub fn exists(&self) -> bool { self.functions.iter().any(|func| func.path().exists()) }
 
     pub unsafe fn unbind(&self) -> Result<(), GraphicsDeviceError> {
-        for func in self.functions.iter() {
+        for func in &self.functions {
             if func.path().exists() {
                 match func.driver() {
                     Ok(driver) => {
@@ -121,7 +121,7 @@ impl GraphicsDevice {
     }
 
     pub unsafe fn remove(&self) -> Result<(), GraphicsDeviceError> {
-        for func in self.functions.iter() {
+        for func in &self.functions {
             if func.path().exists() {
                 match func.driver() {
                     Ok(driver) => {
