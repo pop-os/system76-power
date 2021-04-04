@@ -30,17 +30,7 @@ impl HotPlugDetect {
             .map_err(HotPlugDetectError::ProductVersion)?;
 
         match model.trim() {
-            "addw1" => Ok(HotPlugDetect {
-                sideband: Sideband::new(0xFD00_0000).map_err(HotPlugDetectError::Sideband)?,
-                port:     0x6A,
-                pins:     [
-                    0x28, // USB-C on rear
-                    0x2a, // HDMI
-                    0x2c, // Mini DisplayPort
-                    0x2e, // USB-C on right
-                ],
-            }),
-            "addw2" => Ok(HotPlugDetect {
+            "addw1" | "addw2" => Ok(HotPlugDetect {
                 sideband: Sideband::new(0xFD00_0000).map_err(HotPlugDetectError::Sideband)?,
                 port:     0x6A,
                 pins:     [
