@@ -1,5 +1,5 @@
 use clap::Clap;
-use system76_power::{client::PowerClient};
+use system76_power::client::PowerClient;
 
 /// Query or set the graphics mode.\n\n - If an argument is not provided, the graphics profile will
 /// be queried\n - Otherwise, that profile will be set, if it is a valid profile
