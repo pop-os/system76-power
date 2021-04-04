@@ -137,13 +137,13 @@ impl FanDaemon {
     pub fn set_duty(&self, duty_opt: Option<u8>) {
         if let Some(duty) = duty_opt {
             let duty_str = format!("{}", duty);
-            for platform in self.platforms.iter() {
+            for platform in &self.platforms {
                 let _ = platform.write_file("pwm1_enable", "1");
                 let _ = platform.write_file("pwm1", &duty_str);
                 let _ = platform.write_file("pwm2", &duty_str);
             }
         } else {
-            for platform in self.platforms.iter() {
+            for platform in &self.platforms {
                 let _ = platform.write_file("pwm1_enable", "2");
             }
         }
