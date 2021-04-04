@@ -96,7 +96,7 @@ fn inner() -> Result<(), SidebandError> {
 }
 
 fn main() {
-    if let Err(why) = logging::setup_logging(LevelFilter::Debug) {
+    if let Err(why) = logging::setup(LevelFilter::Debug) {
         eprintln!("failed to set up logging: {}", why);
         process::exit(1);
     }
