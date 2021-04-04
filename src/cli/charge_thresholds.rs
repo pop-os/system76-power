@@ -1,5 +1,5 @@
 use clap::Clap;
-use system76_power::{charge_thresholds::get_charge_profiles, client::PowerClient, Power};
+use system76_power::{charge_thresholds::get_charge_profiles, client::PowerClient};
 
 /// Set thresholds for battery charging
 #[derive(Clap)]
@@ -32,7 +32,7 @@ pub enum Subcommand {
 
 impl Subcommand {
     fn run(&self, client: &mut PowerClient) -> Result<(), String> {
-        let profiles = client.get_charge_profiles()?;
+        let profiles = client.charge_profiles()?;
 
         match self {
             Self::SetThresholds { start, end } => client.set_charge_thresholds((*start, *end))?,
@@ -55,7 +55,7 @@ impl Subcommand {
             }
         }
 
-        let (start, end) = client.get_charge_thresholds()?;
+        let (start, end) = client.charge_thresholds()?;
         if let Some(profile) = profiles.iter().find(|p| p.start == start && p.end == end) {
             println!("Profile: {} ({})", profile.title, profile.id);
         } else {

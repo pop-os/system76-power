@@ -2,7 +2,7 @@ use clap::Clap;
 use intel_pstate::PState;
 use std::io;
 use sysfs_class::{Backlight, Brightness, Leds, SysClass};
-use system76_power::{client::PowerClient, Power};
+use system76_power::{client::PowerClient};
 
 /// Queries or sets the power profile.\n\n - If an argument is not provided, the power profile will
 /// be queried\n - Otherwise, that profile will be set, if it is a valid profile
@@ -23,9 +23,9 @@ pub enum PowerProfile {
 impl Command {
     pub fn run(&self, client: &mut PowerClient) -> Result<(), String> {
         match self.profile {
-            Some(PowerProfile::Battery) => client.battery(),
-            Some(PowerProfile::Balanced) => client.balanced(),
-            Some(PowerProfile::Performance) => client.performance(),
+            Some(PowerProfile::Battery) => client.set_battery(),
+            Some(PowerProfile::Balanced) => client.set_balanced(),
+            Some(PowerProfile::Performance) => client.set_performance(),
             None => print_profile(client).map_err(|e| format!("{}", e)),
         }
     }

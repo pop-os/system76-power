@@ -1,5 +1,5 @@
 use clap::Clap;
-use system76_power::{client::PowerClient, Power};
+use system76_power::{client::PowerClient};
 
 /// Query or set the graphics mode.\n\n - If an argument is not provided, the graphics profile will
 /// be queried\n - Otherwise, that profile will be set, if it is a valid profile
@@ -15,7 +15,7 @@ impl Command {
         if let Some(subcommand) = &self.subcommand {
             subcommand.run(client)
         } else {
-            println!("{}", client.get_graphics()?);
+            println!("{}", client.graphics()?);
             Ok(())
         }
     }
@@ -72,7 +72,7 @@ impl Subcommand {
             Self::Power { state: Some(State::Off) } => client.set_graphics_power(false),
             Self::Power { state: Some(State::On) } => client.set_graphics_power(true),
             Self::Power { state: None } => {
-                if client.get_graphics_power()? {
+                if client.graphics_power()? {
                     println!("on (discrete)");
                 } else {
                     println!("off (discrete)");
