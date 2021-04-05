@@ -7,7 +7,7 @@ use crate::{
     kernel_parameters::{DeviceList, Dirty, KernelParameter, LaptopMode},
     radeon::RadeonDevice,
 };
-use pstate::{PState, PStateError};
+use intel_pstate::{PState, PStateError};
 use std::{
     fs,
     io::{self, Read, Seek, SeekFrom, Write},
@@ -138,7 +138,7 @@ fn iterate_backlights<B: Brightness>(
         match backlight {
             Ok(ref backlight) => set_backlight(strategy, backlight, value)?,
             Err(why) => {
-                warn!("failed to iterate keyboard backlight: {}", why);
+                log::warn!("failed to iterate keyboard backlight: {}", why);
             }
         }
     }
@@ -154,7 +154,7 @@ fn pci_device_runtime_pm(pm: RuntimePowerManagement) -> Result<(), PciDeviceErro
                 .set_runtime_pm(pm)
                 .map_err(|why| PciDeviceError::SetRuntimePM(device.id().to_owned(), why))?,
             Err(why) => {
-                warn!("failed to iterate PCI device: {}", why);
+                log::warn!("failed to iterate PCI device: {}", why);
             }
         }
     }
@@ -173,7 +173,7 @@ fn scsi_host_link_time_pm_policy(policies: &'static [&'static str]) -> Result<()
                 })?;
             }
             Err(why) => {
-                warn!("failed to iterate SCSI Host device: {}", why);
+                log::warn!("failed to iterate SCSI Host device: {}", why);
             }
         }
     }
