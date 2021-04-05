@@ -21,10 +21,10 @@ pub trait KernelParameter {
                     value.pop();
                     return Some(value);
                 }
-                Err(why) => error!("{}: failed to get value: {}", path.display(), why),
+                Err(why) => log::error!("{}: failed to get value: {}", path.display(), why),
             }
         } else {
-            warn!("{} does not exist", path.display());
+            log::warn!("{} does not exist", path.display());
         }
 
         None
@@ -33,7 +33,7 @@ pub trait KernelParameter {
     fn set(&self, value: &[u8]) {
         let path = self.get_path();
         if path.exists() {
-            debug!(
+            log::debug!(
                 "Modifying kernel parameter at {:?} to {}",
                 path,
                 match str::from_utf8(value) {
@@ -43,10 +43,10 @@ pub trait KernelParameter {
             );
 
             if let Err(why) = write(path, value) {
-                error!("{}: failed to set value: {}", path.display(), why)
+                log::error!("{}: failed to set value: {}", path.display(), why)
             }
         } else {
-            warn!("{} does not exist", path.display());
+            log::warn!("{} does not exist", path.display());
         }
     }
 }

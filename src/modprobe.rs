@@ -5,7 +5,7 @@ pub fn reload(module: &str, options: &[&str]) -> io::Result<()> {
 }
 
 pub fn unload(module: &str) -> io::Result<()> {
-    info!("Unloading module named {}", module);
+    log::info!("Unloading module named {}", module);
     Command::new("modprobe").args(&["-r", module]).status().and_then(|stat| {
         if stat.success() {
             Ok(())
@@ -16,7 +16,7 @@ pub fn unload(module: &str) -> io::Result<()> {
 }
 
 pub fn load(module: &str, options: &[&str]) -> io::Result<()> {
-    info!("Loading module named {} with options {:?}", module, options);
+    log::info!("Loading module named {} with options {:?}", module, options);
     Command::new("modprobe").arg(module).args(options).status().and_then(|stat| {
         if stat.success() {
             Ok(())

@@ -26,7 +26,7 @@ impl SoundDevice {
     }
 
     pub fn set_power_save(&self, timeout: u32, enable_controller: bool) {
-        debug!(
+        log::debug!(
             "{} power controller for {}, with power save timeout value of {}",
             if enable_controller { "Enabling" } else { "Disabling" },
             self.device,
