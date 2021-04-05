@@ -53,7 +53,7 @@ fn signal_handling() {
 
     tokio::spawn(async move {
         while let Some(sig) = signals.next().await {
-            info!("caught signal: {}", sig);
+            log::info!("caught signal: {}", sig);
             CONTINUE.store(false, Ordering::SeqCst);
         }
     });
@@ -92,7 +92,7 @@ impl PowerDaemon {
         name: &str,
     ) -> Result<(), String> {
         if self.power_profile == name {
-            info!("profile was already set");
+            log::info!("profile was already set");
             return Ok(());
         }
 
@@ -102,7 +102,7 @@ impl PowerDaemon {
             Message::new_signal(DBUS_PATH, DBUS_NAME, "PowerProfileSwitch").unwrap().append1(name);
 
         if let Err(()) = self.dbus_connection.send(message) {
-            error!("failed to send power profile switch message");
+            log::error!("failed to send power profile switch message");
         }
 
         self.power_profile = name.into();
@@ -182,13 +182,13 @@ pub async fn daemon() -> Result<(), String> {
     signal_handling();
     let pci_runtime_pm = std::env::var("S76_POWER_PCI_RUNTIME_PM").ok().map_or(false, |v| v == "1");
 
-    info!(
+    log::info!(
         "Starting daemon{}",
         if pci_runtime_pm { " with pci runtime pm support enabled" } else { "" }
     );
     PCI_RUNTIME_PM.store(pci_runtime_pm, Ordering::SeqCst);
 
-    info!("Connecting to dbus system bus");
+    log::info!("Connecting to dbus system bus");
     let (resource, c) = connection::new_system_sync().map_err(err_str)?;
 
     tokio::spawn(async {
@@ -199,7 +199,7 @@ pub async fn daemon() -> Result<(), String> {
     let mut daemon = PowerDaemon::new(c.clone())?;
     let nvidia_exists = !daemon.graphics.nvidia.is_empty();
 
-    info!("Disabling NMI Watchdog (for kernel debugging only)");
+    log::info!("Disabling NMI Watchdog (for kernel debugging only)");
     NmiWatchdog::default().set(b"0");
 
     // Get the NVIDIA device ID before potentially removing it.
@@ -209,24 +209,24 @@ pub async fn daemon() -> Result<(), String> {
         None
     };
 
-    info!("Setting automatic graphics power");
+    log::info!("Setting automatic graphics power");
     match daemon.auto_graphics_power() {
         Ok(()) => (),
         Err(err) => {
-            warn!("Failed to set automatic graphics power: {}", err);
+            log::warn!("Failed to set automatic graphics power: {}", err);
         }
     }
 
-    info!("Initializing with the balanced profile");
+    log::info!("Initializing with the balanced profile");
     if let Err(why) = daemon.balanced() {
-        warn!("Failed to set initial profile: {}", why);
+        log::warn!("Failed to set initial profile: {}", why);
     }
     daemon.initial_set = true;
 
-    info!("Registering dbus name {}", DBUS_NAME);
+    log::info!("Registering dbus name {}", DBUS_NAME);
     c.request_name(DBUS_NAME, false, true, false).await.map_err(err_str)?;
 
-    info!("Adding dbus path {} with interface {}", DBUS_PATH, DBUS_IFACE);
+    log::info!("Adding dbus path {} with interface {}", DBUS_PATH, DBUS_IFACE);
     let mut cr = Crossroads::new();
     cr.set_async_support(Some((
         c.clone(),
@@ -315,7 +315,7 @@ pub async fn daemon() -> Result<(), String> {
 
     let mut last = hpd();
 
-    info!("Handling dbus requests");
+    log::info!("Handling dbus requests");
     while CONTINUE.load(Ordering::SeqCst) {
         delay_for(Duration::from_millis(1000)).await;
 
@@ -324,7 +324,7 @@ pub async fn daemon() -> Result<(), String> {
         let hpd = hpd();
         for i in 0..hpd.len() {
             if hpd[i] != last[i] && hpd[i] {
-                info!("HotPlugDetect {}", i);
+                log::info!("HotPlugDetect {}", i);
                 c.send(
                     Message::new_signal(DBUS_PATH, DBUS_NAME, "HotPlugDetect")
                         .unwrap()
@@ -343,7 +343,7 @@ pub async fn daemon() -> Result<(), String> {
         }
     }
 
-    info!("daemon exited from loop");
+    log::info!("daemon exited from loop");
     Ok(())
 }
 
@@ -359,7 +359,7 @@ fn sync_method<IA, OA, F>(
     F: Fn(&mut PowerDaemon, IA) -> Result<OA, String> + Send + 'static,
 {
     b.method_with_cr(name, input_args, output_args, move |ctx, cr, args| {
-        info!("DBUS Received {}{:?} method", name, args);
+        log::info!("DBUS Received {}{:?} method", name, args);
         match cr.data_mut(ctx.path()) {
             Some(daemon) => match f(daemon, args) {
                 Ok(ret) => Ok(ret),

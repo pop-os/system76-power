@@ -20,7 +20,7 @@ impl Default for Disks {
         let blocks = match Path::new("/sys/block").read_dir() {
             Ok(blocks) => blocks,
             Err(why) => {
-                warn!("unable to get block devices: {}", why);
+                log::warn!("unable to get block devices: {}", why);
                 return Disks(disks);
             }
         };
@@ -72,7 +72,7 @@ pub struct Disk {
 
 impl DiskPower for Disk {
     fn set_apm_level(&self, level: u8) -> Result<(), DiskPowerError> {
-        debug!("Setting APM level on {:?} to {}", &self.path, level);
+        log::debug!("Setting APM level on {:?} to {}", &self.path, level);
         Command::new("hdparm")
             .arg("-B")
             .arg(level.to_string())
@@ -85,7 +85,7 @@ impl DiskPower for Disk {
     }
 
     fn set_autosuspend_delay(&self, ms: i32) -> Result<(), DiskPowerError> {
-        debug!("Setting autosuspend delay on {:?} to {}", &self.block, ms);
+        log::debug!("Setting autosuspend delay on {:?} to {}", &self.block, ms);
         write(&self.block.join(AUTOSUSPEND), ms.to_string().as_bytes())
             .map_err(|why| DiskPowerError::AutosuspendDelay(self.block.to_owned(), ms, why))
     }

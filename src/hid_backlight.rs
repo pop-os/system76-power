@@ -5,7 +5,7 @@ use std::{fs, path::Path};
 fn keyboard(device: &HidDevice, brightness: u8, color: u32) -> HidResult<()> {
     // TODO: reset
     let raw_brightness = (((brightness as u16) * 10 + 254) / 255) as u8;
-    debug!("keyboard brightness {}/10 color #{:06X}", raw_brightness, color);
+    log::debug!("keyboard brightness {}/10 color #{:06X}", raw_brightness, color);
 
     // Set all LED colors
     for led in 0..=255 {
@@ -31,7 +31,7 @@ fn keyboard(device: &HidDevice, brightness: u8, color: u32) -> HidResult<()> {
 fn lightguide(device: &HidDevice, brightness: u8, color: u32) -> HidResult<()> {
     // TODO: reset
     let raw_brightness = (((brightness as u16) * 4 + 254) / 255) as u8;
-    debug!("lightguide brightness {}/4 color #{:06X}", raw_brightness, color);
+    log::debug!("lightguide brightness {}/4 color #{:06X}", raw_brightness, color);
 
     // Set all LED colors
     device.send_feature_report(&[
@@ -55,14 +55,14 @@ pub fn daemon() {
     let api = match HidApi::new() {
         Ok(ok) => ok,
         Err(err) => {
-            error!("hid_backlight: failed to access HID API: {}", err);
+            log::error!("hid_backlight: failed to access HID API: {}", err);
             return;
         }
     };
 
     let dir = Path::new("/sys/class/leds/system76_acpi::kbd_backlight");
     if !dir.is_dir() {
-        error!("hid_backlight: no system76_acpi::kbd_backlight led");
+        log::error!("hid_backlight: no system76_acpi::kbd_backlight led");
         return;
     }
 
@@ -97,11 +97,11 @@ pub fn daemon() {
                 Ok(device) => match f(&device, brightness, color) {
                     Ok(()) => (),
                     Err(err) => {
-                        error!("hid_backlight: failed to set device: {}", err);
+                        log::error!("hid_backlight: failed to set device: {}", err);
                     }
                 },
                 Err(err) => {
-                    error!("hid_backlight: failed to open device: {}", err);
+                    log::error!("hid_backlight: failed to open device: {}", err);
                 }
             }
 
@@ -109,12 +109,12 @@ pub fn daemon() {
         }
 
         if devices == 0 {
-            info!("hid_backlight: no devices found");
+            log::info!("hid_backlight: no devices found");
             break;
         }
 
         for event in inotify.read_events_blocking(&mut buffer).unwrap() {
-            trace!("{:?}", event);
+            log::trace!("{:?}", event);
         }
     }
 }

@@ -5,7 +5,7 @@ use dbus::{
     blocking::{BlockingSender, Connection},
     Message,
 };
-use pstate::PState;
+use intel_pstate::PState;
 use std::{io, time::Duration};
 use sysfs_class::{Backlight, Brightness, Leds, SysClass};
 

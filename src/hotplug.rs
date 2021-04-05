@@ -1,7 +1,7 @@
 use crate::sideband::{Sideband, SidebandError};
 use std::{fs::read_to_string, io};
 
-#[derive(Debug, Error)]
+#[derive(Debug, err_derive::Error)]
 pub enum HotPlugDetectError {
     #[error(display = "failed to read DMI product version: {}", _0)]
     ProductVersion(io::Error),

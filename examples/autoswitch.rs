@@ -1,6 +1,3 @@
-extern crate log;
-extern crate system76_power;
-
 use log::LevelFilter;
 use std::{process, thread, time};
 use system76_power::{

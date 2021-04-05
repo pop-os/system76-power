@@ -7,7 +7,7 @@ use std::{
 };
 use sysfs_class::{HwMon, SysClass};
 
-#[derive(Debug, Error)]
+#[derive(Debug, err_derive::Error)]
 pub enum FanDaemonError {
     #[error(display = "failed to collect hwmon devices: {}", _0)]
     HwmonDevices(io::Error),
@@ -45,7 +45,7 @@ impl FanDaemon {
         };
 
         if let Err(err) = daemon.discover() {
-            error!("fan daemon: {}", err);
+            log::error!("fan daemon: {}", err);
         }
 
         daemon
@@ -59,7 +59,7 @@ impl FanDaemon {
 
         for hwmon in HwMon::all().map_err(FanDaemonError::HwmonDevices)? {
             if let Ok(name) = hwmon.name() {
-                debug!("hwmon: {}", name);
+                log::debug!("hwmon: {}", name);
 
                 match name.as_str() {
                     "amdgpu" => self.amdgpus.push(hwmon),
@@ -93,7 +93,7 @@ impl FanDaemon {
             .filter_map(|temp| temp.input().ok())
             .fold(None, |mut temp_opt, input| {
                 if temp_opt.map_or(true, |x| input > x) {
-                    debug!("highest hwmon cpu/gpu temp: {}", input);
+                    log::debug!("highest hwmon cpu/gpu temp: {}", input);
                     temp_opt = Some(input);
                 }
 
@@ -106,19 +106,19 @@ impl FanDaemon {
             match nvidia_temperatures(|temp| nv_temp = cmp::max(temp, nv_temp)) {
                 Ok(()) => {
                     if nv_temp != 0 {
-                        debug!("highest nvidia temp: {}", nv_temp);
+                        log::debug!("highest nvidia temp: {}", nv_temp);
                         temp_opt =
                             Some(temp_opt.map_or(nv_temp, |temp| cmp::max(nv_temp * 1000, temp)));
                     }
                 }
                 Err(why) => {
-                    warn!("failed to get temperature of NVIDIA GPUs: {}", why);
+                    log::warn!("failed to get temperature of NVIDIA GPUs: {}", why);
                     self.displayed_warning.set(true);
                 }
             }
         }
 
-        debug!("current temp: {:?}", temp_opt);
+        log::debug!("current temp: {:?}", temp_opt);
 
         temp_opt
     }

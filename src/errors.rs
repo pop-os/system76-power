@@ -1,7 +1,7 @@
-use pstate::PStateError;
+use intel_pstate::PStateError;
 use std::{io, path::PathBuf, process};
 
-#[derive(Debug, Error)]
+#[derive(Debug, err_derive::Error)]
 pub enum ProfileError {
     #[error(display = "failed to set backlight profiles: {}", _0)]
     Backlight(BacklightError),
@@ -41,13 +41,13 @@ impl From<ScsiHostError> for ProfileError {
     fn from(why: ScsiHostError) -> ProfileError { ProfileError::ScsiHost(why) }
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, err_derive::Error)]
 pub enum BacklightError {
     #[error(display = "failed to set backlight on {}: {}", _0, _1)]
     Set(String, io::Error),
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, err_derive::Error)]
 pub enum DiskPowerError {
     #[error(display = "failed to set disk APM level on {:?} to {}: {}", _0, _1, _2)]
     ApmLevel(PathBuf, u8, io::Error),
@@ -55,7 +55,7 @@ pub enum DiskPowerError {
     AutosuspendDelay(PathBuf, i32, io::Error),
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, err_derive::Error)]
 pub enum ModelError {
     #[error(display = "failed to stop thermald: {}", _0)]
     Thermald(io::Error),
@@ -79,13 +79,13 @@ pub enum ModelError {
     Tcc(io::Error),
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, err_derive::Error)]
 pub enum PciDeviceError {
     #[error(display = "failed to set PCI device runtime PM on {}: {}", _0, _1)]
     SetRuntimePM(String, io::Error),
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, err_derive::Error)]
 pub enum ScsiHostError {
     #[error(display = "failed to set link time power management policy {} on {}: {}", _0, _1, _2)]
     LinkTimePolicy(&'static str, String, io::Error),

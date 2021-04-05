@@ -10,7 +10,7 @@ const P2SB_PORTID_SHIFT: u32 = 16;
 // GPIO sideband registers.
 const REG_PCH_GPIO_PADBAR: u32 = 0xc;
 
-#[derive(Debug, Error)]
+#[derive(Debug, err_derive::Error)]
 pub enum SidebandError {
     #[error(display = "failed to open /dev/mem: {}", _0)]
     DevMemOpen(io::Error),

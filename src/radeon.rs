@@ -34,9 +34,12 @@ impl RadeonDevice {
     }
 
     pub fn set_profiles(&self, power_profile: &str, dpm_state: &str, dpm_perf: &str) {
-        debug!(
+        log::debug!(
             "Setting radeon{} to power profile {}; DPM state {}; DPM perf {}",
-            self.card, power_profile, dpm_state, dpm_perf
+            self.card,
+            power_profile,
+            dpm_state,
+            dpm_perf
         );
         self.dpm_state.set(dpm_state.as_bytes());
         self.dpm_force_performance.set(dpm_perf.as_bytes());

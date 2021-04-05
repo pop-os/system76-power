@@ -1,12 +1,6 @@
 #![deny(clippy::all)]
 #![allow(clippy::missing_safety_doc)]
 
-#[macro_use]
-extern crate err_derive;
-extern crate intel_pstate as pstate;
-#[macro_use]
-extern crate log;
-
 pub mod charge_thresholds;
 pub mod client;
 pub mod daemon;
