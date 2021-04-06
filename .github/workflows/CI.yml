@@ -38,3 +38,18 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-features
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: install system dependencies
+        run: sudo apt-get install libdbus-1-dev libusb-1.0-0-dev
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-features
