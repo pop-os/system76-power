@@ -26,7 +26,7 @@ impl Command {
             LevelFilter::Info
         };
 
-        logging::setup_logging(level).unwrap_or_else(|why| {
+        logging::setup(level).unwrap_or_else(|why| {
             eprintln!("failed to set up logging: {}", why);
             std::process::exit(1);
         });

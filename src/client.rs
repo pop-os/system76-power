@@ -4,9 +4,6 @@ use dbus::{
     blocking::{BlockingSender, Connection},
     Message,
 };
-use pstate::PState;
-use std::{io, time::Duration};
-use sysfs_class::{Backlight, Brightness, Leds, SysClass};
 use std::time::Duration;
 
 static TIMEOUT: u64 = 60 * 1000;
