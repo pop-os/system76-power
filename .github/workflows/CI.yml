@@ -23,8 +23,24 @@ jobs:
           command: fmt
           args: --all -- --check
 
-  clippy:
+  clippy-check:
     name: Clippy Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: install system dependencies
+        run: sudo apt-get install libdbus-1-dev libusb-1.0-0-dev
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          components: clippy
+      - uses: actions-rs/clippy-check@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          args: --all --all-features
+
+  cargo-clippy:
+    name: Cargo Clippy
     runs-on: ubuntu-latest
     steps:
       - name: install system dependencies
