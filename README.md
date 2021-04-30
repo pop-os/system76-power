@@ -4,6 +4,8 @@
 
 ## Graphics Modes
 
+A reboot is **required** for changes to take effect after switching modes.
+
 ### Integrated
 
 The integrated graphics controller on the Intel or AMD CPU is used exclusively.
