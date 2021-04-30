@@ -58,7 +58,7 @@ fn main() {
                 .long_about(
                     "Query or set the graphics mode.\n\n - If an argument is not provided, the \
                      graphics profile will be queried\n - Otherwise, that profile will be set, if \
-                     it is a valid profile",
+                     it is a valid profile\n\nA reboot is required after switching modes.",
                 )
                 .subcommand(
                     SubCommand::with_name("compute")

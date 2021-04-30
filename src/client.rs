@@ -84,7 +84,11 @@ impl Power for PowerClient {
 
     fn set_graphics(&mut self, vendor: &str) -> Result<(), String> {
         println!("setting graphics to {}", vendor);
-        self.call_method::<&str>("SetGraphics", Some(vendor)).map(|_| ())
+        let r = self.call_method::<&str>("SetGraphics", Some(vendor)).map(|_| ());
+        if r.is_ok() {
+            println!("reboot for changes to take effect");
+        }
+        r
     }
 
     fn get_graphics_power(&mut self) -> Result<bool, String> {
