@@ -8,7 +8,7 @@ use crate::err_str;
 
 const START_THRESHOLD: &str = "/sys/class/power_supply/BAT0/charge_control_start_threshold";
 const END_THRESHOLD: &str = "/sys/class/power_supply/BAT0/charge_control_end_threshold";
-const UNSUPPORTED_ERROR: &str = "Not running System76 firmware with charge threshold suppport";
+const UNSUPPORTED_ERROR: &str = "Not running System76 firmware with charge threshold support";
 const OUT_OF_RANGE_ERROR: &str = "Charge threshold out of range: should be 0-100";
 const ORDER_ERROR: &str = "Charge end threshold must be strictly greater than start";
 
