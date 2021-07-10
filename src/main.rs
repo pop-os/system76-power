@@ -17,7 +17,7 @@ fn main() {
             SubCommand::with_name("daemon")
                 .about("Runs the program in daemon mode")
                 .long_about(
-                    "Registers a new DBUS service and starts an event loopto listen for, and \
+                    "Registers a new DBUS service and starts an event loop to listen for, and \
                      respond to, DBUS events from clients",
                 )
                 .arg(
