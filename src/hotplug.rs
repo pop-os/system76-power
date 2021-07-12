@@ -21,8 +21,19 @@ pub struct HotPlugDetect {
     pins:     [u8; 4],
 }
 
-pub const REQUIRES_NVIDIA: &[&str] =
-    &["addw1", "addw2", "gaze14", "gaze15", "oryp4", "oryp4-b", "oryp5", "oryp6", "oryp7"];
+pub const REQUIRES_NVIDIA: &[&str] = &[
+    "addw1",
+    "addw2",
+    "gaze14",
+    "gaze15",
+    "gaze16-3050",
+    "gaze16-3060",
+    "oryp4",
+    "oryp4-b",
+    "oryp5",
+    "oryp6",
+    "oryp7",
+];
 
 impl HotPlugDetect {
     pub unsafe fn new(nvidia_device: Option<String>) -> Result<HotPlugDetect, HotPlugDetectError> {
@@ -109,6 +120,26 @@ impl HotPlugDetect {
                     }),
                 }
             }
+            "gaze16-3050" => Ok(HotPlugDetect {
+                sideband: Sideband::new(0xFD00_0000).map_err(HotPlugDetectError::Sideband)?,
+                port:     0x6A,
+                pins:     [
+                    0x00, // HDMI (0x52) is connected to Intel graphics
+                    0x58, // Mini DisplayPort
+                    0x00, // Not Connected
+                    0x00, // Not Connected
+                ],
+            }),
+            "gaze16-3060" => Ok(HotPlugDetect {
+                sideband: Sideband::new(0xFD00_0000).map_err(HotPlugDetectError::Sideband)?,
+                port:     0x69,
+                pins:     [
+                    0x02, // Mini DisplayPort
+                    0x04, // USB-C
+                    0x00, // Not Connected
+                    0x00, // Not Connected
+                ],
+            }),
             "oryp4" | "oryp4-b" | "oryp5" => Ok(HotPlugDetect {
                 sideband: Sideband::new(0xFD00_0000).map_err(HotPlugDetectError::Sideband)?,
                 port:     0x6A,
