@@ -92,9 +92,10 @@ impl FanDaemon {
             .filter_map(|sensor| sensor.temp(1).ok())
             .filter_map(|temp| temp.input().ok())
             .fold(None, |mut temp_opt, input| {
-                if temp_opt.map_or(true, |x| input > x) {
+                // Assume temperatures are always above freezing
+                if temp_opt.map_or(true, |x| input as u32 > x) {
                     log::debug!("highest hwmon cpu/gpu temp: {}", input);
-                    temp_opt = Some(input);
+                    temp_opt = Some(input as u32);
                 }
 
                 temp_opt
