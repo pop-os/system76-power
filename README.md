@@ -68,3 +68,21 @@ $ jq '.chips[] | select(.devid=="0x1F15")' < /usr/share/doc/nvidia-driver-460/su
 
 The integrated graphics controller is used exclusively for rendering. The dGPU
 is made available as a compute node.
+
+## Hotplug detection
+
+The dbus signal `HotPlugDetect` is sent when a display is plugged into a port
+connected to the dGPU. If in integrated or compute mode, the
+[GNOME extension] will prompt to switch to hybrid mode so the display
+can be used.
+
+[GNOME extension]: https://github.com/pop-os/gnome-shell-extension-system76-power
+
+### Adding hotplug detection
+
+The GPIO (sideband) port and pins for the display ports can be determined with
+the schematics and output of [coreboot-collector]. The schematics will indicate
+which GPIOs are display ports (`*_HPD`). The corresponding `GPP_*` entry in
+`coreboot-collector.txt` will have the port/pin tuple.
+
+[coreboot-collector]: https://github.com/system76/coreboot-collector
