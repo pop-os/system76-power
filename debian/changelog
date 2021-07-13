@@ -1,3 +1,9 @@
+system76-power (1.1.17) focal; urgency=medium
+
+  * Add gaze16
+
+ -- Jeremy Soller <jeremy@system76.com>  Tue, 13 Jul 2021 11:23:31 -0600
+
 system76-power (1.1.16) focal; urgency=medium
 
   * Add oryp7
