@@ -1,9 +1,6 @@
 use super::pci_runtime_pm_support;
 use crate::{
-    disks::{DiskPower, Disks},
-    errors::{
-        BacklightError, DiskPowerError, ModelError, PciDeviceError, ProfileError, ScsiHostError,
-    },
+    errors::{BacklightError, ModelError, PciDeviceError, ProfileError, ScsiHostError},
     kernel_parameters::{DeviceList, Dirty, KernelParameter, LaptopMode},
     radeon::RadeonDevice,
 };
@@ -44,9 +41,6 @@ pub fn balanced(errors: &mut Vec<ProfileError>, set_brightness: bool) {
     // Sets radeon power profiles for AMD graphics.
     RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("auto", "performance", "auto"));
 
-    // Controls disk APM levels and autosuspend delays.
-    catch!(errors, set_disk_power(127, 60000));
-
     // Enables SCSI / SATA link time power management.
     catch!(errors, scsi_host_link_time_pm_policy(&["med_power_with_dipm", "medium_power"]));
 
@@ -80,7 +74,6 @@ pub fn performance(errors: &mut Vec<ProfileError>, _set_brightness: bool) {
     Dirty::default().set_max_lost_work(15);
     LaptopMode::default().set(b"0");
     RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("high", "performance", "auto"));
-    catch!(errors, set_disk_power(254, 300_000));
     catch!(errors, scsi_host_link_time_pm_policy(&["med_power_with_dipm", "max_performance"]));
     catch!(errors, pstate_values(50, 100, false));
 
@@ -98,7 +91,6 @@ pub fn battery(errors: &mut Vec<ProfileError>, set_brightness: bool) {
     Dirty::default().set_max_lost_work(15);
     LaptopMode::default().set(b"2");
     RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("low", "battery", "low"));
-    catch!(errors, set_disk_power(127, 15000));
     catch!(errors, scsi_host_link_time_pm_policy(&["min_power", "min_power"]));
     catch!(errors, pstate_values(0, 50, true));
 
@@ -189,14 +181,6 @@ fn set_backlight<B: Brightness>(
 ) -> Result<(), BacklightError> {
     strategy(backlight, value)
         .map_err(|why| BacklightError::Set(backlight.id().to_owned(), why))?;
-    Ok(())
-}
-
-/// Controls disk APM levels and autosuspend delays. Only applicable for mechanical drives.
-fn set_disk_power(apm_level: u8, autosuspend_delay: i32) -> Result<(), DiskPowerError> {
-    let disks = Disks::default();
-    disks.set_apm_level(apm_level)?;
-    disks.set_autosuspend_delay(autosuspend_delay)?;
     Ok(())
 }
 
