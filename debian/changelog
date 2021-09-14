@@ -1,3 +1,10 @@
+system76-power (1.1.18) focal; urgency=medium
+
+  * Avoid setting APM parameters for disks
+  * Add oryp8
+
+ -- Tim Crawford <tcrawford@system76.com>  Tue, 14 Sep 2021 09:57:14 -0600
+
 system76-power (1.1.17) focal; urgency=medium
 
   * Add gaze16
