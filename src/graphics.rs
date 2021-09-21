@@ -102,7 +102,7 @@ impl GraphicsDevice {
                 match func.driver() {
                     Ok(driver) => {
                         log::info!("{}: Unbinding {}", driver.id(), func.id());
-                        driver.unbind(&func).map_err(|why| GraphicsDeviceError::Unbind {
+                        driver.unbind(func).map_err(|why| GraphicsDeviceError::Unbind {
                             driver: driver.id().to_owned(),
                             func: func.id().to_owned(),
                             why,
@@ -218,19 +218,19 @@ impl Graphics {
                 match dev.vendor()? {
                     0x1002 => {
                         log::info!("{}: AMD graphics", dev.id());
-                        amd.push(GraphicsDevice::new(dev.id().to_owned(), functions(&dev)));
+                        amd.push(GraphicsDevice::new(dev.id().to_owned(), functions(dev)));
                     }
                     0x10DE => {
                         log::info!("{}: NVIDIA graphics", dev.id());
-                        nvidia.push(GraphicsDevice::new(dev.id().to_owned(), functions(&dev)));
+                        nvidia.push(GraphicsDevice::new(dev.id().to_owned(), functions(dev)));
                     }
                     0x8086 => {
                         log::info!("{}: Intel graphics", dev.id());
-                        intel.push(GraphicsDevice::new(dev.id().to_owned(), functions(&dev)));
+                        intel.push(GraphicsDevice::new(dev.id().to_owned(), functions(dev)));
                     }
                     vendor => {
                         log::info!("{}: Other({:X}) graphics", dev.id(), vendor);
-                        other.push(GraphicsDevice::new(dev.id().to_owned(), functions(&dev)));
+                        other.push(GraphicsDevice::new(dev.id().to_owned(), functions(dev)));
                     }
                 }
             }
@@ -262,7 +262,7 @@ impl Graphics {
         let device = format!("/sys/bus/pci/devices/{}/device", self.nvidia[0].id);
         let id = fs::read_to_string(device).map_err(GraphicsDeviceError::SysFs)?;
         let id = id.trim_start_matches("0x").trim();
-        u32::from_str_radix(&id, 16).map_err(|e| {
+        u32::from_str_radix(id, 16).map_err(|e| {
             GraphicsDeviceError::SysFs(io::Error::new(io::ErrorKind::InvalidData, e.to_string()))
         })
     }
@@ -281,7 +281,7 @@ impl Graphics {
         // There may be multiple entries that share the same device ID.
         for dev in gpus.chips {
             let did = dev.devid.trim_start_matches("0x").trim();
-            let did = u32::from_str_radix(&did, 16).unwrap_or_default();
+            let did = u32::from_str_radix(did, 16).unwrap_or_default();
             if did == id {
                 return Ok(dev);
             }
