@@ -1,3 +1,7 @@
+// Copyright 2018-2021 System76 <info@system76.com>
+//
+// SPDX-License-Identifier: GPL-3.0-only
+
 use super::pci_runtime_pm_support;
 use crate::{
     errors::{BacklightError, ModelError, PciDeviceError, ProfileError, ScsiHostError},

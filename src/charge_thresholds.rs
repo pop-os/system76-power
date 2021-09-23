@@ -1,3 +1,7 @@
+// Copyright 2018-2021 System76 <info@system76.com>
+//
+// SPDX-License-Identifier: GPL-3.0-only
+
 use dbus::{
     arg::{cast, Append, Arg, ArgType, Get, Iter, IterAppend, RefArg, Variant},
     strings::Signature,
