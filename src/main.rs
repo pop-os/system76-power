@@ -1,3 +1,7 @@
+// Copyright 2018-2021 System76 <info@system76.com>
+//
+// SPDX-License-Identifier: GPL-3.0-only
+
 #![deny(clippy::all)]
 
 use clap::{App, AppSettings, Arg, ArgGroup, SubCommand};

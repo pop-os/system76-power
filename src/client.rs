@@ -1,3 +1,7 @@
+// Copyright 2018-2021 System76 <info@system76.com>
+//
+// SPDX-License-Identifier: GPL-3.0-only
+
 use crate::{charge_thresholds::ChargeProfile, err_str, Power, DBUS_IFACE, DBUS_NAME, DBUS_PATH};
 use clap::ArgMatches;
 use dbus::{
