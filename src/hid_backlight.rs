@@ -1,3 +1,7 @@
+// Copyright 2018-2021 System76 <info@system76.com>
+//
+// SPDX-License-Identifier: GPL-3.0-only
+
 use hidapi::{HidApi, HidDevice, HidResult};
 use inotify::{Inotify, WatchMask};
 use std::{fs, path::Path};

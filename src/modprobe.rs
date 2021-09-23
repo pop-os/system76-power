@@ -1,3 +1,7 @@
+// Copyright 2018-2021 System76 <info@system76.com>
+//
+// SPDX-License-Identifier: GPL-3.0-only
+
 use std::{io, process::Command};
 
 pub fn reload(module: &str, options: &[&str]) -> io::Result<()> {
