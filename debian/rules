@@ -1,5 +1,6 @@
 #!/usr/bin/make -f
 
+export sysconfdir = "/usr/share/"
 export VENDORED ?= 1
 CLEAN ?= 1
 
@@ -9,6 +10,9 @@ CLEAN ?= 1
 override_dh_auto_build:
 	env CARGO_HOME="$$(pwd)/target/cargo" \
 	dh_auto_build
+
+override_dh_auto_install:
+	dh_auto_install --destdir="debian/tmp"
 
 override_dh_auto_clean:
 ifeq ($(CLEAN),1)
