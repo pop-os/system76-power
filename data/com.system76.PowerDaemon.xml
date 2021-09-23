@@ -1,0 +1,69 @@
+<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
+ "http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
+<node name="/com/system76/PowerDaemon">
+  <interface name="com.system76.PowerDaemon">
+    <method name="GetProfile">
+      <arg name="profile" type="s" direction="out"/>
+    </method>
+
+    <method name="Balanced"></method>
+    
+    <method name="Battery"></method>
+    
+    <method name="Performance"></method>
+
+    <method name="GetExternalDisplaysRequireDGPU">
+      <arg name="required" type="b" direction="out"/>
+    </method>
+
+    <method name="GetChargeThresholds">
+      <arg name="thresholds" type="(yy)" direction="out"/>
+    </method>
+
+    <method name="SetChargeThresholds">
+      <arg name="thresholds" type="(yy)" direction="in"/>
+    </method>
+
+    <method name="GetChargeProfiles">
+      <arg name="profiles" type="aa{sv}" direction="out"/>
+    </method>
+    
+    <method name="GetDefaultGraphics">
+      <arg name="vendor" type="s" direction="out"/>
+    </method>
+    
+    <method name="GetGraphics">
+      <arg name="vendor" type="s" direction="out"/>
+    </method>
+
+    <method name="SetGraphics">
+      <arg name="vendor" type="s" direction="in"/>
+    </method>
+
+    <method name="GetGraphicsPower">
+      <arg name="power" type="b" direction="out"/>
+    </method>
+
+    <method name="SetGraphicsPower">
+      <arg name="power" type="b" direction="in"/>
+    </method>
+    
+    <method name="GetSwitchable">
+      <arg name="switchable" type="b" direction="out"/>
+    </method>
+    
+    <signal name="HotPlugDetect">
+      <arg name="port" type="t"/>
+    </signal>
+
+    <signal name="PowerProfileSwitch">
+      <arg name="profile" type="s"/>
+    </signal>
+  </interface>
+
+  <interface name="org.freedesktop.DBus.Introspectable">
+    <method name="Introspect">
+      <arg name="xml_data" type="s" direction="out"/>
+    </method>
+  </interface>
+</node>

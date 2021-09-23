@@ -12,6 +12,7 @@ SRC = Cargo.toml Cargo.lock Makefile $(shell find src -type f -wholename '*src/*
 .PHONY: all clean distclean install uninstall update
 
 BIN=system76-power
+RDD=com.system76.PowerDaemon
 POLICY=com.system76.powerdaemon
 
 DEBUG ?= 0
@@ -35,6 +36,7 @@ distclean:
 
 install: all
 	install -D -m 0755 "target/release/$(BIN)" "$(DESTDIR)$(bindir)/$(BIN)"
+	install -D -m 0644 "data/$(RDD).xml" "$(DESTDIR)$(sysconfdir)/dbus-1/interfaces/$(RDD).xml"
 	install -D -m 0644 "data/$(BIN).conf" "$(DESTDIR)$(sysconfdir)/dbus-1/system.d/$(BIN).conf"
 	install -D -m 0644 "debian/$(BIN).service" "$(DESTDIR)$(sysconfdir)/systemd/system/$(BIN).service"
 	install -D -m 0644 "data/$(POLICY).policy" $(DESTDIR)$(datadir)/polkit-1/actions/$(POLICY).policy
@@ -43,6 +45,7 @@ uninstall:
 	rm -f "$(DESTDIR)$(bindir)/$(BIN)"
 	rm -f "$(DESTDIR)$(sysconfdir)/dbus-1/system.d/$(BIN).conf"
 	rm -f "$(DESTDIR)$(sysconfdir)/systemd/system/$(BIN).service"
+	rm -f "$(DESTDIR)$(sysconfdir)/dbus-1/interfaces/$(RDD).xml"
 
 update:
 	cargo update
