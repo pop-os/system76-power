@@ -1,17 +1,17 @@
 use crate::sideband::{Sideband, SidebandError};
 use std::{fs::read_to_string, io};
 
-#[derive(Debug, err_derive::Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum HotPlugDetectError {
-    #[error(display = "failed to read DMI product version: {}", _0)]
+    #[error("failed to read DMI product version: {}", _0)]
     ProductVersion(io::Error),
-    #[error(display = "error constructing sideband: {}", _0)]
+    #[error("error constructing sideband: {}", _0)]
     Sideband(SidebandError),
-    #[error(display = "{} variant '{}' does not support hotplug detection", model, variant)]
+    #[error("{} variant '{}' does not support hotplug detection", model, variant)]
     VariantUnsupported { model: &'static str, variant: String },
-    #[error(display = "model '{}' does not support hotplug detection", _0)]
+    #[error("model '{}' does not support hotplug detection", _0)]
     ModelUnsupported(String),
-    #[error(display = "failed to read {}'s subsystem device: {}", model, why)]
+    #[error("failed to read {}'s subsystem device: {}", model, why)]
     SubsystemDevice { model: &'static str, why: io::Error },
 }
 

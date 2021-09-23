@@ -1,13 +1,13 @@
 use crate::sideband::{Sideband, SidebandError};
 use std::{fs::read_to_string, io};
 
-#[derive(Debug, err_derive::Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum DisplayPortMuxError {
-    #[error(display = "error constructing sideband: {}", _0)]
+    #[error("error constructing sideband: {}", _0)]
     Sideband(SidebandError),
-    #[error(display = "failed to read DMI product version: {}", _0)]
+    #[error("failed to read DMI product version: {}", _0)]
     ProductVersion(io::Error),
-    #[error(display = "model '{}' does not support hotplug detection", _0)]
+    #[error("model '{}' does not support hotplug detection", _0)]
     UnsupportedHotPlugDetect(String),
 }
 
