@@ -12,7 +12,7 @@ Standards-Version: 4.1.1
 Homepage: https://github.com/pop-os/system76-power
 
 Package: system76-power
-Architecture: amd64
+Architecture: amd64 arm64
 Conflicts: nvidia-prime
 Provides: nvidia-prime
 Replaces: nvidia-prime
