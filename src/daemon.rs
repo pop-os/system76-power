@@ -72,7 +72,7 @@ fn signal_handling() {
 static PCI_RUNTIME_PM: AtomicBool = AtomicBool::new(false);
 
 // TODO: Whitelist system76 hardware that's known to work with this setting.
-fn pci_runtime_pm_support() -> bool { PCI_RUNTIME_PM.load(Ordering::SeqCst) }
+pub(crate) fn pci_runtime_pm_support() -> bool { PCI_RUNTIME_PM.load(Ordering::SeqCst) }
 
 struct PowerDaemon {
     initial_set:     bool,
