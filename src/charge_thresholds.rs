@@ -118,8 +118,8 @@ pub(crate) fn get_charge_thresholds() -> Result<(u8, u8), String> {
     let start_str = fs::read_to_string(START_THRESHOLD).map_err(err_str)?;
     let end_str = fs::read_to_string(END_THRESHOLD).map_err(err_str)?;
 
-    let start = u8::from_str_radix(start_str.trim(), 10).map_err(err_str)?;
-    let end = u8::from_str_radix(end_str.trim(), 10).map_err(err_str)?;
+    let start = start_str.trim().parse::<u8>().map_err(err_str)?;
+    let end = end_str.trim().parse::<u8>().map_err(err_str)?;
 
     Ok((start, end))
 }

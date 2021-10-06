@@ -41,6 +41,7 @@ impl<'a> GpioCommunity<'a> {
         ]
     }
 
+    #[allow(dead_code)]
     pub fn cannonlake() -> &'static [GpioCommunity<'static>] {
         &[
             GpioCommunity {

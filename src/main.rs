@@ -127,7 +127,7 @@ fn main() {
                     Arg::with_name("thresholds")
                         .help("Charge thresholds")
                         .validator(|s| {
-                            if let Ok(v) = u8::from_str_radix(&s, 10) {
+                            if let Ok(v) = s.parse::<u8>() {
                                 if v <= 100 {
                                     return Ok(());
                                 }
