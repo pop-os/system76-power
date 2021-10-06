@@ -5,6 +5,7 @@
 #![deny(clippy::all)]
 #![allow(clippy::missing_safety_doc)]
 
+pub mod acpi_platform;
 pub mod charge_thresholds;
 pub mod client;
 pub mod daemon;
