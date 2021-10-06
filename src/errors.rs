@@ -86,7 +86,7 @@ pub enum ModelError {
 #[derive(Debug, thiserror::Error)]
 pub enum PciDeviceError {
     #[error("failed to set PCI device runtime PM on {}: {}", _0, _1)]
-    SetRuntimePM(String, io::Error),
+    SetRuntimePm(String, io::Error),
 }
 
 #[derive(Debug, thiserror::Error)]

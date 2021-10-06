@@ -148,7 +148,7 @@ fn pci_device_runtime_pm(pm: RuntimePowerManagement) -> Result<(), PciDeviceErro
         match device {
             Ok(device) => device
                 .set_runtime_pm(pm)
-                .map_err(|why| PciDeviceError::SetRuntimePM(device.id().to_owned(), why))?,
+                .map_err(|why| PciDeviceError::SetRuntimePm(device.id().to_owned(), why))?,
             Err(why) => {
                 log::warn!("failed to iterate PCI device: {}", why);
             }

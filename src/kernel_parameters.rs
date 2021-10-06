@@ -40,10 +40,7 @@ pub trait KernelParameter {
             log::debug!(
                 "Modifying kernel parameter at {:?} to {}",
                 path,
-                match str::from_utf8(value) {
-                    Ok(string) => string,
-                    Err(_) => "[INVALID UTF8]",
-                }
+                str::from_utf8(value).unwrap_or("[INVALID UTF8]")
             );
 
             if let Err(why) = write(path, value) {
