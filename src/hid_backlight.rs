@@ -76,17 +76,43 @@ pub fn daemon() {
     let color_file = dir.join("color");
 
     let mut inotify = Inotify::init().unwrap();
-    inotify.add_watch(&brightness_file, WatchMask::MODIFY).unwrap();
-    inotify.add_watch(&brightness_hw_changed_file, WatchMask::MODIFY).unwrap();
-    inotify.add_watch(&color_file, WatchMask::MODIFY).unwrap();
+    let brightness_file = match brightness_file.exists() {
+        true => {
+            inotify.add_watch(&brightness_file, WatchMask::MODIFY).unwrap();
+            Some(brightness_file)
+        },
+        false => None,
+    };
+    let brightness_hw_changed_file = match brightness_hw_changed_file.exists() {
+        true => {
+            inotify.add_watch(&brightness_hw_changed_file, WatchMask::MODIFY).unwrap();
+            Some(brightness_hw_changed_file)
+        },
+        false => None,
+    };
+    let color_file = match color_file.exists() {
+        true => {
+            inotify.add_watch(&color_file, WatchMask::MODIFY).unwrap();
+            Some(color_file)
+        },
+        false => None
+    };
 
     let mut buffer = [0; 1024];
     loop {
-        let brightness_string = fs::read_to_string(&brightness_file).unwrap();
-        let brightness = brightness_string.trim().parse::<u8>().unwrap();
+        let brightness = if let Some(ref brightness_file) = brightness_file {
+            let brightness_string = fs::read_to_string(&brightness_file).unwrap();
+            brightness_string.trim().parse::<u8>().unwrap()
+        } else {
+            1
+        };
 
-        let color_string = fs::read_to_string(&color_file).unwrap();
-        let color = u32::from_str_radix(color_string.trim(), 16).unwrap();
+        let color = if let Some(ref color_file) = color_file {
+            let color_string = fs::read_to_string(&color_file).unwrap();
+            u32::from_str_radix(color_string.trim(), 16).unwrap()
+        } else {
+            0xFFFFFF
+        };
 
         let mut devices = 0;
 
