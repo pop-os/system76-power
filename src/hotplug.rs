@@ -32,6 +32,7 @@ pub const REQUIRES_NVIDIA: &[&str] = &[
     "gaze15",
     "gaze16-3050",
     "gaze16-3060",
+    "gaze16-3060-b",
     "oryp4",
     "oryp4-b",
     "oryp5",
@@ -135,7 +136,7 @@ impl HotPlugDetect {
                     0x00, // Not Connected
                 ],
             }),
-            "gaze16-3060" => Ok(HotPlugDetect {
+            "gaze16-3060" | "gaze16-3060-b" => Ok(HotPlugDetect {
                 sideband: Sideband::new(0xFD00_0000).map_err(HotPlugDetectError::Sideband)?,
                 port:     0x69,
                 pins:     [
