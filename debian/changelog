@@ -1,3 +1,9 @@
+system76-power (1.1.19) focal; urgency=medium
+
+  * Add gaze16-3060-b
+
+ -- Tim Crawford <tcrawford@system76.com>  Tue, 02 Nov 2021 10:16:32 -0600
+
 system76-power (1.1.18) focal; urgency=medium
 
   * Avoid setting APM parameters for disks
