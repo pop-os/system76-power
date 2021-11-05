@@ -78,14 +78,18 @@ pub fn daemon() {
     let mut inotify = Inotify::init().unwrap();
     inotify.add_watch(&brightness_file, WatchMask::MODIFY).unwrap();
     inotify.add_watch(&brightness_hw_changed_file, WatchMask::MODIFY).unwrap();
-    inotify.add_watch(&color_file, WatchMask::MODIFY).unwrap();
+    if let Err(e) = inotify.add_watch(&color_file, WatchMask::MODIFY) {
+        log::warn!("hid_backlight: failed to watch keyboard color: {}", e);
+    }
 
     let mut buffer = [0; 1024];
     loop {
         let brightness_string = fs::read_to_string(&brightness_file).unwrap();
         let brightness = brightness_string.trim().parse::<u8>().unwrap();
 
-        let color_string = fs::read_to_string(&color_file).unwrap();
+        #[rustfmt::skip]
+        let color_string = fs::read_to_string(&color_file)
+            .unwrap_or_else(|_| String::from("FFFFFF")); // Fallback for non-colored keyboards
         let color = u32::from_str_radix(color_string.trim(), 16).unwrap();
 
         let mut devices = 0;
