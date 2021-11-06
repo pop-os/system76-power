@@ -80,9 +80,19 @@ can be used.
 
 ### Adding hotplug detection
 
+#### Intel-based systems
+
 The GPIO (sideband) port and pins for the display ports can be determined with
 the schematics and output of [coreboot-collector]. The schematics will indicate
 which GPIOs are display ports (`*_HPD`). The corresponding `GPP_*` entry in
 `coreboot-collector.txt` will have the port/pin tuple.
+
+#### AMD-based systems
+
+A MMIO region for FCH GPIO controls is used to detect external display plug
+events. Display ports use `*_HPD` as Intel systems, but may not map to a
+literal GPIO (e.g., `HDMI_HPD` maps to `DP3_HPD` on kudu6). Generating a diff
+from coreboot-collector in NVIDIA mode before and after plugging in a display
+should provide the GPIO number.
 
 [coreboot-collector]: https://github.com/system76/coreboot-collector
