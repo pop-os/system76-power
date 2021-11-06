@@ -2,7 +2,7 @@ use log::LevelFilter;
 use std::process;
 use system76_power::{
     logging,
-    sideband::{Sideband, SidebandError},
+    sideband::{Sideband, SidebandError, PCR_BASE_ADDRESS},
 };
 
 struct GpioGroup<'a> {
@@ -75,7 +75,7 @@ impl<'a> GpioCommunity<'a> {
 fn inner() -> Result<(), SidebandError> {
     let communities = GpioCommunity::skylake();
 
-    let sideband = unsafe { Sideband::new(0xFD00_0000)? };
+    let sideband = unsafe { Sideband::new(PCR_BASE_ADDRESS)? };
 
     for community in communities.iter() {
         let mut pad = 0;
