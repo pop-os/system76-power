@@ -8,6 +8,8 @@ use libc::{
 
 use std::{ffi::CString, io, ptr};
 
+pub const PCR_BASE_ADDRESS: usize = 0xFD00_0000;
+
 // P2SB private registers.
 const P2SB_PORTID_SHIFT: u32 = 16;
 

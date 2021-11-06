@@ -2,11 +2,11 @@ use log::LevelFilter;
 use std::{process, thread, time};
 use system76_power::{
     logging,
-    sideband::{Sideband, SidebandError},
+    sideband::{Sideband, SidebandError, PCR_BASE_ADDRESS},
 };
 
 fn inner() -> Result<(), SidebandError> {
-    let sideband = unsafe { Sideband::new(0xFD00_0000)? };
+    let sideband = unsafe { Sideband::new(PCR_BASE_ADDRESS)? };
 
     let hpd = (0x6A, 0x4A);
     let mux = (0x6E, 0x2C);

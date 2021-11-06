@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-use crate::sideband::{Sideband, SidebandError};
+use crate::sideband::{Sideband, SidebandError, PCR_BASE_ADDRESS};
 use std::{fs::read_to_string, io};
 
 #[derive(Debug, thiserror::Error)]
@@ -48,7 +48,7 @@ impl HotPlugDetect {
 
         match model.trim() {
             "addw1" | "addw2" => Ok(HotPlugDetect {
-                sideband: Sideband::new(0xFD00_0000).map_err(HotPlugDetectError::Sideband)?,
+                sideband: Sideband::new(PCR_BASE_ADDRESS).map_err(HotPlugDetectError::Sideband)?,
                 port:     0x6A,
                 pins:     [
                     0x28, // USB-C on rear
@@ -64,7 +64,7 @@ impl HotPlugDetect {
                 match variant.trim() {
                     // NVIDIA GTX 1660 Ti
                     "0x8550" | "0x8551" => Ok(HotPlugDetect {
-                        sideband: Sideband::new(0xFD00_0000)
+                        sideband: Sideband::new(PCR_BASE_ADDRESS)
                             .map_err(HotPlugDetectError::Sideband)?,
                         port:     0x6A,
                         pins:     [
@@ -76,7 +76,7 @@ impl HotPlugDetect {
                     }),
                     // NVIDIA GTX 1650
                     "0x8560" | "0x8561" => Ok(HotPlugDetect {
-                        sideband: Sideband::new(0xFD00_0000)
+                        sideband: Sideband::new(PCR_BASE_ADDRESS)
                             .map_err(HotPlugDetectError::Sideband)?,
                         port:     0x6A,
                         pins:     [
@@ -98,7 +98,7 @@ impl HotPlugDetect {
                 match variant.trim() {
                     // NVIDIA GTX 1660 Ti
                     "0x2191" => Ok(HotPlugDetect {
-                        sideband: Sideband::new(0xFD00_0000)
+                        sideband: Sideband::new(PCR_BASE_ADDRESS)
                             .map_err(HotPlugDetectError::Sideband)?,
                         port:     0x6A,
                         pins:     [
@@ -110,7 +110,7 @@ impl HotPlugDetect {
                     }),
                     // NVIDIA GTX 1650, 1650 Ti
                     "0x1f99" | "0x1f95" => Ok(HotPlugDetect {
-                        sideband: Sideband::new(0xFD00_0000)
+                        sideband: Sideband::new(PCR_BASE_ADDRESS)
                             .map_err(HotPlugDetectError::Sideband)?,
                         port:     0x6A,
                         pins:     [
@@ -127,7 +127,7 @@ impl HotPlugDetect {
                 }
             }
             "gaze16-3050" => Ok(HotPlugDetect {
-                sideband: Sideband::new(0xFD00_0000).map_err(HotPlugDetectError::Sideband)?,
+                sideband: Sideband::new(PCR_BASE_ADDRESS).map_err(HotPlugDetectError::Sideband)?,
                 port:     0x6A,
                 pins:     [
                     0x00, // HDMI (0x52) is connected to Intel graphics
@@ -137,7 +137,7 @@ impl HotPlugDetect {
                 ],
             }),
             "gaze16-3060" | "gaze16-3060-b" => Ok(HotPlugDetect {
-                sideband: Sideband::new(0xFD00_0000).map_err(HotPlugDetectError::Sideband)?,
+                sideband: Sideband::new(PCR_BASE_ADDRESS).map_err(HotPlugDetectError::Sideband)?,
                 port:     0x69,
                 pins:     [
                     0x02, // Mini DisplayPort
@@ -147,7 +147,7 @@ impl HotPlugDetect {
                 ],
             }),
             "oryp4" | "oryp4-b" | "oryp5" => Ok(HotPlugDetect {
-                sideband: Sideband::new(0xFD00_0000).map_err(HotPlugDetectError::Sideband)?,
+                sideband: Sideband::new(PCR_BASE_ADDRESS).map_err(HotPlugDetectError::Sideband)?,
                 port:     0x6A,
                 pins:     [
                     0x28, // USB-C
@@ -157,7 +157,7 @@ impl HotPlugDetect {
                 ],
             }),
             "oryp6" | "oryp7" => Ok(HotPlugDetect {
-                sideband: Sideband::new(0xFD00_0000).map_err(HotPlugDetectError::Sideband)?,
+                sideband: Sideband::new(PCR_BASE_ADDRESS).map_err(HotPlugDetectError::Sideband)?,
                 port:     0x6A,
                 pins:     [
                     0x2a, // HDMI
@@ -167,7 +167,7 @@ impl HotPlugDetect {
                 ],
             }),
             "oryp8" => Ok(HotPlugDetect {
-                sideband: Sideband::new(0xFD00_0000).map_err(HotPlugDetectError::Sideband)?,
+                sideband: Sideband::new(PCR_BASE_ADDRESS).map_err(HotPlugDetectError::Sideband)?,
                 port:     0x69,
                 pins:     [
                     0x02, // Mini DisplayPort
