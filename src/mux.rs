@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-use crate::sideband::{Sideband, SidebandError};
+use crate::sideband::{Sideband, SidebandError, PCR_BASE_ADDRESS};
 use std::{fs::read_to_string, io};
 
 #[derive(Debug, thiserror::Error)]
@@ -33,17 +33,17 @@ impl DisplayPortMux {
         let model = model_line.trim();
         match model {
             "bonw14" => Ok(DisplayPortMux {
-                sideband: Sideband::new(0xFD00_0000)?,
+                sideband: Sideband::new(PCR_BASE_ADDRESS)?,
                 hpd:      (0x6A, 0x2E), // GPP_I3
                 mux:      (0x6B, 0x0A), // GPP_K5
             }),
             "galp2" | "galp3" | "galp3-b" => Ok(DisplayPortMux {
-                sideband: Sideband::new(0xFD00_0000)?,
+                sideband: Sideband::new(PCR_BASE_ADDRESS)?,
                 hpd:      (0xAE, 0x31), // GPP_E13
                 mux:      (0xAF, 0x16), // GPP_A22
             }),
             "darp5" | "darp6" | "galp3-c" | "galp4" => Ok(DisplayPortMux {
-                sideband: Sideband::new(0xFD00_0000)?,
+                sideband: Sideband::new(PCR_BASE_ADDRESS)?,
                 hpd:      (0x6A, 0x4A), // GPP_E13
                 mux:      (0x6E, 0x2C), // GPP_A22
             }),
