@@ -16,6 +16,7 @@ pub const REQUIRES_NVIDIA: &[&str] = &[
     "gaze16-3050",
     "gaze16-3060",
     "gaze16-3060-b",
+    "kudu6",
     "oryp4",
     "oryp4-b",
     "oryp5",
@@ -240,6 +241,15 @@ impl HotPlugDetect {
                     ],
                 }),
             }),
+            "kudu6" => {
+                let gpios = vec![
+                    0x02, // USB-C
+                    0x03, // HDMI
+                    0x15, // Mini DisplayPort
+                ];
+                Ok(Self { integrated: Integrated::Amd(Amd::new(gpios)?) })
+            }
+
             "oryp4" | "oryp4-b" | "oryp5" => Ok(Self {
                 integrated: Integrated::Intel(Intel {
                     sideband: Sideband::new(PCR_BASE_ADDRESS)
