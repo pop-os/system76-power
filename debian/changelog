@@ -1,3 +1,10 @@
+system76-power (1.1.20) focal; urgency=medium
+
+  * Add hot plug detection for AMD+NVIDIA systems
+  * Add kudu6
+
+ -- Tim Crawford <tcrawford@system76.com>  Fri, 05 Nov 2021 19:29:00 -0600
+
 system76-power (1.1.19) focal; urgency=medium
 
   * Add gaze16-3060-b
