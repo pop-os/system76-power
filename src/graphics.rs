@@ -48,6 +48,16 @@ alias nvidia-drm off
 alias nvidia-modeset off
 "#;
 
+// Systems using S0ix must enable S0ix-based power management.
+static SYSTEM_SLEEP_S0IX: &[u8] = br#"# Preserve video memory through suspend
+options nvidia NVreg_EnableS0ixPowerManagement=1
+"#;
+
+// Systems using S3 had suspend issues with WebRender.
+static SYSTEM_SLEEP_S3: &[u8] = br#"# Preserve video memory through suspend
+options nvidia NVreg_PreserveVideoMemoryAllocations=1
+"#;
+
 const PRIME_DISCRETE_PATH: &str = "/etc/prime-discrete";
 
 #[derive(Debug, thiserror::Error)]
@@ -400,6 +410,25 @@ impl Graphics {
             file.write_all(text)
                 .and_then(|_| file.sync_all())
                 .map_err(GraphicsDeviceError::ModprobeFileWrite)?;
+
+            // Power management must be configured depending on if the system
+            // uses S0ix or S3 for suspend.
+            if vendor != "integrated" {
+                // XXX: Better way to check?
+                let s0ix = fs::read_to_string("/sys/power/mem_sleep")
+                    .unwrap_or_default()
+                    .contains("[s2idle]");
+
+                let sleep = if s0ix { SYSTEM_SLEEP_S0IX } else { SYSTEM_SLEEP_S3 };
+
+                // We should also check if the GPU supports Video Memory Self
+                // Refresh, but that requires already being in hybrid or nvidia
+                // graphics mode. In compute mode, it just reports '?'.
+
+                file.write_all(sleep)
+                    .and_then(|_| file.sync_all())
+                    .map_err(GraphicsDeviceError::ModprobeFileWrite)?;
+            }
         }
 
         const SYSTEMCTL_CMD: &str = "systemctl";
