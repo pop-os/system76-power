@@ -38,7 +38,7 @@ install: all
 	install -D -m 0755 "target/release/$(BIN)" "$(DESTDIR)$(bindir)/$(BIN)"
 	install -D -m 0644 "data/$(RDD).xml" "$(DESTDIR)$(datadir)/dbus-1/interfaces/$(RDD).xml"
 	install -D -m 0644 "data/$(BIN).conf" "$(DESTDIR)$(datadir)/dbus-1/system.d/$(BIN).conf"
-	install -D -m 0644 "debian/$(BIN).service" "$(DESTDIR)$(libdir)/systemd/system/$(BIN).service"
+	install -D -m 0644 "data/$(BIN).service" "$(DESTDIR)$(libdir)/systemd/system/$(BIN).service"
 	install -D -m 0644 "data/$(POLICY).policy" $(DESTDIR)$(datadir)/polkit-1/actions/$(POLICY).policy
 
 uninstall:
