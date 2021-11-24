@@ -1,0 +1,2 @@
+rm_conffile /etc/systemd/system/system76-power.service 1.1.20~
+rm_conffile /etc/dbus-1/system.d/system76-power.conf 1.1.20~
