@@ -86,7 +86,7 @@ pub enum GraphicsDeviceError {
     Remove { device: String, why: io::Error },
     #[error("failed to rescan PCI bus: {}", _0)]
     Rescan(io::Error),
-    #[error("failed to read sysfs info: {}", _0)]
+    #[error("failed to access sysfs info: {}", _0)]
     SysFs(io::Error),
     #[error("failed to unbind {} on PCI driver {}: {}", func, driver, why)]
     Unbind { func: String, driver: String, why: io::Error },
@@ -482,6 +482,8 @@ impl Graphics {
         if power {
             log::info!("Enabling graphics power");
             self.bus.rescan().map_err(GraphicsDeviceError::Rescan)?;
+
+            sysfs_power_control(self.nvidia[0].id.clone(), self.get_vendor()?);
         } else {
             log::info!("Disabling graphics power");
 
@@ -513,4 +515,30 @@ impl Graphics {
             Err(GraphicsDeviceError::NotSwitchable)
         }
     }
+}
+
+// HACK
+// Normally, power/control would be set to "auto" by a udev rule in nvidia-drivers, but because
+// of a bug we cannot enable automatic power management too early after turning on the GPU.
+// Otherwise it will turn off before the NVIDIA driver finishes initializing, leaving the
+// system in an invalid state that will eventually lock up. So defer setting power management
+// using a thread.
+//
+// Ref: pop-os/nvidia-graphics-drivers@f9815ed603bd
+// Ref: system76/firmware-open#160
+fn sysfs_power_control(pciid: String, mode: GraphicsMode) {
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(5000));
+
+        let pm = if mode == GraphicsMode::Discrete { "on\n" } else { "auto\n" };
+        log::info!("Setting power management to {}", pm);
+
+        let control = format!("/sys/bus/pci/devices/{}/power/control", pciid);
+        let file = fs::OpenOptions::new().create(false).truncate(false).write(true).open(control);
+
+        #[allow(unused_must_use)]
+        if let Ok(mut file) = file {
+            file.write_all(pm.as_bytes()).and_then(|_| file.sync_all());
+        }
+    });
 }
