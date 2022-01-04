@@ -219,6 +219,7 @@ pub struct FanCurve {
 
 impl FanCurve {
     /// Adds a point to the fan curve
+    #[must_use]
     pub fn append(mut self, temp: i16, duty: u16) -> Self {
         self.points.push(FanPoint::new(temp, duty));
         self
