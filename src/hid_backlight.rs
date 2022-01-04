@@ -99,9 +99,9 @@ pub fn daemon() {
         let brightness_string = fs::read_to_string(&brightness_file).unwrap();
         let brightness = brightness_string.trim().parse::<u8>().unwrap();
 
-        #[rustfmt::skip]
         let color_string = fs::read_to_string(&color_file)
-            .unwrap_or_else(|_| String::from("FFFFFF")); // Fallback for non-colored keyboards
+            // Fallback for non-colored keyboards
+            .unwrap_or_else(|_| String::from("FFFFFF"));
         let color = u32::from_str_radix(color_string.trim(), 16).unwrap();
 
         let mut devices = 0;
