@@ -56,6 +56,6 @@ impl DeviceList<RadeonDevice> for RadeonDevice {
     const SUPPORTED: &'static [&'static str] = &[""];
 
     fn get_devices() -> Box<dyn Iterator<Item = RadeonDevice>> {
-        Box::new((0u8..10).flat_map(RadeonDevice::new))
+        Box::new((0u8..10).filter_map(RadeonDevice::new))
     }
 }

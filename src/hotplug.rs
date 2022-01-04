@@ -70,7 +70,7 @@ impl Detect for Amd {
 
         for (i, offset) in self.gpios.iter().enumerate() {
             let control_offset = AMD_FCH_GPIO_CONTROL_BASE + offset * 4;
-            if self.mem.seek(io::SeekFrom::Start(control_offset as u64)).is_err() {
+            if self.mem.seek(io::SeekFrom::Start(control_offset.into())).is_err() {
                 return hpd;
             }
 

@@ -409,5 +409,5 @@ fn sync_set_method<T, F>(
     T: arg::Arg + for<'z> arg::Get<'z> + Debug,
     F: Fn(&mut PowerDaemon, T) -> Result<(), String> + Send + 'static,
 {
-    sync_method(b, name, (input_arg,), (), move |d, (arg,)| f(d, arg))
+    sync_method(b, name, (input_arg,), (), move |d, (arg,)| f(d, arg));
 }

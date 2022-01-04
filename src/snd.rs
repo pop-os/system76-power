@@ -48,6 +48,6 @@ impl DeviceList<SoundDevice> for SoundDevice {
     const SUPPORTED: &'static [&'static str] = &["snd_hda_intel", "snd_ac97_codec"];
 
     fn get_devices() -> Box<dyn Iterator<Item = SoundDevice>> {
-        Box::new(Self::SUPPORTED.iter().flat_map(|dev| SoundDevice::new(dev)))
+        Box::new(Self::SUPPORTED.iter().filter_map(|dev| SoundDevice::new(dev)))
     }
 }

@@ -228,7 +228,7 @@ impl ModelProfile {
         if let Some(pl1) = self.pl1 {
             fs::write(
                 "/sys/class/powercap/intel-rapl:0/constraint_0_power_limit_uw",
-                format!("{}", (pl1 as u64) * 1_000_000),
+                format!("{}", (u64::from(pl1)) * 1_000_000),
             )
             .map_err(ModelError::Pl1)?;
         }
@@ -237,7 +237,7 @@ impl ModelProfile {
         if let Some(pl2) = self.pl2 {
             fs::write(
                 "/sys/class/powercap/intel-rapl:0/constraint_1_power_limit_uw",
-                format!("{}", (pl2 as u64) * 1_000_000),
+                format!("{}", (u64::from(pl2)) * 1_000_000),
             )
             .map_err(ModelError::Pl2)?;
         }

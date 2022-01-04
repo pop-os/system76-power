@@ -8,7 +8,7 @@ use std::{fs, path::Path};
 
 fn keyboard(device: &HidDevice, brightness: u8, color: u32) -> HidResult<()> {
     // TODO: reset
-    let raw_brightness = (((brightness as u16) * 10 + 254) / 255) as u8;
+    let raw_brightness = (((u16::from(brightness)) * 10 + 254) / 255) as u8;
     log::debug!("keyboard brightness {}/10 color #{:06X}", raw_brightness, color);
 
     // Set all LED colors
@@ -34,7 +34,7 @@ fn keyboard(device: &HidDevice, brightness: u8, color: u32) -> HidResult<()> {
 
 fn lightguide(device: &HidDevice, brightness: u8, color: u32) -> HidResult<()> {
     // TODO: reset
-    let raw_brightness = (((brightness as u16) * 4 + 254) / 255) as u8;
+    let raw_brightness = (((u16::from(brightness)) * 4 + 254) / 255) as u8;
     log::debug!("lightguide brightness {}/4 color #{:06X}", raw_brightness, color);
 
     // Set all LED colors

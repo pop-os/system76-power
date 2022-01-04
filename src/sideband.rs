@@ -68,7 +68,7 @@ impl Sideband {
         let offset = (u64::from(port) << P2SB_PORTID_SHIFT) + u64::from(reg);
         if offset < 1 << 24 {
             let addr = self.addr + offset;
-            ptr::write(addr as *mut u32, value)
+            ptr::write(addr as *mut u32, value);
         }
     }
 

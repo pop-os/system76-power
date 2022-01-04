@@ -127,7 +127,7 @@ impl Power for PowerClient {
 
 fn profile(client: &mut PowerClient) -> io::Result<()> {
     let profile = client.get_profile().ok();
-    let profile = profile.as_ref().map_or("?", |s| s.as_str());
+    let profile = profile.as_ref().map_or("?", String::as_str);
     println!("Power Profile: {}", profile);
 
     if let Ok(values) = PState::new().and_then(|pstate| pstate.values()) {
