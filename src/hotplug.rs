@@ -116,7 +116,7 @@ pub struct HotPlugDetect {
 }
 
 impl HotPlugDetect {
-    pub unsafe fn new(nvidia_device: Option<String>) -> Result<HotPlugDetect, HotPlugDetectError> {
+    pub unsafe fn new(nvidia_device: Option<String>) -> Result<Self, HotPlugDetectError> {
         let model = fs::read_to_string("/sys/class/dmi/id/product_version")
             .map_err(HotPlugDetectError::ProductVersion)?;
 

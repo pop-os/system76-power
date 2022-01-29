@@ -65,7 +65,7 @@ macro_rules! static_parameters {
         $(
             pub struct $struct;
 
-            impl Default for $struct { fn default() -> Self { $struct } }
+            impl Default for $struct { fn default() -> Self { Self } }
 
             impl KernelParameter for $struct {
                 const NAME: &'static str = stringify!($name);
@@ -86,8 +86,8 @@ macro_rules! dynamic_parameters {
             }
 
             impl $struct {
-                pub fn new(unique: &str) -> $struct {
-                    $struct {
+                pub fn new(unique: &str) -> Self {
+                    Self {
                         path: PathBuf::from(format!($format, unique))
                     }
                 }

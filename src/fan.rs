@@ -199,7 +199,7 @@ impl FanPoint {
     }
 
     /// Interpolates the current duty with that of the given next point and temperature.
-    fn interpolate_duties(self, next: FanPoint, temp: i16) -> u16 {
+    fn interpolate_duties(self, next: Self, temp: i16) -> u16 {
         let dtemp = next.temp - self.temp;
         let dduty = next.duty - self.duty;
 

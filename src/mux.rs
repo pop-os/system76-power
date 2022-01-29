@@ -16,7 +16,7 @@ pub enum DisplayPortMuxError {
 }
 
 impl From<SidebandError> for DisplayPortMuxError {
-    fn from(err: SidebandError) -> Self { DisplayPortMuxError::Sideband(err) }
+    fn from(err: SidebandError) -> Self { Self::Sideband(err) }
 }
 
 pub struct DisplayPortMux {
@@ -26,23 +26,23 @@ pub struct DisplayPortMux {
 }
 
 impl DisplayPortMux {
-    pub unsafe fn new() -> Result<DisplayPortMux, DisplayPortMuxError> {
+    pub unsafe fn new() -> Result<Self, DisplayPortMuxError> {
         let model_line = read_to_string("/sys/class/dmi/id/product_version")
             .map_err(DisplayPortMuxError::ProductVersion)?;
 
         let model = model_line.trim();
         match model {
-            "bonw14" => Ok(DisplayPortMux {
+            "bonw14" => Ok(Self {
                 sideband: Sideband::new(PCR_BASE_ADDRESS)?,
                 hpd:      (0x6A, 0x2E), // GPP_I3
                 mux:      (0x6B, 0x0A), // GPP_K5
             }),
-            "galp2" | "galp3" | "galp3-b" => Ok(DisplayPortMux {
+            "galp2" | "galp3" | "galp3-b" => Ok(Self {
                 sideband: Sideband::new(PCR_BASE_ADDRESS)?,
                 hpd:      (0xAE, 0x31), // GPP_E13
                 mux:      (0xAF, 0x16), // GPP_A22
             }),
-            "darp5" | "darp6" | "galp3-c" | "galp4" => Ok(DisplayPortMux {
+            "darp5" | "darp6" | "galp3-c" | "galp4" => Ok(Self {
                 sideband: Sideband::new(PCR_BASE_ADDRESS)?,
                 hpd:      (0x6A, 0x4A), // GPP_E13
                 mux:      (0x6E, 0x2C), // GPP_A22

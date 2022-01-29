@@ -12,13 +12,13 @@ pub struct SoundDevice {
 }
 
 impl SoundDevice {
-    pub fn new(device: &'static str) -> Option<SoundDevice> {
+    pub fn new(device: &'static str) -> Option<Self> {
         if !Path::new(&["/sys/module/", device].concat()).exists() {
             return None;
         }
 
         let controller = PowerSaveController::new(device);
-        Some(SoundDevice {
+        Some(Self {
             device,
             power_save: PowerSave::new(device),
             power_save_controller: if controller.get_path().exists() {
@@ -47,7 +47,7 @@ impl SoundDevice {
 impl DeviceList<SoundDevice> for SoundDevice {
     const SUPPORTED: &'static [&'static str] = &["snd_hda_intel", "snd_ac97_codec"];
 
-    fn get_devices() -> Box<dyn Iterator<Item = SoundDevice>> {
-        Box::new(Self::SUPPORTED.iter().filter_map(|dev| SoundDevice::new(dev)))
+    fn get_devices() -> Box<dyn Iterator<Item = Self>> {
+        Box::new(Self::SUPPORTED.iter().filter_map(|dev| Self::new(dev)))
     }
 }

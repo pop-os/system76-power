@@ -100,9 +100,7 @@ pub struct GraphicsDevice {
 }
 
 impl GraphicsDevice {
-    pub fn new(id: String, functions: Vec<PciDevice>) -> GraphicsDevice {
-        GraphicsDevice { id, functions }
-    }
+    pub fn new(id: String, functions: Vec<PciDevice>) -> Self { Self { id, functions } }
 
     pub fn exists(&self) -> bool { self.functions.iter().any(|func| func.path().exists()) }
 
@@ -195,7 +193,7 @@ pub struct Graphics {
 }
 
 impl Graphics {
-    pub fn new() -> io::Result<Graphics> {
+    pub fn new() -> io::Result<Self> {
         let bus = PciBus::new()?;
 
         log::info!("Rescanning PCI bus");
@@ -246,7 +244,7 @@ impl Graphics {
             }
         }
 
-        Ok(Graphics { bus, amd, intel, nvidia, other })
+        Ok(Self { bus, amd, intel, nvidia, other })
     }
 
     pub fn can_switch(&self) -> bool {
