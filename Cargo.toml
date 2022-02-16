@@ -5,7 +5,7 @@ authors = ["Jeremy Soller <jackpot51@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-clap = "2"
+clap = { version = "3", features = ["derive"] }
 concat-in-place = "1.0.0"
 dbus = "0.9"
 dbus-crossroads = "0.5"

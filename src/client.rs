@@ -2,8 +2,11 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-use crate::{charge_thresholds::ChargeProfile, err_str, Power, DBUS_IFACE, DBUS_NAME, DBUS_PATH};
-use clap::ArgMatches;
+use crate::{
+    args::{Args, GraphicsArgs},
+    charge_thresholds::ChargeProfile,
+    err_str, Power, DBUS_IFACE, DBUS_NAME, DBUS_PATH,
+};
 use dbus::{
     arg::Append,
     blocking::{BlockingSender, Connection},
@@ -166,22 +169,22 @@ fn profile(client: &mut PowerClient) -> io::Result<()> {
     Ok(())
 }
 
-pub fn client(subcommand: &str, matches: &ArgMatches) -> Result<(), String> {
+pub fn client(args: &Args) -> Result<(), String> {
     let mut client = PowerClient::new()?;
 
-    match subcommand {
-        "profile" => match matches.value_of("profile") {
+    match args {
+        Args::Profile { profile: name } => match name.as_deref() {
             Some("balanced") => client.balanced(),
             Some("battery") => client.battery(),
             Some("performance") => client.performance(),
             _ => profile(&mut client).map_err(err_str),
         },
-        "graphics" => match matches.subcommand() {
-            ("compute", _) => client.set_graphics("compute"),
-            ("hybrid", _) => client.set_graphics("hybrid"),
-            ("integrated", _) | ("intel", _) => client.set_graphics("integrated"),
-            ("nvidia", _) => client.set_graphics("nvidia"),
-            ("switchable", _) => {
+        Args::Graphics { cmd } => match cmd.as_ref() {
+            Some(GraphicsArgs::Compute) => client.set_graphics("compute"),
+            Some(GraphicsArgs::Hybrid) => client.set_graphics("hybrid"),
+            Some(GraphicsArgs::Integrated) => client.set_graphics("integrated"),
+            Some(GraphicsArgs::Nvidia) => client.set_graphics("nvidia"),
+            Some(GraphicsArgs::Switchable) => {
                 if client.get_switchable()? {
                     println!("switchable");
                 } else {
@@ -189,7 +192,7 @@ pub fn client(subcommand: &str, matches: &ArgMatches) -> Result<(), String> {
                 }
                 Ok(())
             }
-            ("power", Some(matches)) => match matches.value_of("state") {
+            Some(GraphicsArgs::Power { state }) => match state.as_deref() {
                 Some("auto") => client.auto_graphics_power(),
                 Some("off") => client.set_graphics_power(false),
                 Some("on") => client.set_graphics_power(true),
@@ -202,28 +205,28 @@ pub fn client(subcommand: &str, matches: &ArgMatches) -> Result<(), String> {
                     Ok(())
                 }
             },
-            _ => {
+            None => {
                 println!("{}", client.get_graphics()?);
                 Ok(())
             }
         },
-        "charge-thresholds" => {
+        Args::ChargeThresholds { profile, list_profiles, thresholds } => {
             let profiles = client.get_charge_profiles()?;
 
-            if let Some(mut thresholds) = matches.values_of("thresholds") {
+            if !thresholds.is_empty() {
                 assert_eq!(thresholds.len(), 2);
-                let start = thresholds.next().unwrap();
-                let end = thresholds.next().unwrap();
+                let start = &thresholds[0];
+                let end = &thresholds[1];
                 let start = start.parse::<u8>().map_err(err_str)?;
                 let end = end.parse::<u8>().map_err(err_str)?;
                 client.set_charge_thresholds((start, end))?;
-            } else if let Some(name) = matches.value_of("profile") {
-                if let Some(profile) = profiles.iter().find(|p| p.id == name) {
+            } else if let Some(name) = profile {
+                if let Some(profile) = profiles.iter().find(|p| &p.id == name) {
                     client.set_charge_thresholds((profile.start, profile.end))?;
                 } else {
                     return Err(format!("No such profile '{}'", name));
                 }
-            } else if matches.is_present("list-profiles") {
+            } else if *list_profiles {
                 for profile in &profiles {
                     println!("{}", profile.id);
                     println!("  Title: {}", profile.title);
@@ -245,6 +248,6 @@ pub fn client(subcommand: &str, matches: &ArgMatches) -> Result<(), String> {
 
             Ok(())
         }
-        _ => Err(format!("unknown sub-command {}", subcommand)),
+        Args::Daemon { .. } => unreachable!(),
     }
 }
