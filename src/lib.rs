@@ -6,6 +6,7 @@
 #![allow(clippy::missing_safety_doc)]
 
 pub mod acpi_platform;
+pub mod args;
 pub mod charge_thresholds;
 pub mod client;
 pub mod cpufreq;
