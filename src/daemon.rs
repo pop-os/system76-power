@@ -234,14 +234,6 @@ pub async fn daemon() -> Result<(), String> {
         None
     };
 
-    log::info!("Setting automatic graphics power");
-    match daemon.auto_graphics_power() {
-        Ok(()) => (),
-        Err(err) => {
-            log::warn!("Failed to set automatic graphics power: {}", err);
-        }
-    }
-
     log::info!("Initializing with the balanced profile");
     if let Err(why) = daemon.balanced() {
         log::warn!("Failed to set initial profile: {}", why);
