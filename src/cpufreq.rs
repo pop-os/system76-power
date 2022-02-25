@@ -6,24 +6,34 @@ use concat_in_place::strcat;
 use std::fs;
 
 pub fn powersave() {
-    if let Some((cpus, (min, mut max))) =
-        num_cpus().zip(frequency_minimum().zip(frequency_maximum()))
-    {
-        max /= 2;
-        for cpu in 0..cpus {
-            set_frequency_minimum(cpu, min);
-            set_frequency_maximum(cpu, max);
-            set_governor(cpu, "powersave\n");
+    if let Some(driver) = scaling_driver(0) {
+        let governor = if driver == "acpi-cpufreq" { "schedutil\n" } else { "powersave\n" };
+
+        if let Some((cpus, (min, mut max))) =
+            num_cpus().zip(frequency_minimum().zip(frequency_maximum()))
+        {
+            max /= 2;
+            for cpu in 0..cpus {
+                set_frequency_minimum(cpu, min);
+                set_frequency_maximum(cpu, max);
+                set_governor(cpu, governor);
+            }
         }
     }
 }
 
 pub fn performance() {
-    if let Some((cpus, (min, max))) = num_cpus().zip(frequency_minimum().zip(frequency_maximum())) {
-        for cpu in 0..cpus {
-            set_frequency_minimum(cpu, min);
-            set_frequency_maximum(cpu, max);
-            set_governor(cpu, "performance\n");
+    if let Some(driver) = scaling_driver(0) {
+        let governor = if driver == "acpi-cpufreq" { "schedutil\n" } else { "performance\n" };
+
+        if let Some((cpus, (min, max))) =
+            num_cpus().zip(frequency_minimum().zip(frequency_maximum()))
+        {
+            for cpu in 0..cpus {
+                set_frequency_minimum(cpu, min);
+                set_frequency_maximum(cpu, max);
+                set_governor(cpu, governor);
+            }
         }
     }
 }
@@ -45,6 +55,13 @@ pub fn frequency_minimum() -> Option<usize> {
     let path = strcat!(&mut sys_path, "cpuinfo_min_freq");
     let string = fs::read_to_string(path).ok()?;
     string.trim_end().parse::<usize>().ok()
+}
+
+pub fn scaling_driver(core: usize) -> Option<String> {
+    let mut sys_path = sys_path(core);
+    fs::read_to_string(strcat!(&mut sys_path, "scaling_driver"))
+        .map(|string| string.trim_end().to_owned())
+        .ok()
 }
 
 pub fn set_frequency_maximum(core: usize, frequency: usize) {
