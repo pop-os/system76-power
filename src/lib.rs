@@ -8,6 +8,7 @@
 pub mod acpi_platform;
 pub mod charge_thresholds;
 pub mod client;
+pub mod cpufreq;
 pub mod daemon;
 pub mod disks;
 pub mod errors;

@@ -6,6 +6,7 @@ edition = "2018"
 
 [dependencies]
 clap = "2"
+concat-in-place = "1.0.0"
 dbus = "0.9"
 dbus-crossroads = "0.5"
 dbus-tokio = "0.7"

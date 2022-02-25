@@ -71,6 +71,9 @@ pub fn balanced(errors: &mut Vec<ProfileError>, set_brightness: bool) {
         catch!(errors, pci_device_runtime_pm(RuntimePowerManagement::On));
     }
 
+    // Set to performance profile.
+    crate::cpufreq::performance();
+
     // Control Intel PState values, if they exist.
     catch!(errors, pstate_values(0, 100, false));
 
@@ -91,7 +94,8 @@ pub fn performance(errors: &mut Vec<ProfileError>, _set_brightness: bool) {
     LaptopMode::default().set(b"0");
     RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("high", "performance", "auto"));
     catch!(errors, scsi_host_link_time_pm_policy(&["med_power_with_dipm", "max_performance"]));
-    catch!(errors, pstate_values(50, 100, false));
+    crate::cpufreq::performance();
+    catch!(errors, pstate_values(0, 100, false));
 
     if pci_runtime_pm_support() {
         catch!(errors, pci_device_runtime_pm(RuntimePowerManagement::Off));
@@ -114,6 +118,7 @@ pub fn battery(errors: &mut Vec<ProfileError>, set_brightness: bool) {
     LaptopMode::default().set(b"2");
     RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("low", "battery", "low"));
     catch!(errors, scsi_host_link_time_pm_policy(&["min_power", "min_power"]));
+    crate::cpufreq::powersave();
     catch!(errors, pstate_values(0, 50, true));
 
     if set_brightness {
