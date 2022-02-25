@@ -60,6 +60,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "concat-in-place"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "184cbd788b9b2677636091543da73a56d63597985c78b48da833ace7515ca305"
+
+[[package]]
 name = "dbus"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -467,6 +473,7 @@ name = "system76-power"
 version = "1.1.20"
 dependencies = [
  "clap",
+ "concat-in-place",
  "dbus",
  "dbus-crossroads",
  "dbus-tokio",
