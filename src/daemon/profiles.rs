@@ -8,7 +8,7 @@ use crate::{
     kernel_parameters::{DeviceList, Dirty, KernelParameter, LaptopMode},
     radeon::RadeonDevice,
 };
-use intel_pstate::{PState, PStateError};
+use intel_pstate::{PState, PStateError, PStateValues};
 use std::{
     fs,
     io::{self, Read, Seek, SeekFrom, Write},
@@ -75,7 +75,16 @@ pub fn balanced(errors: &mut Vec<ProfileError>, set_brightness: bool) {
     crate::cpufreq::performance();
 
     // Control Intel PState values, if they exist.
-    catch!(errors, pstate_values(0, 100, false));
+    catch!(
+        errors,
+        pstate_values(
+            PStateValues::default()
+                .hwp_dynamic_boost(true)
+                .min_perf_pct(0)
+                .max_perf_pct(100)
+                .no_turbo(false)
+        )
+    );
 
     if let Some(model_profiles) = ModelProfiles::new() {
         catch!(errors, model_profiles.balanced.set());
@@ -95,7 +104,16 @@ pub fn performance(errors: &mut Vec<ProfileError>, _set_brightness: bool) {
     RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("high", "performance", "auto"));
     catch!(errors, scsi_host_link_time_pm_policy(&["med_power_with_dipm", "max_performance"]));
     crate::cpufreq::performance();
-    catch!(errors, pstate_values(0, 100, false));
+    catch!(
+        errors,
+        pstate_values(
+            PStateValues::default()
+                .hwp_dynamic_boost(true)
+                .min_perf_pct(0)
+                .max_perf_pct(100)
+                .no_turbo(false)
+        )
+    );
 
     if pci_runtime_pm_support() {
         catch!(errors, pci_device_runtime_pm(RuntimePowerManagement::Off));
@@ -119,7 +137,11 @@ pub fn battery(errors: &mut Vec<ProfileError>, set_brightness: bool) {
     RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("low", "battery", "low"));
     catch!(errors, scsi_host_link_time_pm_policy(&["min_power", "min_power"]));
     crate::cpufreq::powersave();
-    catch!(errors, pstate_values(0, 50, true));
+
+    catch!(
+        errors,
+        pstate_values(PStateValues::default().min_perf_pct(0).max_perf_pct(50).no_turbo(true))
+    );
 
     if set_brightness {
         catch!(errors, iterate_backlights(Backlight::iter(), &Brightness::set_if_lower_than, 10));
@@ -136,11 +158,9 @@ pub fn battery(errors: &mut Vec<ProfileError>, set_brightness: bool) {
 }
 
 /// Controls the Intel PState values.
-fn pstate_values(min: u8, max: u8, no_turbo: bool) -> Result<(), PStateError> {
+fn pstate_values(values: PStateValues) -> Result<(), PStateError> {
     if let Ok(pstate) = PState::new() {
-        pstate.set_min_perf_pct(min)?;
-        pstate.set_max_perf_pct(max)?;
-        pstate.set_no_turbo(no_turbo)?;
+        pstate.set_values(values)?;
     }
 
     Ok(())
