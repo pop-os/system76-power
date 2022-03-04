@@ -5,30 +5,18 @@ use crate::util::write_value;
 use concat_in_place::strcat;
 use std::fs;
 
-pub fn powersave() {
+pub fn set(mut governor: &str, max_percent: u8) {
     if let Some(driver) = scaling_driver(0) {
-        let governor = if driver == "acpi-cpufreq" { "schedutil\n" } else { "powersave\n" };
-
-        if let Some((cpus, (min, mut max))) =
-            num_cpus().zip(frequency_minimum().zip(frequency_maximum()))
-        {
-            max /= 2;
-            for cpu in 0..cpus {
-                set_frequency_minimum(cpu, min);
-                set_frequency_maximum(cpu, max);
-                set_governor(cpu, governor);
-            }
+        if driver == "acpi-cpufreq" {
+            governor = "schedutil";
         }
-    }
-}
-
-pub fn performance() {
-    if let Some(driver) = scaling_driver(0) {
-        let governor = if driver == "acpi-cpufreq" { "schedutil\n" } else { "performance\n" };
 
         if let Some((cpus, (min, max))) =
             num_cpus().zip(frequency_minimum().zip(frequency_maximum()))
         {
+            let max = max * max_percent.min(100) as usize / 100;
+            eprintln!("setting {} with max {}", governor, max);
+
             for cpu in 0..cpus {
                 set_frequency_minimum(cpu, min);
                 set_frequency_maximum(cpu, max);
