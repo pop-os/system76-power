@@ -1,15 +1,24 @@
 // Copyright 2022 System76 <info@system76.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-use crate::util::write_value;
+use crate::{util::write_value, Profile};
 use concat_in_place::strcat;
 use std::fs;
 
-pub fn set(mut governor: &str, max_percent: u8) {
+pub fn set(profile: Profile, max_percent: u8) {
     if let Some(driver) = scaling_driver(0) {
-        if driver == "acpi-cpufreq" {
-            governor = "schedutil";
-        }
+        let governor = if "intel_pstate" == driver.as_str() {
+            match profile {
+                Profile::Battery | Profile::Balanced => "powersave",
+                Profile::Performance => "performance",
+            }
+        } else {
+            match profile {
+                Profile::Battery => "conservative",
+                Profile::Balanced => "schedutil",
+                Profile::Performance => "performance",
+            }
+        };
 
         if let Some((cpus, (min, max))) =
             num_cpus().zip(frequency_minimum().zip(frequency_maximum()))
