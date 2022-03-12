@@ -7,6 +7,7 @@ use crate::{
     errors::{BacklightError, ModelError, PciDeviceError, ProfileError, ScsiHostError},
     kernel_parameters::{DeviceList, Dirty, KernelParameter, LaptopMode},
     radeon::RadeonDevice,
+    Profile,
 };
 use intel_pstate::{PState, PStateError, PStateValues};
 use std::{
@@ -72,7 +73,7 @@ pub fn balanced(errors: &mut Vec<ProfileError>, set_brightness: bool) {
     }
 
     // Set to balanced profile.
-    crate::cpufreq::set("powersave", 100);
+    crate::cpufreq::set(Profile::Balanced, 100);
 
     // Control Intel PState values, if they exist.
     catch!(
@@ -103,7 +104,7 @@ pub fn performance(errors: &mut Vec<ProfileError>, _set_brightness: bool) {
     LaptopMode::default().set(b"0");
     RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("high", "performance", "auto"));
     catch!(errors, scsi_host_link_time_pm_policy(&["med_power_with_dipm", "max_performance"]));
-    crate::cpufreq::set("performance", 100);
+    crate::cpufreq::set(Profile::Performance, 100);
     catch!(
         errors,
         pstate_values(
@@ -136,7 +137,7 @@ pub fn battery(errors: &mut Vec<ProfileError>, set_brightness: bool) {
     LaptopMode::default().set(b"2");
     RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("low", "battery", "low"));
     catch!(errors, scsi_host_link_time_pm_policy(&["min_power", "min_power"]));
-    crate::cpufreq::set("powersave", 50);
+    crate::cpufreq::set(Profile::Battery, 50);
 
     catch!(
         errors,
