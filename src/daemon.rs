@@ -259,7 +259,7 @@ pub async fn daemon() -> Result<(), String> {
         sync_get_method(b, "GetSwitchable", "switchable", PowerDaemon::get_switchable);
         sync_get_method(b, "GetGraphicsPower", "power", PowerDaemon::get_graphics_power);
         sync_set_method(b, "SetGraphicsPower", "power", PowerDaemon::set_graphics_power);
-        sync_get_method(b, "AutoGraphicsPower", "thresholds", PowerDaemon::auto_graphics_power);
+        sync_get_method(b, "AutoGraphicsPower", "power", PowerDaemon::auto_graphics_power);
         sync_get_method(b, "GetChargeThresholds", "thresholds", PowerDaemon::get_charge_thresholds);
         let c_clone = c.clone();
         b.method_with_cr_async(
