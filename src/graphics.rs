@@ -6,9 +6,9 @@ use crate::{hotplug, module::Module, pci::PciBus};
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
-    os::unix::fs::OpenOptionsExt,
     io::{self, Write},
     iter::FromIterator,
+    os::unix::fs::OpenOptionsExt,
     process::{self, ExitStatus},
 };
 use sysfs_class::{PciDevice, SysClass};
@@ -44,8 +44,9 @@ esac
 static INITRAMFS_HOOK_NO_MODULES: &[u8] = br#"# no modules added to initramfs
 "#;
 
-//for nvidia and hybrid modes
-static INITRAMFS_HOOK_ADD_MODULES: &[u8] = br#"# add Nvidia kernel modules to initramfs to enable external monitor during boot
+// for nvidia and hybrid modes
+static INITRAMFS_HOOK_ADD_MODULES: &[u8] =
+    br#"# add Nvidia kernel modules to initramfs to enable external monitor during boot
 
 manual_add_modules nvidia
 manual_add_modules nvidia_drm
@@ -431,12 +432,13 @@ impl Graphics {
         log::info!("Setting {} to {}", PRIME_DISCRETE_PATH, mode);
         Self::set_prime_discrete(mode)?;
 
-        {   // scope block for writing modprobe and initramfs files based on user selection
+        {
+            // scope block for writing modprobe and initramfs files based on user selection
 
             log::info!("Creating {}", MODPROBE_PATH);
-            
+
             // create File instance for modprobe file
-            let mut modprobe_file = fs::OpenOptions::new() 
+            let mut modprobe_file = fs::OpenOptions::new()
                 .create(true)
                 .truncate(true)
                 .write(true)
@@ -444,30 +446,31 @@ impl Graphics {
                 .map_err(GraphicsDeviceError::ModprobeFileOpen)?;
 
             // create first part of modprobe file contents
-            let modprobe_text = match vendor { 
-                "hybrid" => { MODPROBE_HYBRID }
-                "compute" => { MODPROBE_COMPUTE }
-                "nvidia" => { MODPROBE_NVIDIA }
-                "integrated" => { MODPROBE_INTEGRATED }
-                _ => { EMPTY_BYTES } // need something better to do with the "other" match case here, but it should never happen
+            let modprobe_text = match vendor {
+                "hybrid" => MODPROBE_HYBRID,
+                "compute" => MODPROBE_COMPUTE,
+                "nvidia" => MODPROBE_NVIDIA,
+                "integrated" => MODPROBE_INTEGRATED,
+                _ => EMPTY_BYTES, /* need something better to do with the "other" match case
+                                   * here, but it should never happen */
             };
 
             // Power management must be configured depending on if the system
             // uses S0ix or S3 for suspend. Integrated graphics set modprobe_sleep
             // to an empty set of bytes.
-            
+
             // XXX: Better way to check required sleep mode?
 
             // We should also check if the GPU supports Video Memory Self
             // Refresh, but that requires already being in hybrid or nvidia
             // graphics mode. In compute mode, it just reports '?'.
-            
-            let s0ix = fs::read_to_string("/sys/power/mem_sleep")
-                .unwrap_or_default()
-                .contains("[s2idle]");
-            
+
+            let s0ix =
+                fs::read_to_string("/sys/power/mem_sleep").unwrap_or_default().contains("[s2idle]");
+
             // create second part of modprobe file contents
-            let modprobe_sleep = if vendor == "integrated" { EMPTY_BYTES 
+            let modprobe_sleep = if vendor == "integrated" {
+                EMPTY_BYTES
             } else if s0ix {
                 SYSTEM_SLEEP_S0IX
             } else {
@@ -475,7 +478,8 @@ impl Graphics {
             };
 
             // write both parts to the file
-            modprobe_file.write_all(&[modprobe_text, modprobe_sleep].concat())
+            modprobe_file
+                .write_all(&[modprobe_text, modprobe_sleep].concat())
                 .and_then(|_| modprobe_file.sync_all())
                 .map_err(GraphicsDeviceError::ModprobeFileWrite)?;
 
@@ -495,15 +499,17 @@ impl Graphics {
 
             // create second part of initramfs file contents
             let hook_text = match vendor {
-                "hybrid" | "nvidia" => { INITRAMFS_HOOK_ADD_MODULES }
-                "compute" | "integrated" => { INITRAMFS_HOOK_NO_MODULES }
-                _ => { EMPTY_BYTES } // need something better to do with the "other" match case here, but it should never happen
-                };
+                "hybrid" | "nvidia" => INITRAMFS_HOOK_ADD_MODULES,
+                "compute" | "integrated" => INITRAMFS_HOOK_NO_MODULES,
+                _ => EMPTY_BYTES, /* need something better to do with the "other" match case
+                                   * here, but it should never happen */
+            };
 
             // write both parts to the file
-            hook_file.write_all(&[hook_boilerplate, hook_text].concat())
+            hook_file
+                .write_all(&[hook_boilerplate, hook_text].concat())
                 .and_then(|_| hook_file.sync_all())
-                .map_err(GraphicsDeviceError::HookFileWrite)?;            
+                .map_err(GraphicsDeviceError::HookFileWrite)?;
         }
 
         const SYSTEMCTL_CMD: &str = "systemctl";
