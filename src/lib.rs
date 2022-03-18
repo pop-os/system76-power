@@ -8,6 +8,7 @@
 pub mod acpi_platform;
 pub mod charge_thresholds;
 pub mod client;
+pub mod cpufreq;
 pub mod daemon;
 pub mod disks;
 pub mod errors;
@@ -34,6 +35,11 @@ pub static DBUS_NAME: &str = "com.system76.PowerDaemon";
 pub static DBUS_PATH: &str = "/com/system76/PowerDaemon";
 pub static DBUS_IFACE: &str = "com.system76.PowerDaemon";
 
+pub enum Profile {
+    Battery,
+    Balanced,
+    Performance,
+}
 pub trait Power {
     fn performance(&mut self) -> Result<(), String>;
     fn balanced(&mut self) -> Result<(), String>;
