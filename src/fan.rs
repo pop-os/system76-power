@@ -271,13 +271,12 @@ impl FanCurve {
             .append(50_00, 40_00)
             .append(55_00, 45_00)
             .append(60_00, 50_00)
-            .append(65_00, 55_00)
-            .append(70_00, 60_00)
-            .append(72_00, 65_00)
-            .append(74_00, 80_00)
-            .append(76_00, 85_00)
-            .append(77_00, 90_00)
-            .append(78_00, 100_00)
+            .append(62_00, 60_00)
+            .append(64_00, 65_00)
+            .append(66_00, 80_00)
+            .append(68_00, 85_00)
+            .append(69_00, 90_00)
+            .append(70_00, 100_00)
     }
 
     pub fn get_duty(&self, temp: i16) -> Option<u16> {
