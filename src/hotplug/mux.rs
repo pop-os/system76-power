@@ -15,22 +15,22 @@ pub struct DisplayPortMux {
 }
 
 impl DisplayPortMux {
-    pub unsafe fn new() -> Result<DisplayPortMux, HotPlugDetectError> {
+    pub unsafe fn new() -> Result<Self, HotPlugDetectError> {
         let model = fs::read_to_string("/sys/class/dmi/id/product_version")
             .map_err(HotPlugDetectError::ProductVersion)?;
 
         match model.trim() {
-            "bonw14" => Ok(DisplayPortMux {
+            "bonw14" => Ok(Self {
                 sideband: Sideband::new(PCR_BASE_ADDRESS)?,
                 hpd:      (0x6A, 0x2E), // GPP_I3
                 mux:      (0x6B, 0x0A), // GPP_K5
             }),
-            "galp2" | "galp3" | "galp3-b" => Ok(DisplayPortMux {
+            "galp2" | "galp3" | "galp3-b" => Ok(Self {
                 sideband: Sideband::new(PCR_BASE_ADDRESS)?,
                 hpd:      (0xAE, 0x31), // GPP_E13
                 mux:      (0xAF, 0x16), // GPP_A22
             }),
-            "darp5" | "darp6" | "galp3-c" | "galp4" => Ok(DisplayPortMux {
+            "darp5" | "darp6" | "galp3-c" | "galp4" => Ok(Self {
                 sideband: Sideband::new(PCR_BASE_ADDRESS)?,
                 hpd:      (0x6A, 0x4A), // GPP_E13
                 mux:      (0x6E, 0x2C), // GPP_A22
