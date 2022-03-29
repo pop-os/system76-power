@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-use crate::{hotplug, module::Module, pci::PciBus};
+use crate::{module::Module, pci::PciBus};
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
@@ -59,6 +59,23 @@ options nvidia NVreg_PreserveVideoMemoryAllocations=1
 "#;
 
 const PRIME_DISCRETE_PATH: &str = "/etc/prime-discrete";
+
+const EXTERNAL_DISPLAY_REQUIRES_NVIDIA: &[&str] = &[
+    "addw1",
+    "addw2",
+    "gaze14",
+    "gaze15",
+    "gaze16-3050",
+    "gaze16-3060",
+    "gaze16-3060-b",
+    "kudu6",
+    "oryp4",
+    "oryp4-b",
+    "oryp5",
+    "oryp6",
+    "oryp7",
+    "oryp8",
+];
 
 #[derive(Debug, thiserror::Error)]
 pub enum GraphicsDeviceError {
@@ -267,7 +284,7 @@ impl Graphics {
         let model = fs::read_to_string("/sys/class/dmi/id/product_version")
             .map_err(GraphicsDeviceError::SysFs)?;
 
-        Ok(hotplug::REQUIRES_NVIDIA.contains(&model.trim()))
+        Ok(EXTERNAL_DISPLAY_REQUIRES_NVIDIA.contains(&model.trim()))
     }
 
     fn nvidia_version(&self) -> Result<String, GraphicsDeviceError> {
