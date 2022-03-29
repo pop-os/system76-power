@@ -36,9 +36,8 @@ use crate::{
     fan::FanDaemon,
     graphics::{Graphics, GraphicsMode},
     hid_backlight,
-    hotplug::{Detect, HotPlugDetect},
+    hotplug::{mux, Detect, HotPlugDetect},
     kernel_parameters::{KernelParameter, NmiWatchdog},
-    mux::DisplayPortMux,
     polkit, Power, DBUS_IFACE, DBUS_NAME, DBUS_PATH,
 };
 
@@ -328,7 +327,7 @@ pub async fn daemon() -> Result<(), String> {
 
     let mut hpd_res = unsafe { HotPlugDetect::new(nvidia_device_id) };
 
-    let mux_res = unsafe { DisplayPortMux::new() };
+    let mux_res = unsafe { mux::DisplayPortMux::new() };
 
     let mut hpd = || -> [bool; 4] {
         if let Ok(ref mut hpd) = hpd_res {
