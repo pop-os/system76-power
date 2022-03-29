@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-use crate::sideband::{Sideband, SidebandError, PCR_BASE_ADDRESS};
+pub mod mux;
+pub mod sideband;
+
+use sideband::{Sideband, SidebandError, PCR_BASE_ADDRESS};
 use std::{
     fs,
     io::{self, Read, Seek},

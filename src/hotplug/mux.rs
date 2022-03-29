@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-use crate::sideband::{Sideband, SidebandError, PCR_BASE_ADDRESS};
+use crate::hotplug::sideband::{Sideband, SidebandError, PCR_BASE_ADDRESS};
 use std::{fs::read_to_string, io};
 
 #[derive(Debug, thiserror::Error)]

@@ -1,8 +1,8 @@
 use log::LevelFilter;
 use std::{process, thread, time};
 use system76_power::{
+    hotplug::sideband::{Sideband, SidebandError, PCR_BASE_ADDRESS},
     logging,
-    sideband::{Sideband, SidebandError, PCR_BASE_ADDRESS},
 };
 
 fn inner() -> Result<(), SidebandError> {
