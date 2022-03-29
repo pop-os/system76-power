@@ -2,22 +2,11 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-use crate::hotplug::sideband::{Sideband, SidebandError, PCR_BASE_ADDRESS};
-use std::{fs::read_to_string, io};
-
-#[derive(Debug, thiserror::Error)]
-pub enum DisplayPortMuxError {
-    #[error("error constructing sideband: {}", _0)]
-    Sideband(SidebandError),
-    #[error("failed to read DMI product version: {}", _0)]
-    ProductVersion(io::Error),
-    #[error("model '{}' does not support hotplug detection", _0)]
-    UnsupportedHotPlugDetect(String),
-}
-
-impl From<SidebandError> for DisplayPortMuxError {
-    fn from(err: SidebandError) -> Self { DisplayPortMuxError::Sideband(err) }
-}
+use crate::hotplug::{
+    sideband::{Sideband, PCR_BASE_ADDRESS},
+    HotPlugDetectError,
+};
+use std::fs;
 
 pub struct DisplayPortMux {
     sideband: Sideband,
@@ -26,12 +15,11 @@ pub struct DisplayPortMux {
 }
 
 impl DisplayPortMux {
-    pub unsafe fn new() -> Result<DisplayPortMux, DisplayPortMuxError> {
-        let model_line = read_to_string("/sys/class/dmi/id/product_version")
-            .map_err(DisplayPortMuxError::ProductVersion)?;
+    pub unsafe fn new() -> Result<DisplayPortMux, HotPlugDetectError> {
+        let model = fs::read_to_string("/sys/class/dmi/id/product_version")
+            .map_err(HotPlugDetectError::ProductVersion)?;
 
-        let model = model_line.trim();
-        match model {
+        match model.trim() {
             "bonw14" => Ok(DisplayPortMux {
                 sideband: Sideband::new(PCR_BASE_ADDRESS)?,
                 hpd:      (0x6A, 0x2E), // GPP_I3
@@ -47,7 +35,7 @@ impl DisplayPortMux {
                 hpd:      (0x6A, 0x4A), // GPP_E13
                 mux:      (0x6E, 0x2C), // GPP_A22
             }),
-            _ => Err(DisplayPortMuxError::UnsupportedHotPlugDetect(model.to_owned())),
+            other => Err(HotPlugDetectError::ModelUnsupported(other.into())),
         }
     }
 
