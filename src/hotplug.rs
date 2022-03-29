@@ -8,23 +8,6 @@ use std::{
     io::{self, Read, Seek},
 };
 
-pub const REQUIRES_NVIDIA: &[&str] = &[
-    "addw1",
-    "addw2",
-    "gaze14",
-    "gaze15",
-    "gaze16-3050",
-    "gaze16-3060",
-    "gaze16-3060-b",
-    "kudu6",
-    "oryp4",
-    "oryp4-b",
-    "oryp5",
-    "oryp6",
-    "oryp7",
-    "oryp8",
-];
-
 #[derive(Debug, thiserror::Error)]
 pub enum HotPlugDetectError {
     #[error("failed to read DMI product version: {}", _0)]
