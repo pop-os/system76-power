@@ -29,7 +29,7 @@ pub struct Sideband {
 }
 
 impl Sideband {
-    pub unsafe fn new(sbreg_phys: usize) -> Result<Sideband, SidebandError> {
+    pub unsafe fn new(sbreg_phys: usize) -> Result<Self, SidebandError> {
         let mem_str = CString::new("/dev/mem").unwrap();
         let memfd: c_int = open(mem_str.as_ptr(), O_RDWR);
         if memfd == -1 {
@@ -51,7 +51,7 @@ impl Sideband {
             return Err(SidebandError::MapFailed(io::Error::last_os_error()));
         }
 
-        Ok(Sideband { addr: sbreg_virt as u64 })
+        Ok(Self { addr: sbreg_virt as u64 })
     }
 
     pub unsafe fn read(&self, port: u8, reg: u32) -> u32 {
