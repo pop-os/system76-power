@@ -521,8 +521,12 @@ impl Graphics {
     }
 
     pub fn auto_power(&self) -> Result<(), GraphicsDeviceError> {
+        // Only disable power if in integrated mode and the device does not
+        // support runtime power management.
         let vendor = self.get_vendor()?;
-        self.set_power(vendor != GraphicsMode::Integrated)
+        let power = vendor != GraphicsMode::Integrated || self.gpu_supports_runtimepm()?;
+
+        self.set_power(power)
     }
 
     fn switchable_or_fail(&self) -> Result<(), GraphicsDeviceError> {

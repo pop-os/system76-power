@@ -233,11 +233,11 @@ pub async fn daemon() -> Result<(), String> {
         None
     };
 
-    log::info!("Setting graphics power");
-    match daemon.set_graphics_power(true) {
+    log::info!("Setting automatic graphics power");
+    match daemon.auto_graphics_power() {
         Ok(()) => (),
         Err(err) => {
-            log::warn!("Failed to set graphics power: {}", err);
+            log::warn!("Failed to set automatic graphics power: {}", err);
         }
     }
 
