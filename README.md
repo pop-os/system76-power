@@ -87,6 +87,11 @@ the schematics and output of [coreboot-collector]. The schematics will indicate
 which GPIOs are display ports (`*_HPD`). The corresponding `GPP_*` entry in
 `coreboot-collector.txt` will have the port/pin tuple.
 
+##### Muxed DisplayPort
+
+Some models have muxed DisplayPort ouput from mDP and USB-C. These units have a
+separate data switch pin that is used to determine which output is used.
+
 #### AMD-based systems
 
 A MMIO region for FCH GPIO controls is used to detect external display plug
