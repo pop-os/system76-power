@@ -1,0 +1,10 @@
+#!/bin/sh
+
+set -e
+
+# Fixes upgrade from previous packaging.
+rm -rf /etc/systemd/system/system76-power.service
+
+#DEBHELPER#
+
+exit 0

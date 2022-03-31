@@ -1,19 +1,16 @@
 prefix ?= /usr
-sysconfdir ?= /etc
 exec_prefix = $(prefix)
 bindir = $(exec_prefix)/bin
 libdir = $(exec_prefix)/lib
 includedir = $(prefix)/include
-datarootdir = $(prefix)/share
-datadir = $(datarootdir)
+datadir = $(prefix)/share
 
 SRC = Cargo.toml Cargo.lock Makefile $(shell find src -type f -wholename '*src/*.rs')
 
 .PHONY: all clean distclean install uninstall update
 
 BIN=system76-power
-RDD=com.system76.PowerDaemon
-POLICY=com.system76.powerdaemon
+ID=com.system76.PowerDaemon
 
 DEBUG ?= 0
 ifeq ($(DEBUG),0)
@@ -21,8 +18,8 @@ ifeq ($(DEBUG),0)
 	TARGET = release
 endif
 
-VENDORED ?= 0
-ifeq ($(VENDORED),1)
+VENDOR ?= 0
+ifeq ($(VENDOR),1)
 	ARGS += "--frozen"
 endif
 
@@ -35,17 +32,18 @@ distclean:
 	rm -rf .cargo vendor vendor.tar.xz
 
 install: all
+	install -D -m 0644 "data/$(ID).conf" "$(DESTDIR)$(datadir)/dbus-1/system.d/$(ID).conf"
+	install -D -m 0644 "data/$(ID).policy" "$(DESTDIR)$(datadir)/polkit-1/actions/$(ID).policy"
+	install -D -m 0644 "data/$(ID).service" "$(DESTDIR)$(libdir)/systemd/system/$(ID).service"
+	install -D -m 0644 "data/$(ID).xml" "$(DESTDIR)$(datadir)/dbus-1/interfaces/$(ID).xml"
 	install -D -m 0755 "target/release/$(BIN)" "$(DESTDIR)$(bindir)/$(BIN)"
-	install -D -m 0644 "data/$(RDD).xml" "$(DESTDIR)$(sysconfdir)/dbus-1/interfaces/$(RDD).xml"
-	install -D -m 0644 "data/$(BIN).conf" "$(DESTDIR)$(sysconfdir)/dbus-1/system.d/$(BIN).conf"
-	install -D -m 0644 "debian/$(BIN).service" "$(DESTDIR)$(sysconfdir)/systemd/system/$(BIN).service"
-	install -D -m 0644 "data/$(POLICY).policy" $(DESTDIR)$(datadir)/polkit-1/actions/$(POLICY).policy
 
 uninstall:
-	rm -f "$(DESTDIR)$(bindir)/$(BIN)"
-	rm -f "$(DESTDIR)$(sysconfdir)/dbus-1/system.d/$(BIN).conf"
-	rm -f "$(DESTDIR)$(sysconfdir)/systemd/system/$(BIN).service"
-	rm -f "$(DESTDIR)$(sysconfdir)/dbus-1/interfaces/$(RDD).xml"
+	rm -f "$(DESTDIR)$(bindir)/$(ID)"
+	rm -f "$(DESTDIR)$(datadir)/dbus-1/interfaces/$(ID).xml"
+	rm -f "$(DESTDIR)$(datadir)/dbus-1/system.d/$(ID).conf"
+	rm -f "$(DESTDIR)$(datadir)/polkit-1/actions/$(ID).policy"
+	rm -f "$(DESTDIR)$(libdir)/systemd/system/$(ID).service"
 
 update:
 	cargo update
@@ -58,7 +56,7 @@ vendor:
 	rm -rf vendor
 
 target/release/$(BIN): $(SRC)
-ifeq ($(VENDORED),1)
+ifeq ($(VENDOR),1)
 	tar pxf vendor.tar.xz
 endif
 	cargo build $(ARGS)

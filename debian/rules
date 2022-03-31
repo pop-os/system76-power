@@ -1,7 +1,6 @@
 #!/usr/bin/make -f
 
-export sysconfdir = "/usr/share/"
-export VENDORED ?= 1
+export VENDOR ?= 1
 CLEAN ?= 1
 
 %:
@@ -9,16 +8,19 @@ CLEAN ?= 1
 
 override_dh_auto_build:
 	env CARGO_HOME="$$(pwd)/target/cargo" \
-	dh_auto_build
+		dh_auto_build
 
 override_dh_auto_install:
 	dh_auto_install --destdir="debian/tmp"
+
+override_dh_installsystemd:
+	dh_installsystemd --name=com.system76.PowerDaemon
 
 override_dh_auto_clean:
 ifeq ($(CLEAN),1)
 	make clean
 endif
-ifeq ($(VENDORED),1)
+ifeq ($(VENDOR),1)
 	if ! ischroot; then \
 		make vendor; \
 	fi
