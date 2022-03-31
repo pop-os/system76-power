@@ -1,0 +1,11 @@
+[Unit]
+Description=System76 Power Daemon
+
+[Service]
+ExecStart=/usr/bin/system76-power daemon
+Restart=on-failure
+Type=dbus
+BusName=com.system76.PowerDaemon
+
+[Install]
+WantedBy=multi-user.target
