@@ -547,7 +547,11 @@ fn sysfs_power_control(pciid: String, mode: GraphicsMode) {
     std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_millis(5000));
 
-        let pm = if mode == GraphicsMode::Discrete { "on\n" } else { "auto\n" };
+        // XXX: Compute mode still frequently has the issue. Just disable it.
+        let pm = match mode {
+            GraphicsMode::Discrete | GraphicsMode::Compute => "on\n",
+            _ => "auto\n",
+        };
         log::info!("Setting power management to {}", pm);
 
         let control = format!("/sys/bus/pci/devices/{}/power/control", pciid);
