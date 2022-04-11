@@ -8,6 +8,7 @@ use std::{
     fs,
     io::{self, Write},
     iter::FromIterator,
+    path,
     process::{self, ExitStatus},
 };
 use sysfs_class::{PciDevice, SysClass};
@@ -113,15 +114,18 @@ pub enum GraphicsDeviceError {
 
 pub struct GraphicsDevice {
     id:        String,
+    devid:     u16,
     functions: Vec<PciDevice>,
 }
 
 impl GraphicsDevice {
-    pub fn new(id: String, functions: Vec<PciDevice>) -> GraphicsDevice {
-        GraphicsDevice { id, functions }
+    pub fn new(id: String, devid: u16, functions: Vec<PciDevice>) -> GraphicsDevice {
+        GraphicsDevice { id, devid, functions }
     }
 
     pub fn exists(&self) -> bool { self.functions.iter().any(|func| func.path().exists()) }
+
+    pub fn device(&self) -> u16 { self.devid }
 
     pub unsafe fn unbind(&self) -> Result<(), GraphicsDeviceError> {
         for func in &self.functions {
@@ -253,19 +257,35 @@ impl Graphics {
                 match dev.vendor()? {
                     0x1002 => {
                         log::info!("{}: AMD graphics", dev.id());
-                        amd.push(GraphicsDevice::new(dev.id().to_owned(), functions(dev)));
+                        amd.push(GraphicsDevice::new(
+                            dev.id().to_owned(),
+                            dev.device()?,
+                            functions(dev),
+                        ));
                     }
                     0x10DE => {
                         log::info!("{}: NVIDIA graphics", dev.id());
-                        nvidia.push(GraphicsDevice::new(dev.id().to_owned(), functions(dev)));
+                        nvidia.push(GraphicsDevice::new(
+                            dev.id().to_owned(),
+                            dev.device()?,
+                            functions(dev),
+                        ));
                     }
                     0x8086 => {
                         log::info!("{}: Intel graphics", dev.id());
-                        intel.push(GraphicsDevice::new(dev.id().to_owned(), functions(dev)));
+                        intel.push(GraphicsDevice::new(
+                            dev.id().to_owned(),
+                            dev.device()?,
+                            functions(dev),
+                        ));
                     }
                     vendor => {
                         log::info!("{}: Other({:X}) graphics", dev.id(), vendor);
-                        other.push(GraphicsDevice::new(dev.id().to_owned(), functions(dev)));
+                        other.push(GraphicsDevice::new(
+                            dev.id().to_owned(),
+                            dev.device()?,
+                            functions(dev),
+                        ));
                     }
                 }
             }
@@ -287,27 +307,25 @@ impl Graphics {
         Ok(EXTERNAL_DISPLAY_REQUIRES_NVIDIA.contains(&model.trim()))
     }
 
-    fn nvidia_version(&self) -> Result<String, GraphicsDeviceError> {
-        fs::read_to_string("/sys/module/nvidia/version")
-            .map_err(GraphicsDeviceError::SysFs)
-            .map(|s| s.trim().to_string())
-    }
+    fn get_nvidia_device(&self, id: u16) -> Result<NvidiaDevice, GraphicsDeviceError> {
+        let docs: Vec<path::PathBuf> = fs::read_dir("/usr/share/doc")
+            .map_err(|e| {
+                GraphicsDeviceError::Json(io::Error::new(io::ErrorKind::InvalidData, e.to_string()))
+            })?
+            .filter_map(Result::ok)
+            .map(|f| f.path())
+            .filter(|f| f.to_str().unwrap_or_default().contains("nvidia-driver-"))
+            .collect();
 
-    fn get_nvidia_device_id(&self) -> Result<u32, GraphicsDeviceError> {
-        let device = format!("/sys/bus/pci/devices/{}/device", self.nvidia[0].id);
-        let id = fs::read_to_string(device).map_err(GraphicsDeviceError::SysFs)?;
-        let id = id.trim_start_matches("0x").trim();
-        u32::from_str_radix(id, 16).map_err(|e| {
-            GraphicsDeviceError::SysFs(io::Error::new(io::ErrorKind::InvalidData, e.to_string()))
-        })
-    }
+        // There should be only 1 driver version installed.
+        if docs.len() != 1 {
+            return Err(GraphicsDeviceError::Json(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "NVIDIA drivers misconfigured",
+            )));
+        }
 
-    fn get_nvidia_device(&self, id: u32) -> Result<NvidiaDevice, GraphicsDeviceError> {
-        let version = self.nvidia_version()?;
-        let major =
-            version.split('.').next().unwrap_or_default().parse::<u32>().unwrap_or_default();
-
-        let supported_gpus = format!("/usr/share/doc/nvidia-driver-{}/supported-gpus.json", major);
+        let supported_gpus = docs[0].join("supported-gpus.json");
         let raw = fs::read_to_string(supported_gpus).map_err(GraphicsDeviceError::Json)?;
         let gpus: SupportedGpus = serde_json::from_str(&raw).map_err(|e| {
             GraphicsDeviceError::Json(io::Error::new(io::ErrorKind::InvalidData, e.to_string()))
@@ -316,7 +334,7 @@ impl Graphics {
         // There may be multiple entries that share the same device ID.
         for dev in gpus.chips {
             let did = dev.devid.trim_start_matches("0x").trim();
-            let did = u32::from_str_radix(did, 16).unwrap_or_default();
+            let did = u16::from_str_radix(did, 16).unwrap_or_default();
             if did == id {
                 return Ok(dev);
             }
@@ -329,7 +347,7 @@ impl Graphics {
     }
 
     fn gpu_supports_runtimepm(&self) -> Result<bool, GraphicsDeviceError> {
-        let id = self.get_nvidia_device_id()?;
+        let id = self.nvidia[0].device();
         let dev = self.get_nvidia_device(id)?;
         log::info!("Device 0x{:04} features: {:?}", id, dev.features);
         Ok(dev.features.contains(&"runtimepm".to_string()))
