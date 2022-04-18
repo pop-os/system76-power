@@ -9,3 +9,4 @@ BusName=com.system76.PowerDaemon
 
 [Install]
 WantedBy=multi-user.target
+Alias=system76-power.service
