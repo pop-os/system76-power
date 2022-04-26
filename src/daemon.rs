@@ -34,7 +34,7 @@ use crate::{
     err_str,
     errors::ProfileError,
     fan::FanDaemon,
-    graphics::Graphics,
+    graphics::{Graphics, GraphicsMode},
     hid_backlight,
     hotplug::{Detect, HotPlugDetect},
     kernel_parameters::{KernelParameter, NmiWatchdog},
@@ -146,11 +146,21 @@ impl Power for PowerDaemon {
     }
 
     fn get_default_graphics(&mut self) -> Result<String, String> {
-        self.graphics.get_default_graphics().map_err(err_str)
+        match self.graphics.get_default_graphics().map_err(err_str)? {
+            GraphicsMode::Integrated => Ok("integrated".to_string()),
+            GraphicsMode::Compute => Ok("compute".to_string()),
+            GraphicsMode::Hybrid => Ok("hybrid".to_string()),
+            GraphicsMode::Discrete => Ok("nvidia".to_string()),
+        }
     }
 
     fn get_graphics(&mut self) -> Result<String, String> {
-        self.graphics.get_vendor().map_err(err_str)
+        match self.graphics.get_vendor().map_err(err_str)? {
+            GraphicsMode::Integrated => Ok("integrated".to_string()),
+            GraphicsMode::Compute => Ok("compute".to_string()),
+            GraphicsMode::Hybrid => Ok("hybrid".to_string()),
+            GraphicsMode::Discrete => Ok("nvidia".to_string()),
+        }
     }
 
     fn get_profile(&mut self) -> Result<String, String> { Ok(self.power_profile.clone()) }
@@ -158,6 +168,13 @@ impl Power for PowerDaemon {
     fn get_switchable(&mut self) -> Result<bool, String> { Ok(self.graphics.can_switch()) }
 
     fn set_graphics(&mut self, vendor: &str) -> Result<(), String> {
+        let vendor = match vendor {
+            "nvidia" => GraphicsMode::Discrete,
+            "hybrid" => GraphicsMode::Hybrid,
+            "compute" => GraphicsMode::Compute,
+            _ => GraphicsMode::Integrated,
+        };
+
         self.graphics.set_vendor(vendor).map_err(err_str)
     }
 
@@ -217,11 +234,11 @@ pub async fn daemon() -> Result<(), String> {
         None
     };
 
-    log::info!("Setting automatic graphics power");
-    match daemon.auto_graphics_power() {
+    log::info!("Setting graphics power");
+    match daemon.set_graphics_power(true) {
         Ok(()) => (),
         Err(err) => {
-            log::warn!("Failed to set automatic graphics power: {}", err);
+            log::warn!("Failed to set graphics power: {}", err);
         }
     }
 

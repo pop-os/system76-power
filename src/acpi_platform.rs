@@ -22,8 +22,8 @@ pub fn battery() {
 }
 
 pub fn balanced() {
-    if let Err(why) = fs::write(SYSFS_PATH, "balanced-performance") {
-        eprintln!("ACPI Platform Profile: could not set to balanced-performance: {}", why);
+    if let Err(why) = fs::write(SYSFS_PATH, "balanced") {
+        eprintln!("ACPI Platform Profile: could not set to balanced: {}", why);
     }
 }
 

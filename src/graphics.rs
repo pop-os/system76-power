@@ -86,7 +86,7 @@ pub enum GraphicsDeviceError {
     Remove { device: String, why: io::Error },
     #[error("failed to rescan PCI bus: {}", _0)]
     Rescan(io::Error),
-    #[error("failed to read sysfs info: {}", _0)]
+    #[error("failed to access sysfs info: {}", _0)]
     SysFs(io::Error),
     #[error("failed to unbind {} on PCI driver {}: {}", func, driver, why)]
     Unbind { func: String, driver: String, why: io::Error },
@@ -184,6 +184,14 @@ struct NvidiaDevice {
 #[derive(Serialize, Deserialize, Debug)]
 struct SupportedGpus {
     chips: Vec<NvidiaDevice>,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum GraphicsMode {
+    Integrated,
+    Compute,
+    Hybrid,
+    Discrete,
 }
 
 pub struct Graphics {
@@ -310,7 +318,7 @@ impl Graphics {
         Ok(dev.features.contains(&"runtimepm".to_string()))
     }
 
-    pub fn get_default_graphics(&self) -> Result<String, GraphicsDeviceError> {
+    pub fn get_default_graphics(&self) -> Result<GraphicsMode, GraphicsDeviceError> {
         // Models that support runtimepm, but should not use hybrid graphics
         const DEFAULT_INTEGRATED: &[&str] = &[];
 
@@ -331,11 +339,11 @@ impl Graphics {
             .map(|s| s.trim().to_string())?;
 
         if vendor != "System76" {
-            Ok("nvidia".to_string())
+            Ok(GraphicsMode::Discrete)
         } else if runtimepm && !blacklisted {
-            Ok("hybrid".to_string())
+            Ok(GraphicsMode::Hybrid)
         } else {
-            Ok("integrated".to_string())
+            Ok(GraphicsMode::Integrated)
         }
     }
 
@@ -349,7 +357,7 @@ impl Graphics {
         fs::write(PRIME_DISCRETE_PATH, mode).map_err(GraphicsDeviceError::PrimeModeWrite)
     }
 
-    pub fn get_vendor(&self) -> Result<String, GraphicsDeviceError> {
+    pub fn get_vendor(&self) -> Result<GraphicsMode, GraphicsDeviceError> {
         let modules = Module::all().map_err(GraphicsDeviceError::ModulesFetch)?;
         let vendor =
             if modules.iter().any(|module| module.name == "nouveau" || module.name == "nvidia") {
@@ -359,29 +367,26 @@ impl Graphics {
                 };
 
                 if mode == "on-demand" {
-                    "hybrid".to_string()
+                    GraphicsMode::Hybrid
                 } else if mode == "off" {
-                    "compute".to_string()
+                    GraphicsMode::Compute
                 } else {
-                    "nvidia".to_string()
+                    GraphicsMode::Discrete
                 }
             } else {
-                "integrated".to_string()
+                GraphicsMode::Integrated
             };
 
         Ok(vendor)
     }
 
-    pub fn set_vendor(&self, vendor: &str) -> Result<(), GraphicsDeviceError> {
+    pub fn set_vendor(&self, vendor: GraphicsMode) -> Result<(), GraphicsDeviceError> {
         self.switchable_or_fail()?;
 
-        let mode = if vendor == "hybrid" {
-            "on-demand\n"
-        } else if vendor == "nvidia" {
-            "on\n"
-        } else {
-            // Integrated or Compute
-            "off\n"
+        let mode = match vendor {
+            GraphicsMode::Hybrid => "on-demand\n",
+            GraphicsMode::Discrete => "on\n",
+            _ => "off\n",
         };
 
         log::info!("Setting {} to {}", PRIME_DISCRETE_PATH, mode);
@@ -397,14 +402,11 @@ impl Graphics {
                 .open(MODPROBE_PATH)
                 .map_err(GraphicsDeviceError::ModprobeFileOpen)?;
 
-            let text = if vendor == "hybrid" {
-                MODPROBE_HYBRID
-            } else if vendor == "compute" {
-                MODPROBE_COMPUTE
-            } else if vendor == "nvidia" {
-                MODPROBE_NVIDIA
-            } else {
-                MODPROBE_INTEGRATED
+            let text = match vendor {
+                GraphicsMode::Integrated => MODPROBE_INTEGRATED,
+                GraphicsMode::Compute => MODPROBE_COMPUTE,
+                GraphicsMode::Hybrid => MODPROBE_HYBRID,
+                GraphicsMode::Discrete => MODPROBE_NVIDIA,
             };
 
             file.write_all(text)
@@ -413,7 +415,7 @@ impl Graphics {
 
             // Power management must be configured depending on if the system
             // uses S0ix or S3 for suspend.
-            if vendor != "integrated" {
+            if vendor != GraphicsMode::Integrated {
                 // XXX: Better way to check?
                 let s0ix = fs::read_to_string("/sys/power/mem_sleep")
                     .unwrap_or_default()
@@ -433,7 +435,7 @@ impl Graphics {
 
         const SYSTEMCTL_CMD: &str = "systemctl";
 
-        let action = if vendor == "nvidia" {
+        let action = if vendor == GraphicsMode::Discrete {
             log::info!("Enabling nvidia-fallback.service");
             "enable"
         } else {
@@ -480,6 +482,8 @@ impl Graphics {
         if power {
             log::info!("Enabling graphics power");
             self.bus.rescan().map_err(GraphicsDeviceError::Rescan)?;
+
+            sysfs_power_control(self.nvidia[0].id.clone(), self.get_vendor()?);
         } else {
             log::info!("Disabling graphics power");
 
@@ -501,7 +505,7 @@ impl Graphics {
 
     pub fn auto_power(&self) -> Result<(), GraphicsDeviceError> {
         let vendor = self.get_vendor()?;
-        self.set_power(vendor != "integrated")
+        self.set_power(vendor != GraphicsMode::Integrated)
     }
 
     fn switchable_or_fail(&self) -> Result<(), GraphicsDeviceError> {
@@ -511,4 +515,30 @@ impl Graphics {
             Err(GraphicsDeviceError::NotSwitchable)
         }
     }
+}
+
+// HACK
+// Normally, power/control would be set to "auto" by a udev rule in nvidia-drivers, but because
+// of a bug we cannot enable automatic power management too early after turning on the GPU.
+// Otherwise it will turn off before the NVIDIA driver finishes initializing, leaving the
+// system in an invalid state that will eventually lock up. So defer setting power management
+// using a thread.
+//
+// Ref: pop-os/nvidia-graphics-drivers@f9815ed603bd
+// Ref: system76/firmware-open#160
+fn sysfs_power_control(pciid: String, mode: GraphicsMode) {
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(5000));
+
+        let pm = if mode == GraphicsMode::Discrete { "on\n" } else { "auto\n" };
+        log::info!("Setting power management to {}", pm);
+
+        let control = format!("/sys/bus/pci/devices/{}/power/control", pciid);
+        let file = fs::OpenOptions::new().create(false).truncate(false).write(true).open(control);
+
+        #[allow(unused_must_use)]
+        if let Ok(mut file) = file {
+            file.write_all(pm.as_bytes()).and_then(|_| file.sync_all());
+        }
+    });
 }

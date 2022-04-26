@@ -26,7 +26,7 @@ pub fn set(profile: Profile, max_percent: u8) {
             let max = max * max_percent.min(100) as usize / 100;
             eprintln!("setting {} with max {}", governor, max);
 
-            for cpu in 0..cpus {
+            for cpu in 0..=cpus {
                 set_frequency_minimum(cpu, min);
                 set_frequency_maximum(cpu, max);
                 set_governor(cpu, governor);
