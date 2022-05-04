@@ -347,10 +347,14 @@ impl Graphics {
     }
 
     fn gpu_supports_runtimepm(&self) -> Result<bool, GraphicsDeviceError> {
-        let id = self.nvidia[0].device();
-        let dev = self.get_nvidia_device(id)?;
-        log::info!("Device 0x{:04} features: {:?}", id, dev.features);
-        Ok(dev.features.contains(&"runtimepm".to_string()))
+        if !self.nvidia.is_empty() {
+            let id = self.nvidia[0].device();
+            let dev = self.get_nvidia_device(id)?;
+            log::info!("Device 0x{:04} features: {:?}", id, dev.features);
+            Ok(dev.features.contains(&"runtimepm".to_string()))
+        } else {
+            Ok(false)
+        }
     }
 
     pub fn get_default_graphics(&self) -> Result<GraphicsMode, GraphicsDeviceError> {
@@ -364,8 +368,6 @@ impl Graphics {
             .map(|s| s.trim().to_string())?;
         let blacklisted = DEFAULT_INTEGRATED.contains(&product.as_str());
 
-        // If the NVIDIA device is not on the bus or the drivers are not
-        // loaded, then assume runtimepm is not supported.
         let runtimepm = self.gpu_supports_runtimepm().unwrap_or_default();
 
         // Only default to hybrid on System76 models
