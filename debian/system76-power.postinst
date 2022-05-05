@@ -2,6 +2,8 @@
 
 set -e
 
+systemctl enable com.system76.PowerDaemon
+
 case "$1" in
     configure)
         rm -f /etc/modules-load.d/system76-power.conf
