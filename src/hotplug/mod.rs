@@ -281,6 +281,18 @@ impl HotPlugDetect {
                     ],
                 }),
             }),
+            "oryp9" => Ok(Self {
+                integrated: Integrated::Intel(Intel {
+                    sideband: Sideband::new(PCR_BASE_ADDRESS)?,
+                    port:     0x6E,
+                    pins:     [
+                        0x72, // Mini DisplayPort
+                        0x78, // HDMI
+                        0x7C, // USB-C
+                        0x00, // Not Connected
+                    ],
+                }),
+            }),
             other => Err(HotPlugDetectError::ModelUnsupported(other.into())),
         }
     }
