@@ -224,6 +224,18 @@ impl HotPlugDetect {
                     ],
                 }),
             }),
+            "gaze17-3060-b" => Ok(Self {
+                integrated: Integrated::Intel(Intel {
+                    sideband: Sideband::new(PCR_BASE_ADDRESS)?,
+                    port:     0x6E,
+                    pins:     [
+                        0x72, // Mini DisplayPort
+                        0x78, // HDMI
+                        0x00, // Not Connected
+                        0x00, // Not Connected
+                    ],
+                }),
+            }),
             "kudu6" => {
                 let gpios = vec![
                     0x02, // USB-C
