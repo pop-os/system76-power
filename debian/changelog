@@ -1,3 +1,9 @@
+system76-power (1.1.21) focal; urgency=medium
+
+  * Add gaze17
+
+ -- Jeremy Soller <jeremy@system76.com>  Mon, 23 May 2022 07:37:27 -0600
+
 system76-power (1.1.20) focal; urgency=medium
 
   * Add hot plug detection for AMD+NVIDIA systems
