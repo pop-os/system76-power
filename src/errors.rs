@@ -7,47 +7,23 @@ use std::{io, path::PathBuf, process};
 
 #[derive(Debug, thiserror::Error)]
 pub enum ProfileError {
-    #[error("failed to set backlight profiles: {}", _0)]
-    Backlight(BacklightError),
-    #[error("failed to set disk power profiles: {}", _0)]
-    DiskPower(DiskPowerError),
-    #[error("failed to set model profiles: {}", _0)]
-    Model(ModelError),
-    #[error("failed to set pci device profiles: {}", _0)]
-    PciDevice(PciDeviceError),
-    #[error("failed to set pstate profiles: {}", _0)]
-    PState(PStateError),
-    #[error("failed to set scsi host profiles: {}", _0)]
-    ScsiHost(ScsiHostError),
-}
-
-impl From<BacklightError> for ProfileError {
-    fn from(why: BacklightError) -> ProfileError { ProfileError::Backlight(why) }
-}
-
-impl From<DiskPowerError> for ProfileError {
-    fn from(why: DiskPowerError) -> ProfileError { ProfileError::DiskPower(why) }
-}
-
-impl From<ModelError> for ProfileError {
-    fn from(why: ModelError) -> ProfileError { ProfileError::Model(why) }
-}
-
-impl From<PciDeviceError> for ProfileError {
-    fn from(why: PciDeviceError) -> ProfileError { ProfileError::PciDevice(why) }
-}
-
-impl From<PStateError> for ProfileError {
-    fn from(why: PStateError) -> ProfileError { ProfileError::PState(why) }
-}
-
-impl From<ScsiHostError> for ProfileError {
-    fn from(why: ScsiHostError) -> ProfileError { ProfileError::ScsiHost(why) }
+    #[error("failed to set backlight profiles: {0}")]
+    Backlight(#[from] BacklightError),
+    #[error("failed to set disk power profiles: {0}")]
+    DiskPower(#[from] DiskPowerError),
+    #[error("failed to set model profiles: {0}")]
+    Model(#[from] ModelError),
+    #[error("failed to set pci device profiles: {0}")]
+    PciDevice(#[from] PciDeviceError),
+    #[error("failed to set pstate profiles: {0}")]
+    PState(#[from] PStateError),
+    #[error("failed to set scsi host profiles: {0}")]
+    ScsiHost(#[from] ScsiHostError),
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum BacklightError {
-    #[error("failed to set backlight on {}: {}", _0, _1)]
+    #[error("failed to set backlight on {0}: {1}")]
     Set(String, io::Error),
 }
 
