@@ -91,6 +91,7 @@ const EXTERNAL_DISPLAY_REQUIRES_NVIDIA: &[&str] = &[
     "oryp6",
     "oryp7",
     "oryp8",
+    "oryp9",
 ];
 
 #[derive(Debug, thiserror::Error)]

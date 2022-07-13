@@ -1,3 +1,9 @@
+system76-power (1.1.22) focal; urgency=medium
+
+  * Add oryp9 hotplug detection
+
+ -- Tim Crawford <tcrawford@system76.com>  Thu, 07 Jul 2022 13:24:58 -0600
+
 system76-power (1.1.21) focal; urgency=medium
 
   * Add gaze17
