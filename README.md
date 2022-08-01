@@ -69,6 +69,19 @@ $ jq '.chips[] | select(.devid=="0x1F15")' < /usr/share/doc/nvidia-driver-460/su
 The integrated graphics controller is used exclusively for rendering. The dGPU
 is made available as a compute node.
 
+## Power Profiles
+
+### Balanced
+
+- Set the sync data to disk to 15s
+- Enables laptop mode feature in kernel
+- Enables SCSI/SATA link time power management
+- Controls the Intel PState values if they exist
+
+### Performance
+
+### Battery
+
 ## Hotplug detection
 
 The dbus signal `HotPlugDetect` is sent when a display is plugged into a port
