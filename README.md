@@ -80,7 +80,13 @@ is made available as a compute node.
 
 ### Performance
 
+- Uses settings from Balanced
+- Uses ACPI Platform profile is the hardware is supported by the kernel
+
 ### Battery
+
+- Uses settings from Performance
+- Sets Screen brightness and keyboard brightness to lower values 
 
 ## Hotplug detection
 
