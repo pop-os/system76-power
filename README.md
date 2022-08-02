@@ -86,7 +86,8 @@ is made available as a compute node.
 ### Battery
 
 - Uses settings from Performance
-- Sets Screen brightness and keyboard brightness to lower values 
+- Sets Screen brightness to a lower value
+- Turns keyboard backlight off
 
 ## Hotplug detection
 
