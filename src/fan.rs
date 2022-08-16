@@ -166,7 +166,7 @@ impl Drop for FanDaemon {
     fn drop(&mut self) { self.set_duty(None); }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FanPoint {
     // Temperature in hundredths of a degree, 10000 = 100C
     temp: i16,
@@ -212,7 +212,7 @@ impl FanPoint {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct FanCurve {
     points: Vec<FanPoint>,
 }
