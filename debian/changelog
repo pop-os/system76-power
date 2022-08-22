@@ -1,3 +1,10 @@
+system76-power (1.1.23) focal; urgency=medium
+
+  * Add oryp10 hotplug detection
+  * Remove dependency on ubuntu-drivers-common
+
+ -- Tim Crawford <tcrawford@system76.com>  Tue, 22 Aug 2022 10:46:27 -0600
+
 system76-power (1.1.22) focal; urgency=medium
 
   * Add oryp9 hotplug detection
