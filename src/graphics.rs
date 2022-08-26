@@ -586,11 +586,12 @@ impl Graphics {
     }
 
     fn switchable_or_fail(&self) -> Result<(), GraphicsDeviceError> {
-        if self.can_switch() {
-            Ok(())
-        } else {
-            Err(GraphicsDeviceError::NotSwitchable)
-        }
+        Ok(())
+        //if self.can_switch() {
+        //    Ok(())
+        //} else {
+        //    Err(GraphicsDeviceError::NotSwitchable)
+        //}
     }
 }
 
