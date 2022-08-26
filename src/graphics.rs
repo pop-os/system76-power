@@ -93,6 +93,7 @@ const EXTERNAL_DISPLAY_REQUIRES_NVIDIA: &[&str] = &[
     "oryp8",
     "oryp9",
     "oryp10",
+    "thelio-mira-b3",
 ];
 
 #[derive(Debug, thiserror::Error)]
