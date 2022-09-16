@@ -5,11 +5,9 @@
 pub mod mux;
 pub mod sideband;
 
+use memmapix::Mmap;
 use sideband::{Sideband, SidebandError, PCR_BASE_ADDRESS};
-use std::{
-    fs,
-    io::{self, Read, Seek},
-};
+use std::{fs, io};
 
 #[derive(Debug, thiserror::Error)]
 pub enum HotPlugDetectError {
@@ -25,6 +23,8 @@ pub enum HotPlugDetectError {
     SubsystemDevice { model: &'static str, why: io::Error },
     #[error("failed to open /dev/mem: {}", _0)]
     DevMemAccess(io::Error),
+    #[error("cannot create memmap to /dev/mem: {}", _0)]
+    DevMemmap(io::Error),
 }
 
 impl From<SidebandError> for HotPlugDetectError {
@@ -38,17 +38,15 @@ pub trait Detect {
 const AMD_FCH_GPIO_CONTROL_BASE: u32 = 0xFED8_1500;
 
 struct Amd {
-    mem:   fs::File,
+    mem:   Mmap,
     gpios: Vec<u32>,
 }
 
 impl Amd {
     unsafe fn new(gpios: Vec<u32>) -> Result<Self, HotPlugDetectError> {
-        let mem = fs::OpenOptions::new()
-            .read(true)
-            .write(true)
-            .open("/dev/mem")
-            .map_err(HotPlugDetectError::DevMemAccess)?;
+        let file = fs::File::open("/dev/mem").map_err(HotPlugDetectError::DevMemAccess)?;
+
+        let mem = Mmap::map(&file).map_err(HotPlugDetectError::DevMemmap)?;
 
         Ok(Self { mem, gpios })
     }
@@ -59,18 +57,23 @@ impl Detect for Amd {
         let mut hpd = [false; 4];
 
         for (i, offset) in self.gpios.iter().enumerate() {
-            let control_offset = AMD_FCH_GPIO_CONTROL_BASE + offset * 4;
-            if self.mem.seek(io::SeekFrom::Start(control_offset as u64)).is_err() {
-                return hpd;
+            let control_offset = (AMD_FCH_GPIO_CONTROL_BASE + offset * 4) as usize;
+
+            // If we can get the fourth byte, then the three bytes before that will exist too.
+            if let Some(fourth) = self.mem.get(control_offset + 3) {
+                let control = [
+                    self.mem[control_offset],
+                    self.mem[control_offset + 1],
+                    self.mem[control_offset + 2],
+                    *fourth,
+                ];
+
+                let value = u32::from_ne_bytes(control);
+                hpd[i] = value & (1 << 16) == (1 << 16);
+                continue;
             }
 
-            let mut control = [0; 4];
-            if self.mem.read(&mut control).is_err() {
-                return hpd;
-            }
-
-            let value = u32::from_ne_bytes(control);
-            hpd[i] = value & (1 << 16) == (1 << 16);
+            return hpd;
         }
 
         hpd
