@@ -177,29 +177,19 @@ pub struct FanPoint {
 impl FanPoint {
     pub fn new(temp: i16, duty: u16) -> Self { Self { temp, duty } }
 
-    /// Find the duty between two points and a given temperature, if the temperature
-    /// lies within this range.
+    /// Find the duty between two points and a given temperature if the temperature lies within
+    /// this range, otherwise, return None.
     fn get_duty_between_points(self, next: FanPoint, temp: i16) -> Option<u16> {
-        // If the temp matches the next point, return the next point duty
-        if temp == next.temp {
-            return Some(next.duty);
-        }
-
-        // If the temp matches the previous point, return the previous point duty
-        if temp == self.temp {
-            return Some(self.duty);
-        }
-
-        // If the temp is in between the previous and next points, interpolate the duty
-        if self.temp < temp && next.temp > temp {
-            return Some(self.interpolate_duties(next, temp));
+        if self.temp <= temp && next.temp >= temp {
+            return Some(self.linear_interpolation_duty(next, temp));
         }
 
         None
     }
 
-    /// Interpolates the current duty with that of the given next point and temperature.
-    fn interpolate_duties(self, next: FanPoint, temp: i16) -> u16 {
+    /// Construct the linear interpolation defined by two points (self and next), fit the point
+    /// defined by temp and return its duty.
+    fn linear_interpolation_duty(self, next: FanPoint, temp: i16) -> u16 {
         let dtemp = next.temp - self.temp;
         let dduty = next.duty - self.duty;
 
