@@ -339,8 +339,8 @@ mod tests {
 
         assert_eq!(fan_point.get_duty_between_points(next_point, 1500), None);
         assert_eq!(fan_point.get_duty_between_points(next_point, 2000), Some(3000));
+        assert_eq!(fan_point.get_duty_between_points(next_point, 2500), Some(3250));
         assert_eq!(fan_point.get_duty_between_points(next_point, 3000), Some(3500));
-        assert_eq!(fan_point.get_duty_between_points(next_point, 3250), None);
         assert_eq!(fan_point.get_duty_between_points(next_point, 3500), None);
     }
 
