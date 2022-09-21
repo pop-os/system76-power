@@ -337,11 +337,11 @@ mod tests {
         let fan_point = FanPoint::new(20_00, 30_00);
         let next_point = FanPoint::new(30_00, 35_00);
 
-        assert_eq!(fan_point.get_duty_between_points(next_point, 1500), None);
-        assert_eq!(fan_point.get_duty_between_points(next_point, 2000), Some(3000));
-        assert_eq!(fan_point.get_duty_between_points(next_point, 2500), Some(3250));
-        assert_eq!(fan_point.get_duty_between_points(next_point, 3000), Some(3500));
-        assert_eq!(fan_point.get_duty_between_points(next_point, 3500), None);
+        assert_eq!(fan_point.get_duty_between_points(next_point, 15_00), None);
+        assert_eq!(fan_point.get_duty_between_points(next_point, 20_00), Some(30_00));
+        assert_eq!(fan_point.get_duty_between_points(next_point, 25_00), Some(32_50));
+        assert_eq!(fan_point.get_duty_between_points(next_point, 30_00), Some(35_00));
+        assert_eq!(fan_point.get_duty_between_points(next_point, 35_00), None);
     }
 
     #[test]
@@ -349,62 +349,62 @@ mod tests {
         let standard = FanCurve::standard();
 
         assert_eq!(standard.get_duty(0), Some(0));
-        assert_eq!(standard.get_duty(4499), Some(0));
-        assert_eq!(standard.get_duty(4500), Some(3000));
-        assert_eq!(standard.get_duty(5500), Some(3500));
-        assert_eq!(standard.get_duty(6500), Some(4000));
-        assert_eq!(standard.get_duty(7500), Some(5000));
-        assert_eq!(standard.get_duty(7800), Some(6000));
-        assert_eq!(standard.get_duty(8100), Some(7000));
-        assert_eq!(standard.get_duty(8400), Some(8000));
-        assert_eq!(standard.get_duty(8600), Some(9000));
-        assert_eq!(standard.get_duty(8800), Some(10000));
-        assert_eq!(standard.get_duty(10000), Some(10000));
+        assert_eq!(standard.get_duty(44_99), Some(0));
+        assert_eq!(standard.get_duty(45_00), Some(30_00));
+        assert_eq!(standard.get_duty(55_00), Some(35_00));
+        assert_eq!(standard.get_duty(65_00), Some(40_00));
+        assert_eq!(standard.get_duty(75_00), Some(50_00));
+        assert_eq!(standard.get_duty(78_00), Some(60_00));
+        assert_eq!(standard.get_duty(81_00), Some(70_00));
+        assert_eq!(standard.get_duty(84_00), Some(80_00));
+        assert_eq!(standard.get_duty(86_00), Some(90_00));
+        assert_eq!(standard.get_duty(88_00), Some(100_00));
+        assert_eq!(standard.get_duty(100_00), Some(100_00));
     }
 
     #[test]
     fn hedt_points() {
         let hedt = FanCurve::hedt();
 
-        assert_eq!(hedt.get_duty(0), Some(3000));
-        assert_eq!(hedt.get_duty(5000), Some(3500));
-        assert_eq!(hedt.get_duty(6000), Some(4500));
-        assert_eq!(hedt.get_duty(7000), Some(5500));
-        assert_eq!(hedt.get_duty(7400), Some(6000));
-        assert_eq!(hedt.get_duty(7600), Some(7000));
-        assert_eq!(hedt.get_duty(7800), Some(8000));
-        assert_eq!(hedt.get_duty(8100), Some(10000));
-        assert_eq!(hedt.get_duty(10000), Some(10000));
+        assert_eq!(hedt.get_duty(0), Some(30_00));
+        assert_eq!(hedt.get_duty(50_00), Some(35_00));
+        assert_eq!(hedt.get_duty(60_00), Some(45_00));
+        assert_eq!(hedt.get_duty(70_00), Some(55_00));
+        assert_eq!(hedt.get_duty(74_00), Some(60_00));
+        assert_eq!(hedt.get_duty(76_00), Some(70_00));
+        assert_eq!(hedt.get_duty(78_00), Some(80_00));
+        assert_eq!(hedt.get_duty(81_00), Some(100_00));
+        assert_eq!(hedt.get_duty(10_000), Some(100_00));
     }
 
     #[test]
     fn threadripper2_points() {
         let threadripper2 = FanCurve::threadripper2();
 
-        assert_eq!(threadripper2.get_duty(0), Some(3000));
-        assert_eq!(threadripper2.get_duty(4000), Some(4000));
-        assert_eq!(threadripper2.get_duty(4750), Some(5000));
-        assert_eq!(threadripper2.get_duty(5500), Some(6500));
-        assert_eq!(threadripper2.get_duty(6250), Some(8500));
-        assert_eq!(threadripper2.get_duty(6625), Some(10000));
-        assert_eq!(threadripper2.get_duty(10000), Some(10000));
+        assert_eq!(threadripper2.get_duty(0), Some(30_00));
+        assert_eq!(threadripper2.get_duty(40_00), Some(40_00));
+        assert_eq!(threadripper2.get_duty(47_50), Some(50_00));
+        assert_eq!(threadripper2.get_duty(55_00), Some(65_00));
+        assert_eq!(threadripper2.get_duty(62_50), Some(85_00));
+        assert_eq!(threadripper2.get_duty(66_25), Some(100_00));
+        assert_eq!(threadripper2.get_duty(100_00), Some(100_00));
     }
 
     #[test]
     fn xeon_points() {
         let xeon = FanCurve::xeon();
 
-        assert_eq!(xeon.get_duty(0), Some(4000));
-        assert_eq!(xeon.get_duty(5000), Some(4000));
-        assert_eq!(xeon.get_duty(5500), Some(4500));
-        assert_eq!(xeon.get_duty(6000), Some(5000));
-        assert_eq!(xeon.get_duty(6500), Some(5500));
-        assert_eq!(xeon.get_duty(7000), Some(6000));
-        assert_eq!(xeon.get_duty(7200), Some(6500));
-        assert_eq!(xeon.get_duty(7400), Some(8000));
-        assert_eq!(xeon.get_duty(7600), Some(8500));
-        assert_eq!(xeon.get_duty(7700), Some(9000));
-        assert_eq!(xeon.get_duty(7800), Some(10000));
-        assert_eq!(xeon.get_duty(10000), Some(10000));
+        assert_eq!(xeon.get_duty(0), Some(40_00));
+        assert_eq!(xeon.get_duty(50_00), Some(40_00));
+        assert_eq!(xeon.get_duty(55_00), Some(45_00));
+        assert_eq!(xeon.get_duty(60_00), Some(50_00));
+        assert_eq!(xeon.get_duty(65_00), Some(55_00));
+        assert_eq!(xeon.get_duty(70_00), Some(60_00));
+        assert_eq!(xeon.get_duty(72_00), Some(65_00));
+        assert_eq!(xeon.get_duty(74_00), Some(80_00));
+        assert_eq!(xeon.get_duty(76_00), Some(85_00));
+        assert_eq!(xeon.get_duty(77_00), Some(90_00));
+        assert_eq!(xeon.get_duty(78_00), Some(100_00));
+        assert_eq!(xeon.get_duty(100_00), Some(100_00));
     }
 }
