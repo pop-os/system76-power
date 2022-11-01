@@ -42,7 +42,7 @@ pub fn balanced(errors: &mut Vec<ProfileError>, set_brightness: bool) {
 
     // The dirty kernel parameter controls how often the OS will sync data to disks. The less
     // frequently this occurs, the more power can be saved, yet the higher the risk of sudden
-    // power loss causing loss of data. 15s is a resonable number.
+    // power loss causing loss of data. 15s is a reasonable number.
     Dirty::default().set_max_lost_work(15);
 
     // Enables the laptop mode feature in the kernel, which allows mechanical drives to spin down
