@@ -281,7 +281,7 @@ impl HotPlugDetect {
                     ],
                 }),
             }),
-            "oryp9" => Ok(Self {
+            "oryp9" | "oryp10" => Ok(Self {
                 integrated: Integrated::Intel(Intel {
                     sideband: Sideband::new(PCR_BASE_ADDRESS)?,
                     port:     0x6E,
