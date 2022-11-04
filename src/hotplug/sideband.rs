@@ -54,6 +54,7 @@ impl Sideband {
         Ok(Self { addr: sbreg_virt as u64 })
     }
 
+    #[must_use]
     pub unsafe fn read(&self, port: u8, reg: u32) -> u32 {
         let offset = (u64::from(port) << P2SB_PORTID_SHIFT) + u64::from(reg);
         if offset < 1 << 24 {
@@ -68,10 +69,11 @@ impl Sideband {
         let offset = (u64::from(port) << P2SB_PORTID_SHIFT) + u64::from(reg);
         if offset < 1 << 24 {
             let addr = self.addr + offset;
-            ptr::write(addr as *mut u32, value)
+            ptr::write(addr as *mut u32, value);
         }
     }
 
+    #[must_use]
     pub unsafe fn gpio(&self, port: u8, pad: u8) -> u64 {
         let padbar: u32 = self.read(port, REG_PCH_GPIO_PADBAR);
 

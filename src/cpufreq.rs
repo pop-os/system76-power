@@ -35,11 +35,13 @@ pub fn set(profile: Profile, max_percent: u8) {
     }
 }
 
+#[must_use]
 pub fn num_cpus() -> Option<usize> {
     let info = fs::read_to_string("/sys/devices/system/cpu/possible").ok()?;
     info.split('-').nth(1)?.trim_end().parse::<usize>().ok()
 }
 
+#[must_use]
 pub fn frequency_maximum() -> Option<usize> {
     let mut sys_path = sys_path(0);
     let path = strcat!(&mut sys_path, "cpuinfo_max_freq");
@@ -47,6 +49,7 @@ pub fn frequency_maximum() -> Option<usize> {
     string.trim_end().parse::<usize>().ok()
 }
 
+#[must_use]
 pub fn frequency_minimum() -> Option<usize> {
     let mut sys_path = sys_path(0);
     let path = strcat!(&mut sys_path, "cpuinfo_min_freq");
@@ -54,6 +57,7 @@ pub fn frequency_minimum() -> Option<usize> {
     string.trim_end().parse::<usize>().ok()
 }
 
+#[must_use]
 pub fn scaling_driver(core: usize) -> Option<String> {
     let mut sys_path = sys_path(core);
     fs::read_to_string(strcat!(&mut sys_path, "scaling_driver"))

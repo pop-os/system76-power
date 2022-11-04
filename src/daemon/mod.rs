@@ -43,7 +43,7 @@ use crate::{
 
 mod profiles;
 
-use self::profiles::*;
+use self::profiles::{balanced, battery, performance};
 
 const THRESHOLD_POLICY: &str = "com.system76.powerdaemon.set-charge-thresholds";
 
@@ -202,6 +202,7 @@ impl Power for PowerDaemon {
 }
 
 #[tokio::main(flavor = "current_thread")]
+#[allow(clippy::too_many_lines)]
 pub async fn daemon() -> Result<(), String> {
     signal_handling();
     let pci_runtime_pm = std::env::var("S76_POWER_PCI_RUNTIME_PM").ok().map_or(false, |v| v == "1");
@@ -394,7 +395,7 @@ fn sync_method<IA, OA, F>(
     });
 }
 
-/// DBus wrapper for a method taking no argument and returning no values
+/// `DBus` wrapper for a method taking no argument and returning no values
 fn sync_action_method<F>(b: &mut IfaceBuilder<PowerDaemon>, name: &'static str, f: F)
 where
     F: Fn(&mut PowerDaemon) -> Result<(), String> + Send + 'static,
@@ -402,7 +403,7 @@ where
     sync_method(b, name, (), (), move |d, _: ()| f(d));
 }
 
-/// DBus wrapper for method taking no arguments and returning one value
+/// `DBus` wrapper for method taking no arguments and returning one value
 fn sync_get_method<T, F>(
     b: &mut IfaceBuilder<PowerDaemon>,
     name: &'static str,
@@ -415,7 +416,7 @@ fn sync_get_method<T, F>(
     sync_method(b, name, (), (output_arg,), move |d, _: ()| f(d).map(|x| (x,)));
 }
 
-/// DBus wrapper for method taking one argument and returning no values
+/// `DBus` wrapper for method taking one argument and returning no values
 fn sync_set_method<T, F>(
     b: &mut IfaceBuilder<PowerDaemon>,
     name: &'static str,
@@ -425,5 +426,5 @@ fn sync_set_method<T, F>(
     T: arg::Arg + for<'z> arg::Get<'z> + Debug,
     F: Fn(&mut PowerDaemon, T) -> Result<(), String> + Send + 'static,
 {
-    sync_method(b, name, (input_arg,), (), move |d, (arg,)| f(d, arg))
+    sync_method(b, name, (input_arg,), (), move |d, (arg,)| f(d, arg));
 }
