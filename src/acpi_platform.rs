@@ -5,14 +5,15 @@
 //! For information about this sysfs kernel feature, see the following:
 //!
 //! - Platform Profile Selection:
-//!  - https://www.kernel.org/doc/html/latest/userspace-api/sysfs-platform_profile.html
+//!  - <https://www.kernel.org/doc/html/latest/userspace-api/sysfs-platform_profile.html>
 //! - Available Platform Profiles:
-//!  - https://mjmwired.net/kernel/Documentation/ABI/testing/sysfs-platform_profile
+//!  - <https://mjmwired.net/kernel/Documentation/ABI/testing/sysfs-platform_profile>
 
 use std::{fs, path::Path};
 
 const SYSFS_PATH: &str = "/sys/firmware/acpi/platform_profile";
 
+#[must_use]
 pub fn supported() -> bool { Path::new(SYSFS_PATH).exists() }
 
 pub fn battery() {

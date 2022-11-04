@@ -4,6 +4,9 @@
 
 #![deny(clippy::all)]
 #![allow(clippy::missing_safety_doc)]
+#![allow(clippy::missing_errors_doc)]
+#![allow(clippy::missing_panics_doc)]
+#![allow(clippy::module_name_repetitions)]
 
 pub mod acpi_platform;
 pub mod args;
@@ -34,6 +37,7 @@ pub static DBUS_NAME: &str = "com.system76.PowerDaemon";
 pub static DBUS_PATH: &str = "/com/system76/PowerDaemon";
 pub static DBUS_IFACE: &str = "com.system76.PowerDaemon";
 
+#[derive(Copy, Clone, Debug)]
 pub enum Profile {
     Battery,
     Balanced,

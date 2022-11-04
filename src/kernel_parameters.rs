@@ -44,7 +44,7 @@ pub trait KernelParameter {
             );
 
             if let Err(why) = write(path, value) {
-                log::error!("{}: failed to set value: {}", path.display(), why)
+                log::error!("{}: failed to set value: {}", path.display(), why);
             }
         } else {
             log::warn!("{} does not exist", path.display());
@@ -86,6 +86,7 @@ macro_rules! dynamic_parameters {
             }
 
             impl $struct {
+                #[must_use]
                 pub fn new(unique: &str) -> $struct {
                     $struct {
                         path: PathBuf::from(format!($format, unique))

@@ -214,7 +214,6 @@ pub fn client(args: &Args) -> Result<(), String> {
             let profiles = client.get_charge_profiles()?;
 
             if !thresholds.is_empty() {
-                assert_eq!(thresholds.len(), 2);
                 let start = &thresholds[0];
                 let end = &thresholds[1];
                 let start = start.parse::<u8>().map_err(err_str)?;

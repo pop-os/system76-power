@@ -76,6 +76,7 @@ fn supports_thresholds() -> bool {
     Path::new(START_THRESHOLD).exists() && Path::new(END_THRESHOLD).exists()
 }
 
+#[must_use]
 pub fn get_charge_profiles() -> Vec<ChargeProfile> {
     vec![
         ChargeProfile {

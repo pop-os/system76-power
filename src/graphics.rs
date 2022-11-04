@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 use std::{
     fs,
     io::{self, Write},
-    iter::FromIterator,
     path,
     process::{self, ExitStatus},
 };
@@ -95,6 +94,9 @@ const EXTERNAL_DISPLAY_REQUIRES_NVIDIA: &[&str] = &[
     "oryp10",
 ];
 
+const SYSTEMCTL_CMD: &str = "systemctl";
+const UPDATE_INITRAMFS_CMD: &str = "update-initramfs";
+
 #[derive(Debug, thiserror::Error)]
 pub enum GraphicsDeviceError {
     #[error("failed to execute {} command: {}", cmd, why)]
@@ -138,12 +140,15 @@ pub struct GraphicsDevice {
 }
 
 impl GraphicsDevice {
+    #[must_use]
     pub fn new(id: String, devid: u16, functions: Vec<PciDevice>) -> GraphicsDevice {
         GraphicsDevice { id, devid, functions }
     }
 
+    #[must_use]
     pub fn exists(&self) -> bool { self.functions.iter().any(|func| func.path().exists()) }
 
+    #[must_use]
     pub fn device(&self) -> u16 { self.devid }
 
     pub unsafe fn unbind(&self) -> Result<(), GraphicsDeviceError> {
@@ -226,7 +231,7 @@ struct SupportedGpus {
     chips: Vec<NvidiaDevice>,
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum GraphicsMode {
     Integrated,
     Compute,
@@ -313,6 +318,7 @@ impl Graphics {
         Ok(Graphics { bus, amd, intel, nvidia, other })
     }
 
+    #[must_use]
     pub fn can_switch(&self) -> bool {
         !self.nvidia.is_empty() && (!self.intel.is_empty() || !self.amd.is_empty())
     }
@@ -326,7 +332,7 @@ impl Graphics {
         Ok(EXTERNAL_DISPLAY_REQUIRES_NVIDIA.contains(&model.trim()))
     }
 
-    fn get_nvidia_device(&self, id: u16) -> Result<NvidiaDevice, GraphicsDeviceError> {
+    fn get_nvidia_device(id: u16) -> Result<NvidiaDevice, GraphicsDeviceError> {
         let docs: Vec<path::PathBuf> = fs::read_dir("/usr/share/doc")
             .map_err(|e| {
                 GraphicsDeviceError::Json(io::Error::new(io::ErrorKind::InvalidData, e.to_string()))
@@ -366,13 +372,13 @@ impl Graphics {
     }
 
     fn gpu_supports_runtimepm(&self) -> Result<bool, GraphicsDeviceError> {
-        if !self.nvidia.is_empty() {
+        if self.nvidia.is_empty() {
+            Ok(false)
+        } else {
             let id = self.nvidia[0].device();
-            let dev = self.get_nvidia_device(id)?;
+            let dev = Self::get_nvidia_device(id)?;
             log::info!("Device 0x{:04} features: {:?}", id, dev.features);
             Ok(dev.features.contains(&"runtimepm".to_string()))
-        } else {
-            Ok(false)
         }
     }
 
@@ -505,8 +511,6 @@ impl Graphics {
             fs::remove_file(XORG_CONF_PATH).map_err(GraphicsDeviceError::XserverConf)?;
         }
 
-        const SYSTEMCTL_CMD: &str = "systemctl";
-
         let action = if vendor == GraphicsMode::Discrete {
             log::info!("Enabling nvidia-fallback.service");
             "enable"
@@ -530,7 +534,6 @@ impl Graphics {
         }
 
         log::info!("Updating initramfs");
-        const UPDATE_INITRAMFS_CMD: &str = "update-initramfs";
         let status = process::Command::new(UPDATE_INITRAMFS_CMD)
             .arg("-u")
             .status()
@@ -568,7 +571,7 @@ impl Graphics {
                 // Remove NVIDIA graphics devices and their functions
                 let removes = self.nvidia.iter().map(|dev| dev.remove());
 
-                Result::from_iter(unbinds.chain(removes))?;
+                unbinds.chain(removes).collect::<Result<_, _>>()?;
             }
         }
 
