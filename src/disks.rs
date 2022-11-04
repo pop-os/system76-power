@@ -29,7 +29,7 @@ impl Default for Disks {
             }
         };
 
-        for device in blocks.flat_map(Result::ok) {
+        for device in blocks.filter_map(Result::ok) {
             if device.path().join("slaves").exists() {
                 if let Ok(name) = device.file_name().into_string() {
                     if name.starts_with("loop") || name.starts_with("dm") || name.starts_with("md")
@@ -83,13 +83,13 @@ impl DiskPower for Disk {
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status()
-            .map_err(|why| DiskPowerError::ApmLevel(self.path.to_owned(), level, why))
+            .map_err(|why| DiskPowerError::ApmLevel(self.path.clone(), level, why))
             .map(|_| ())
     }
 
     fn set_autosuspend_delay(&self, ms: i32) -> Result<(), DiskPowerError> {
         log::debug!("Setting autosuspend delay on {:?} to {}", &self.block, ms);
         write(&self.block.join(AUTOSUSPEND), ms.to_string().as_bytes())
-            .map_err(|why| DiskPowerError::AutosuspendDelay(self.block.to_owned(), ms, why))
+            .map_err(|why| DiskPowerError::AutosuspendDelay(self.block.clone(), ms, why))
     }
 }

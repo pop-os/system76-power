@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-use crate::kernel_parameters::*;
+use crate::kernel_parameters::{DeviceList, KernelParameter, PowerSave, PowerSaveController};
 use std::path::Path;
 
 pub struct SoundDevice {
@@ -12,6 +12,7 @@ pub struct SoundDevice {
 }
 
 impl SoundDevice {
+    #[must_use]
     pub fn new(device: &'static str) -> Option<SoundDevice> {
         if !Path::new(&["/sys/module/", device].concat()).exists() {
             return None;
@@ -48,6 +49,6 @@ impl DeviceList<SoundDevice> for SoundDevice {
     const SUPPORTED: &'static [&'static str] = &["snd_hda_intel", "snd_ac97_codec"];
 
     fn get_devices() -> Box<dyn Iterator<Item = SoundDevice>> {
-        Box::new(Self::SUPPORTED.iter().flat_map(|dev| SoundDevice::new(dev)))
+        Box::new(Self::SUPPORTED.iter().filter_map(|dev| SoundDevice::new(dev)))
     }
 }
