@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-use crate::{kernel_parameters::{DeviceList, KernelParameter, PowerLevel, PowerSave}, modprobe};
+use crate::{
+    kernel_parameters::{DeviceList, KernelParameter, PowerLevel, PowerSave},
+    modprobe,
+};
 use std::path::Path;
 
 pub struct WifiDevice {
