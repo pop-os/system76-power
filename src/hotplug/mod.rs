@@ -107,7 +107,7 @@ pub struct HotPlugDetect {
 
 impl HotPlugDetect {
     /// # Errors
-    /// 
+    ///
     /// - If `/sys/class/dmi/id/product_version` cannot be read
     /// - If `Sideband::new` fails
     #[allow(clippy::too_many_lines)]
