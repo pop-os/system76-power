@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-use crate::kernel_parameters::{DeviceList, KernelParameter, RadeonDpmForcePerformance, RadeonDpmState, RadeonPowerMethod, RadeonPowerProfile};
+use crate::kernel_parameters::{
+    DeviceList, KernelParameter, RadeonDpmForcePerformance, RadeonDpmState, RadeonPowerMethod,
+    RadeonPowerProfile,
+};
 
 pub struct RadeonDevice {
     card:                      u8,
