@@ -18,7 +18,7 @@ use std::{
         Arc,
     },
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 use tokio::{
     signal::unix::{signal, SignalKind},
@@ -106,7 +106,7 @@ impl PowerDaemon {
         func(&mut self.profile_errors, self.initial_set);
 
         let message =
-            Message::new_signal(DBUS_PATH, DBUS_NAME, "PowerProfileSwitch").unwrap().append1(name);
+            Message::new_signal(DBUS_PATH, DBUS_NAME, "PowerProfileSwitch").unwrap().append1(String::from(name));
 
         if let Err(()) = self.dbus_connection.send(message) {
             log::error!("failed to send power profile switch message");
@@ -222,6 +222,7 @@ pub async fn daemon() -> Result<(), String> {
 
     let mut daemon = PowerDaemon::new(c.clone())?;
     let nvidia_exists = !daemon.graphics.nvidia.is_empty();
+    let mut fan_daemon = FanDaemon::new(nvidia_exists, daemon.get_profile().unwrap());
 
     log::info!("Disabling NMI Watchdog (for kernel debugging only)");
     NmiWatchdog::default().set(b"0");
@@ -307,7 +308,16 @@ pub async fn daemon() -> Result<(), String> {
         );
         sync_get_method(b, "GetChargeProfiles", "profiles", PowerDaemon::get_charge_profiles);
         b.signal::<(u64,), _>("HotPlugDetect", ("port",));
-        b.signal::<(&str,), _>("PowerProfileSwitch", ("profile",));
+        b.signal::<(String,), _>("PowerProfileSwitch", ("profile",));
+        b.method_with_cr(
+            "PowerProfileSwitch",
+            ("profile",),
+            (),
+            move |ctx, _cr, (profile,): (String,)| {
+                // fan_daemon = FanDaemon::new(nvidia_exists, profile);
+                Ok(())
+            },
+        );
     });
     cr.insert(DBUS_PATH, &[iface_token], daemon);
 
@@ -323,8 +333,6 @@ pub async fn daemon() -> Result<(), String> {
     // Spawn hid backlight daemon
     let _hid_backlight = thread::spawn(hid_backlight::daemon);
 
-    let mut fan_daemon = FanDaemon::new(nvidia_exists);
-
     let mut hpd_res = unsafe { HotPlugDetect::new(nvidia_device_id) };
 
     let mux_res = unsafe { mux::DisplayPortMux::new() };
@@ -337,9 +345,11 @@ pub async fn daemon() -> Result<(), String> {
         }
     };
 
+    // let mut last_second = Instant::now();
     let mut last = hpd();
 
     log::info!("Handling dbus requests");
+
     while CONTINUE.load(Ordering::SeqCst) {
         sleep(Duration::from_millis(1000)).await;
 
