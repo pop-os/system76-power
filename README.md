@@ -81,7 +81,7 @@ is made available as a compute node.
 ### Performance
 
 - Uses settings from Balanced
-- Uses ACPI Platform profile is the hardware is supported by the kernel
+- Uses ACPI Platform profile if the hardware is supported by the kernel
 
 ### Battery
 
