@@ -1,3 +1,9 @@
+system76-power (1.1.24) jammy; urgency=medium
+
+  * Dependency updates
+
+ -- Michael Murphy <mmstick@pm.me>  Sat, 05 Nov 2022 00:43:36 +0100
+
 system76-power (1.1.23) focal; urgency=medium
 
   * Add oryp10 hotplug detection

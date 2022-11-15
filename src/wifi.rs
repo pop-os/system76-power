@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-use crate::{kernel_parameters::*, modprobe};
+use crate::{
+    kernel_parameters::{DeviceList, KernelParameter, PowerLevel, PowerSave},
+    modprobe,
+};
 use std::path::Path;
 
 pub struct WifiDevice {
@@ -12,6 +15,7 @@ pub struct WifiDevice {
 }
 
 impl WifiDevice {
+    #[must_use]
     pub fn new(device: &'static str) -> Option<WifiDevice> {
         if !Path::new(&["/sys/module/", device].concat()).exists() {
             return None;
@@ -54,6 +58,6 @@ impl DeviceList<WifiDevice> for WifiDevice {
     const SUPPORTED: &'static [&'static str] = &["iwlwifi"];
 
     fn get_devices() -> Box<dyn Iterator<Item = WifiDevice>> {
-        Box::new(Self::SUPPORTED.iter().flat_map(|dev| WifiDevice::new(dev)))
+        Box::new(Self::SUPPORTED.iter().filter_map(|dev| WifiDevice::new(dev)))
     }
 }

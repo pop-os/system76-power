@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-use crate::kernel_parameters::*;
+use crate::kernel_parameters::{
+    DeviceList, KernelParameter, RadeonDpmForcePerformance, RadeonDpmState, RadeonPowerMethod,
+    RadeonPowerProfile,
+};
 
 pub struct RadeonDevice {
     card:                      u8,
@@ -13,6 +16,7 @@ pub struct RadeonDevice {
 }
 
 impl RadeonDevice {
+    #[must_use]
     pub fn new(card: u8) -> Option<RadeonDevice> {
         let path = format!("/sys/class/drm/card{}/device", card);
         let device = RadeonDevice {
@@ -56,6 +60,6 @@ impl DeviceList<RadeonDevice> for RadeonDevice {
     const SUPPORTED: &'static [&'static str] = &[""];
 
     fn get_devices() -> Box<dyn Iterator<Item = RadeonDevice>> {
-        Box::new((0u8..10).flat_map(RadeonDevice::new))
+        Box::new((0u8..10).filter_map(RadeonDevice::new))
     }
 }

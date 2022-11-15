@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-use clap::Parser;
+use clap::{builder::PossibleValuesParser, Parser};
 
 #[derive(Parser)]
 #[clap(
@@ -24,9 +24,9 @@ pub enum GraphicsArgs {
     Switchable,
     #[clap(about = "Query or set the discrete graphics power state")]
     Power {
-        #[clap(
-            help = "Set whether discrete graphics should be on or off",
-            possible_values = &["auto", "off", "on"],
+        #[clap(help = "Set whether discrete graphics should be on or off")]
+        #[arg(
+            value_parser = PossibleValuesParser::new(["auto", "off", "on"])
         )]
         state: Option<String>,
     },
@@ -73,7 +73,8 @@ pub enum Args {
     Profile {
         #[clap(
             help = "set the power profile",
-            possible_values = &["battery", "balanced", "performance"],
+            default_value = None,
+            value_parser = PossibleValuesParser::new(["battery", "balanced", "performance"]),
         )]
         profile: Option<String>,
     },
@@ -90,7 +91,7 @@ pub enum Args {
         #[clap(
             long = "profile",
             help = "Profile name",
-            possible_values = &["full_charge", "balanced", "max_lifespan"],
+            value_parser = PossibleValuesParser::new(["full_charge", "balanced", "max_lifespan"]),
             group = "profile-or-thresholds",
         )]
         profile:       Option<String>,
@@ -98,16 +99,8 @@ pub enum Args {
         list_profiles: bool,
         #[clap(
             help = "Charge thresholds",
-            validator = |s| {
-                if let Ok(v) = s.parse::<u8>() {
-                    if v <= 100 {
-                        return Ok(());
-                    }
-                }
-                Err("Not an integer between 0 and 100".to_string())
-            },
+            value_parser = clap::value_parser!(u16).range(0..=100),
             number_of_values = 2,
-            max_values = 2,
             value_names = &["start", "end"],
             group = "profile-or-thresholds",
         )]

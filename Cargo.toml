@@ -1,19 +1,19 @@
 [package]
 name = "system76-power"
-version = "1.1.23"
+version = "1.1.24"
 authors = ["Jeremy Soller <jackpot51@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-clap = { version = "3", features = ["derive"] }
-concat-in-place = "1.0.0"
+clap = { version = "4.0.19", features = ["derive"] }
+concat-in-place = "1.1.0"
 dbus = "0.9"
 dbus-crossroads = "0.5"
 dbus-tokio = "0.7"
 fern = "0.6"
 futures = "0.3"
-hidapi = "1.2"
-inotify = "0.9"
+hidapi = "1.4"
+inotify = "0.10"
 intel-pstate = "1.0.1"
 libc = "0.2"
 log = "0.4"
@@ -21,4 +21,4 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sysfs-class = { git = "https://github.com/pop-os/sysfs-class" }
 thiserror = "1.0"
-tokio = { version = "1.13", features = ["macros", "rt", "time", "signal"] }
+tokio = { version = "1.21", features = ["macros", "rt", "time", "signal"] }

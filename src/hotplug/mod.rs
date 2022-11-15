@@ -60,7 +60,7 @@ impl Detect for Amd {
 
         for (i, offset) in self.gpios.iter().enumerate() {
             let control_offset = AMD_FCH_GPIO_CONTROL_BASE + offset * 4;
-            if self.mem.seek(io::SeekFrom::Start(control_offset as u64)).is_err() {
+            if self.mem.seek(io::SeekFrom::Start(u64::from(control_offset))).is_err() {
                 return hpd;
             }
 
@@ -106,6 +106,11 @@ pub struct HotPlugDetect {
 }
 
 impl HotPlugDetect {
+    /// # Errors
+    ///
+    /// - If `/sys/class/dmi/id/product_version` cannot be read
+    /// - If `Sideband::new` fails
+    #[allow(clippy::too_many_lines)]
     pub unsafe fn new(nvidia_device: Option<String>) -> Result<Self, HotPlugDetectError> {
         let model = fs::read_to_string("/sys/class/dmi/id/product_version")
             .map_err(HotPlugDetectError::ProductVersion)?;
