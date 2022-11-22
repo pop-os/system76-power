@@ -99,11 +99,11 @@ pub enum Args {
         list_profiles: bool,
         #[clap(
             help = "Charge thresholds",
-            value_parser = clap::value_parser!(u16).range(0..=100),
+            value_parser = clap::value_parser!(u8).range(0..=100),
             number_of_values = 2,
             value_names = &["start", "end"],
             group = "profile-or-thresholds",
         )]
-        thresholds:    Vec<String>,
+        thresholds:    Vec<u8>,
     },
 }
