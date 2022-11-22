@@ -214,10 +214,8 @@ pub fn client(args: &Args) -> Result<(), String> {
             let profiles = client.get_charge_profiles()?;
 
             if !thresholds.is_empty() {
-                let start = &thresholds[0];
-                let end = &thresholds[1];
-                let start = start.parse::<u8>().map_err(err_str)?;
-                let end = end.parse::<u8>().map_err(err_str)?;
+                let start = thresholds[0];
+                let end = thresholds[1];
                 client.set_charge_thresholds((start, end))?;
             } else if let Some(name) = profile {
                 if let Some(profile) = profiles.iter().find(|p| &p.id == name) {
