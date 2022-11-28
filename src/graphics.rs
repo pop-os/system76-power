@@ -318,9 +318,18 @@ impl Graphics {
         Ok(Graphics { bus, amd, intel, nvidia, other })
     }
 
+    pub fn is_desktop(&self) -> bool {
+        let chassis = fs::read_to_string("/sys/class/dmi/id/chassis_type")
+            .map_err(GraphicsDeviceError::SysFs)
+            .unwrap_or_default();
+
+        chassis.trim() == "3"
+    }
+
     #[must_use]
     pub fn can_switch(&self) -> bool {
-        !self.nvidia.is_empty() && (!self.intel.is_empty() || !self.amd.is_empty())
+        !self.is_desktop()
+            && (!self.nvidia.is_empty() && (!self.intel.is_empty() || !self.amd.is_empty()))
     }
 
     pub fn get_external_displays_require_dgpu(&self) -> Result<bool, GraphicsDeviceError> {
