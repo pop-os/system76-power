@@ -392,6 +392,7 @@ impl Graphics {
             .map_err(GraphicsDeviceError::SysFs)
             .map(|s| s.trim().to_string())?;
         let blacklisted = DEFAULT_INTEGRATED.contains(&product.as_str());
+        let thelio = product.contains("thelio");
 
         let runtimepm = self.gpu_supports_runtimepm().unwrap_or_default();
 
@@ -400,7 +401,7 @@ impl Graphics {
             .map_err(GraphicsDeviceError::SysFs)
             .map(|s| s.trim().to_string())?;
 
-        if vendor != "System76" {
+        if (vendor != "System76") || thelio {
             Ok(GraphicsMode::Discrete)
         } else if runtimepm && !blacklisted {
             Ok(GraphicsMode::Hybrid)
