@@ -578,6 +578,7 @@ dependencies = [
  "intel-pstate",
  "libc",
  "log",
+ "once_cell",
  "serde",
  "serde_json",
  "sysfs-class",
