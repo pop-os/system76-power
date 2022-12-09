@@ -3,35 +3,120 @@
 
 use crate::{util::write_value, Profile};
 use concat_in_place::strcat;
-use std::fs;
+use std::{
+    fmt::Write,
+    fs::{self, File},
+    io::Read,
+};
 
 pub fn set(profile: Profile, max_percent: u8) {
-    if let Some(driver) = scaling_driver(0) {
-        let governor = if "intel_pstate" == driver.as_str() {
-            match profile {
-                Profile::Battery | Profile::Balanced => "powersave",
-                Profile::Performance => "performance",
-            }
-        } else {
-            match profile {
-                Profile::Battery => "conservative",
-                Profile::Balanced => "schedutil",
-                Profile::Performance => "performance",
-            }
+    let mut core = Cpu::new(0);
+
+    let min_freq = core.frequency_minimum();
+    let max_freq = core.frequency_maximum();
+
+    if let Some(driver) = core.scaling_driver() {
+        let is_amd_pstate = driver.starts_with("amd-pstate");
+
+        // Decide the scaling governor to use with this profile.
+        let governor = match profile {
+            // Prefer battery life over efficiency
+            Profile::Battery => match driver {
+                "amd-pstate" | "intel_pstate" => "powersave",
+                "amd-pstate-epp" => "balance_power",
+                _ => "conservative",
+            },
+            // The most energy-efficient profile
+            Profile::Balanced => match driver {
+                "amd-pstate" => "ondemand",
+                "amd-pstate-epp" => "balance_performance",
+                "intel_pstate" => "powersave",
+                _ => "schedutil",
+            },
+            // Maximum performance
+            Profile::Performance => "performance",
         };
 
-        if let Some((cpus, (min, max))) =
-            num_cpus().zip(frequency_minimum().zip(frequency_maximum()))
-        {
+        if let Some((cpus, (min, max))) = num_cpus().zip(min_freq.zip(max_freq)) {
             let max = max * max_percent.min(100) as usize / 100;
             eprintln!("setting {} with max {}", governor, max);
 
             for cpu in 0..=cpus {
-                set_frequency_minimum(cpu, min);
-                set_frequency_maximum(cpu, max);
-                set_governor(cpu, governor);
+                core.load(cpu);
+
+                if !is_amd_pstate {
+                    core.set_frequency_minimum(min);
+                    core.set_frequency_maximum(max);
+                }
+
+                core.set_governor(governor);
             }
         }
+    }
+}
+
+pub struct Cpu {
+    /// Stores the path of the file being accessed.
+    path:        String,
+    /// Know where to truncate the path.
+    path_len:    usize,
+    /// Scratch space for read files
+    read_buffer: Vec<u8>,
+}
+
+impl Cpu {
+    #[must_use]
+    pub fn new(core: usize) -> Self {
+        let mut path = String::with_capacity(38);
+        cpu_path(&mut path, core);
+
+        Self { path_len: path.len(), path, read_buffer: Vec::with_capacity(16) }
+    }
+
+    pub fn load(&mut self, core: usize) {
+        self.path.clear();
+        cpu_path(&mut self.path, core);
+        self.path_len = self.path.len();
+    }
+
+    #[must_use]
+    pub fn frequency_maximum(&mut self) -> Option<usize> {
+        self.get_value("cpuinfo_max_freq").and_then(|value| value.parse::<usize>().ok())
+    }
+
+    #[must_use]
+    pub fn frequency_minimum(&mut self) -> Option<usize> {
+        self.get_value("cpuinfo_min_freq").and_then(|value| value.parse::<usize>().ok())
+    }
+
+    #[must_use]
+    pub fn scaling_driver(&mut self) -> Option<&str> { self.get_value("scaling_driver") }
+
+    pub fn set_frequency_maximum(&mut self, frequency: usize) {
+        self.set_value("scaling_max_freq", frequency);
+    }
+
+    pub fn set_frequency_minimum(&mut self, frequency: usize) {
+        self.set_value("scaling_min_freq", frequency);
+    }
+
+    pub fn set_governor(&mut self, governor: &str) { self.set_value("scaling_governor", governor); }
+
+    fn set_value<V: std::fmt::Display>(&mut self, file: &str, value: V) {
+        self.path.truncate(self.path_len);
+        write_value(strcat!(&mut self.path, file), value);
+    }
+
+    fn get_value(&mut self, file: &str) -> Option<&str> {
+        self.path.truncate(self.path_len);
+        let Ok(mut file) = File::open(strcat!(&mut self.path, file)) else {
+            return None
+        };
+
+        self.read_buffer.clear();
+        let _res = file.read_to_end(&mut self.read_buffer);
+
+        std::str::from_utf8(&self.read_buffer).ok().map(str::trim)
     }
 }
 
@@ -41,46 +126,6 @@ pub fn num_cpus() -> Option<usize> {
     info.split('-').nth(1)?.trim_end().parse::<usize>().ok()
 }
 
-#[must_use]
-pub fn frequency_maximum() -> Option<usize> {
-    let mut sys_path = sys_path(0);
-    let path = strcat!(&mut sys_path, "cpuinfo_max_freq");
-    let string = fs::read_to_string(path).ok()?;
-    string.trim_end().parse::<usize>().ok()
+fn cpu_path(buffer: &mut String, core: usize) {
+    let _ = write!(buffer, "/sys/devices/system/cpu/cpu{}/cpufreq/", core);
 }
-
-#[must_use]
-pub fn frequency_minimum() -> Option<usize> {
-    let mut sys_path = sys_path(0);
-    let path = strcat!(&mut sys_path, "cpuinfo_min_freq");
-    let string = fs::read_to_string(path).ok()?;
-    string.trim_end().parse::<usize>().ok()
-}
-
-#[must_use]
-pub fn scaling_driver(core: usize) -> Option<String> {
-    let mut sys_path = sys_path(core);
-    fs::read_to_string(strcat!(&mut sys_path, "scaling_driver"))
-        .map(|string| string.trim_end().to_owned())
-        .ok()
-}
-
-pub fn set_frequency_maximum(core: usize, frequency: usize) {
-    let mut sys_path = sys_path(core);
-    let path = strcat!(&mut sys_path, "scaling_max_freq");
-    write_value(path, frequency);
-}
-
-pub fn set_frequency_minimum(core: usize, frequency: usize) {
-    let mut sys_path = sys_path(core);
-    let path = strcat!(&mut sys_path, "scaling_min_freq");
-    write_value(path, frequency);
-}
-
-pub fn set_governor(core: usize, governor: &str) {
-    let mut sys_path = sys_path(core);
-    let path = strcat!(&mut sys_path, "scaling_governor");
-    write_value(path, governor);
-}
-
-fn sys_path(core: usize) -> String { format!("/sys/devices/system/cpu/cpu{}/cpufreq/", core) }
