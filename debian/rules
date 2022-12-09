@@ -17,11 +17,14 @@ override_dh_installsystemd:
 	dh_installsystemd --name=com.system76.PowerDaemon
 
 override_dh_auto_clean:
-ifeq ($(CLEAN),1)
-	make clean
-endif
-ifeq ($(VENDOR),1)
-	if ! ischroot; then \
-		make vendor; \
+	if test "${CLEAN}" = "1"; then \
+		cargo clean; \
 	fi
-endif
+
+	if ! ischroot && test "${VENDOR}" = "1"; then \
+		mkdir -p .cargo; \
+		cargo vendor | head -n -1 > .cargo/config; \
+		echo 'directory = "vendor"' >> .cargo/config; \
+		tar pcJf vendor.tar.xz vendor; \
+		rm -rf vendor; \
+	fi
