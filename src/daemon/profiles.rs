@@ -37,7 +37,6 @@ pub fn balanced(errors: &mut Vec<ProfileError>, set_brightness: bool) {
     // Use the ACPI Platform Profile if the hardware is supported by the kernel.
     if crate::acpi_platform::supported() {
         crate::acpi_platform::balanced();
-        return;
     }
 
     // The dirty kernel parameter controls how often the OS will sync data to disks. The less
@@ -97,7 +96,6 @@ pub fn performance(errors: &mut Vec<ProfileError>, _set_brightness: bool) {
     // Use the ACPI Platform Profile if the hardware is supported by the kernel.
     if crate::acpi_platform::supported() {
         crate::acpi_platform::performance();
-        return;
     }
 
     Dirty::default().set_max_lost_work(15);
@@ -130,7 +128,6 @@ pub fn battery(errors: &mut Vec<ProfileError>, set_brightness: bool) {
     // Use the ACPI Platform Profile if the hardware is supported by the kernel.
     if crate::acpi_platform::supported() {
         crate::acpi_platform::battery();
-        return;
     }
 
     Dirty::default().set_max_lost_work(15);
