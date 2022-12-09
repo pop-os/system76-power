@@ -246,7 +246,23 @@ pub async fn daemon() -> Result<(), String> {
     if let Err(why) = daemon.balanced() {
         log::warn!("Failed to set initial profile: {}", why);
     }
+
     daemon.initial_set = true;
+
+    log::info!("Enabling runtime PM for I2C adapters");
+    for device in crate::sys_devices::i2c::devices() {
+        device.set_runtime_pm(sysfs_class::RuntimePowerManagement::On);
+    }
+
+    log::info!("Enabling runtime PM for PCI devices");
+    for device in crate::sys_devices::pci::devices() {
+        device.set_runtime_pm(sysfs_class::RuntimePowerManagement::On);
+    }
+
+    log::info!("Enabling runtime PM for USB devices");
+    for device in crate::sys_devices::usb::devices() {
+        device.set_runtime_pm(sysfs_class::RuntimePowerManagement::On);
+    }
 
     log::info!("Registering dbus name {}", DBUS_NAME);
     c.request_name(DBUS_NAME, false, true, false).await.map_err(err_str)?;
