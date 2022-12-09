@@ -109,8 +109,9 @@ impl Cpu {
 
     fn get_value(&mut self, file: &str) -> Option<&str> {
         self.path.truncate(self.path_len);
-        let Ok(mut file) = File::open(strcat!(&mut self.path, file)) else {
-            return None
+        let mut file = match File::open(strcat!(&mut self.path, file)) {
+            Ok(file) => file,
+            Err(_) => return None,
         };
 
         self.read_buffer.clear();
