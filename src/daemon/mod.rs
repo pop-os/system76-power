@@ -259,11 +259,6 @@ pub async fn daemon() -> Result<(), String> {
         device.set_runtime_pm(sysfs_class::RuntimePowerManagement::On);
     }
 
-    log::info!("Enabling runtime PM for USB devices");
-    for device in crate::sys_devices::usb::devices() {
-        device.set_runtime_pm(sysfs_class::RuntimePowerManagement::On);
-    }
-
     log::info!("Registering dbus name {}", DBUS_NAME);
     c.request_name(DBUS_NAME, false, true, false).await.map_err(err_str)?;
 
