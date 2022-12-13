@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 use crate::{util::write_value, Profile};
-use concat_in_place::strcat;
 use std::fs;
 
 pub fn set(profile: Profile, max_percent: u8) {
@@ -38,49 +37,57 @@ pub fn set(profile: Profile, max_percent: u8) {
 #[must_use]
 pub fn num_cpus() -> Option<usize> {
     let info = fs::read_to_string("/sys/devices/system/cpu/possible").ok()?;
-    info.split('-').nth(1)?.trim_end().parse::<usize>().ok()
+    
+    info.split('-').nth(1)?.trim_end().parse().ok()
 }
 
 #[must_use]
 pub fn frequency_maximum() -> Option<usize> {
-    let mut sys_path = sys_path(0);
-    let path = strcat!(&mut sys_path, "cpuinfo_max_freq");
+    let path = sys_path(0, "cpuinfo_max_freq");
     let string = fs::read_to_string(path).ok()?;
-    string.trim_end().parse::<usize>().ok()
+    string.trim_end().parse().ok()
 }
 
 #[must_use]
 pub fn frequency_minimum() -> Option<usize> {
-    let mut sys_path = sys_path(0);
-    let path = strcat!(&mut sys_path, "cpuinfo_min_freq");
+    let path = sys_path(0, "cpuinfo_min_freq");
     let string = fs::read_to_string(path).ok()?;
-    string.trim_end().parse::<usize>().ok()
+
+    string.trim_end().parse().ok()
 }
 
 #[must_use]
 pub fn scaling_driver(core: usize) -> Option<String> {
-    let mut sys_path = sys_path(core);
-    fs::read_to_string(strcat!(&mut sys_path, "scaling_driver"))
-        .map(|string| string.trim_end().to_owned())
+    let path = sys_path(core, "scaling_driver");
+    fs::read_to_string(&path)
+        .map(trim_end_in_place)
         .ok()
 }
 
 pub fn set_frequency_maximum(core: usize, frequency: usize) {
-    let mut sys_path = sys_path(core);
-    let path = strcat!(&mut sys_path, "scaling_max_freq");
-    write_value(path, frequency);
+    let path = sys_path(core, "scaling_max_freq");
+
+    write_value(&path, frequency);
 }
 
 pub fn set_frequency_minimum(core: usize, frequency: usize) {
-    let mut sys_path = sys_path(core);
-    let path = strcat!(&mut sys_path, "scaling_min_freq");
-    write_value(path, frequency);
+    let path = sys_path(core, "scaling_min_freq");
+    
+    write_value(&path, frequency);
 }
 
 pub fn set_governor(core: usize, governor: &str) {
-    let mut sys_path = sys_path(core);
-    let path = strcat!(&mut sys_path, "scaling_governor");
-    write_value(path, governor);
+    let path = sys_path(core, "scaling_governor");
+    write_value(&path, governor);
 }
 
-fn sys_path(core: usize) -> String { format!("/sys/devices/system/cpu/cpu{}/cpufreq/", core) }
+#[must_use]
+fn trim_end_in_place(mut string: String) -> String {
+    let new_length = string.trim_end().len();
+    
+    string.truncate(new_length);
+
+    string
+}
+
+fn sys_path(core: usize, subpath: &str) -> String { format!("/sys/devices/system/cpu/cpu{core}/cpufreq/{subpath}") }
