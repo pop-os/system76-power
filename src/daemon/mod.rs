@@ -26,12 +26,13 @@ use tokio::{
 };
 
 use futures::future::FutureExt;
+use futures_lite::StreamExt;
 
 use crate::{
     charge_thresholds::{
         get_charge_profiles, get_charge_thresholds, set_charge_thresholds, ChargeProfile,
     },
-    err_str,
+    cpufreq, err_str,
     errors::ProfileError,
     fan::FanDaemon,
     graphics::{Graphics, GraphicsMode},
@@ -123,6 +124,27 @@ impl PowerDaemon {
             }
 
             Err(error_message)
+        }
+    }
+
+    /// Called when the status changes between AC and battery.
+    ///
+    /// We want to disable CPU frequency boosting if the system is on
+    /// battery power when the Balanced profile is in use.
+    fn on_battery_changed(&mut self, on_battery: bool) {
+        if self.power_profile == "Balanced" {
+            // intel_pstate has its own mechanism for managing boost.
+            if let Ok(pstate) = intel_pstate::PState::new() {
+                let _res = pstate.set_no_turbo(on_battery);
+
+                return;
+            }
+
+            if on_battery {
+                cpufreq::boost::disable();
+            } else {
+                cpufreq::boost::enable();
+            }
         }
     }
 }
@@ -247,6 +269,8 @@ pub async fn daemon() -> Result<(), String> {
         log::warn!("Failed to set initial profile: {}", why);
     }
 
+    let mut on_battery_stream = on_battery_stream(&mut daemon).await;
+
     daemon.initial_set = true;
 
     log::info!("Registering dbus name {}", DBUS_NAME);
@@ -314,13 +338,17 @@ pub async fn daemon() -> Result<(), String> {
     cr.insert(DBUS_PATH, &[iface_token], daemon);
 
     let cr = Arc::new(std::sync::Mutex::new(cr));
-    c.start_receive(
-        MatchRule::new_method_call(),
-        Box::new(move |msg, c| {
-            cr.lock().unwrap().handle_message(msg, c).unwrap();
-            true
-        }),
-    );
+
+    {
+        let cr = cr.clone();
+        c.start_receive(
+            MatchRule::new_method_call(),
+            Box::new(move |msg, c| {
+                cr.lock().unwrap().handle_message(msg, c).unwrap();
+                true
+            }),
+        );
+    }
 
     // Spawn hid backlight daemon
     let _hid_backlight = thread::spawn(hid_backlight::daemon);
@@ -344,6 +372,19 @@ pub async fn daemon() -> Result<(), String> {
     log::info!("Handling dbus requests");
     while CONTINUE.load(Ordering::SeqCst) {
         sleep(Duration::from_millis(1000)).await;
+
+        // Notify the daemon on battery status changes
+        if let Some(stream) = on_battery_stream.as_mut() {
+            if let Some(Some(property_changed)) = stream.next().now_or_never() {
+                if let Ok(on_battery) = property_changed.get().await {
+                    if let Some(daemon) =
+                        cr.lock().unwrap().data_mut::<PowerDaemon>(&dbus::Path::from(DBUS_PATH))
+                    {
+                        daemon.on_battery_changed(on_battery);
+                    }
+                }
+            }
+        }
 
         fan_daemon.step();
 
@@ -428,4 +469,20 @@ fn sync_set_method<T, F>(
     F: Fn(&mut PowerDaemon, T) -> Result<(), String> + Send + 'static,
 {
     sync_method(b, name, (input_arg,), (), move |d, (arg,)| f(d, arg));
+}
+
+/// Create a stream for listening to battery AC events.
+async fn on_battery_stream(
+    daemon: &mut PowerDaemon,
+) -> Option<zbus::PropertyStream<'static, bool>> {
+    if let Ok(connection) = zbus::Connection::system().await {
+        if let Ok(proxy) = upower_dbus::UPowerProxy::new(&connection).await {
+            if let Ok(on_battery) = proxy.on_battery().await {
+                daemon.on_battery_changed(on_battery);
+                return Some(proxy.receive_on_battery_changed().await);
+            }
+        }
+    }
+
+    None
 }

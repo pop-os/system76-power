@@ -1,6 +1,20 @@
 // Copyright 2022 System76 <info@system76.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
+/// Controls frequency boosting functionality.
+pub mod boost {
+    /// Enables frequency boosting
+    pub fn enable() { write(b"1"); }
+
+    /// Disables frequency boosting
+    pub fn disable() { write(b"0"); }
+
+    #[inline]
+    fn write(value: &[u8]) {
+        let _res = std::fs::write("/sys/devices/system/cpu/cpufreq/boost", value);
+    }
+}
+
 use crate::{util::write_value, Profile};
 use concat_in_place::strcat;
 use std::{
