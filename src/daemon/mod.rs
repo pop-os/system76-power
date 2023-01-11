@@ -32,12 +32,10 @@ use crate::{
     errors::ProfileError,
     fan::FanDaemon,
     graphics::{Graphics, GraphicsMode},
-    hid_backlight,
+    hid_backlight, hotplug,
     kernel_parameters::{KernelParameter, NmiWatchdog},
     polkit, Power, DBUS_IFACE, DBUS_NAME, DBUS_PATH,
 };
-
-mod hotplug;
 
 mod interrupt;
 use self::interrupt::CONTINUE;
@@ -334,7 +332,7 @@ pub async fn daemon() -> Result<(), String> {
     let _hid_backlight_task = tokio::spawn(hid_backlight::daemon());
 
     // Initialize the hotplug signal emitter.
-    let mut hotplug_emitter = self::hotplug::Emitter::new(nvidia_device_id);
+    let mut hotplug_emitter = hotplug::Emitter::new(nvidia_device_id);
 
     // Initialize the fan management daemon.
     let mut fan_daemon = FanDaemon::new(nvidia_exists);
@@ -357,7 +355,19 @@ pub async fn daemon() -> Result<(), String> {
 
         fan_daemon.step();
 
-        hotplug_emitter.emit_on_detect(&c);
+        for id in hotplug_emitter.emit_on_detect() {
+            log::info!("HotPlugDetect {}", id);
+            let result = c.send(
+                Message::new_signal(DBUS_PATH, DBUS_NAME, "HotPlugDetect")
+                    .unwrap()
+                    .append1(id as u64),
+            );
+
+            if result.is_err() {
+                log::error!("failed to send HotPlugDetect signal");
+            }
+        }
+
         hotplug_emitter.mux_step();
     }
 

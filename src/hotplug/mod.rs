@@ -2,8 +2,11 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
+mod emitter;
 pub mod mux;
 pub mod sideband;
+
+pub use self::emitter::Emitter;
 
 use sideband::{Sideband, SidebandError, PCR_BASE_ADDRESS};
 use std::{

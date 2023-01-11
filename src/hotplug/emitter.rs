@@ -1,23 +1,19 @@
 // Copyright 2023 System76 <info@system76.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-use crate::{
-    hotplug::{
-        self,
-        mux::{self, DisplayPortMux},
-        Detect, HotPlugDetect,
-    },
-    DBUS_NAME, DBUS_PATH,
+use super::{
+    mux::{self, DisplayPortMux},
+    Detect, HotPlugDetect,
 };
-use dbus::{channel::Sender, nonblock::SyncConnection, Message};
 
 pub struct Emitter {
     last_detection: [bool; 4],
-    last_result:    hotplug::Result<HotPlugDetect>,
-    mux_result:     hotplug::Result<DisplayPortMux>,
+    last_result:    super::Result<HotPlugDetect>,
+    mux_result:     super::Result<DisplayPortMux>,
 }
 
 impl Emitter {
+    #[must_use]
     pub fn new(nvidia_device_id: Option<String>) -> Self {
         let mut emitter = Self {
             last_result:    unsafe { HotPlugDetect::new(nvidia_device_id) },
@@ -29,25 +25,15 @@ impl Emitter {
         emitter
     }
 
-    pub fn emit_on_detect(&mut self, c: &SyncConnection) {
+    pub fn emit_on_detect(&mut self) -> impl Iterator<Item = usize> + '_ {
         let hotplug_detect = self.detect();
-        #[allow(clippy::needless_range_loop)]
-        for i in 0..hotplug_detect.len() {
-            if hotplug_detect[i] != self.last_detection[i] && hotplug_detect[i] {
-                log::info!("HotPlugDetect {}", i);
-                let result = c.send(
-                    Message::new_signal(DBUS_PATH, DBUS_NAME, "HotPlugDetect")
-                        .unwrap()
-                        .append1(i as u64),
-                );
-
-                if result.is_err() {
-                    log::error!("failed to send HotPlugDetect signal");
-                }
-            }
-        }
-
+        let last_detection = self.last_detection;
         self.last_detection = hotplug_detect;
+
+        (0..hotplug_detect.len()).filter(move |i| {
+            let i = *i;
+            hotplug_detect[i] != last_detection[i] && hotplug_detect[i]
+        })
     }
 
     pub fn detect(&mut self) -> [bool; 4] {
