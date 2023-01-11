@@ -17,7 +17,6 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
-    thread,
     time::Duration,
 };
 use tokio::{
@@ -350,8 +349,8 @@ pub async fn daemon() -> Result<(), String> {
         );
     }
 
-    // Spawn hid backlight daemon
-    let _hid_backlight = thread::spawn(hid_backlight::daemon);
+    // Spawn the HID backlight daemon.
+    let _hid_backlight_task = tokio::spawn(hid_backlight::daemon());
 
     let mut fan_daemon = FanDaemon::new(nvidia_exists);
 

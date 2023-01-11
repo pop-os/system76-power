@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
+use futures_lite::StreamExt;
 use hidapi::{HidApi, HidDevice, HidResult};
 use inotify::{Inotify, WatchMask};
 use std::{fs, path::Path};
@@ -55,7 +56,7 @@ fn lightguide(device: &HidDevice, brightness: u8, color: u32) -> HidResult<()> {
 }
 
 // TODO: better error handling
-pub fn daemon() {
+pub async fn daemon() {
     let api = match HidApi::new() {
         Ok(ok) => ok,
         Err(err) => {
@@ -121,8 +122,12 @@ pub fn daemon() {
             break;
         }
 
-        for event in inotify.read_events_blocking(&mut buffer).unwrap() {
+        let mut event_stream = inotify.event_stream(&mut buffer).unwrap();
+
+        while let Some(event) = event_stream.next().await {
             log::trace!("{:?}", event);
         }
+
+        tokio::task::yield_now().await;
     }
 }
