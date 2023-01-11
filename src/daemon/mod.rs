@@ -19,13 +19,10 @@ use std::{
     },
     time::Duration,
 };
-use tokio::{
-    signal::unix::{signal, SignalKind},
-    time::sleep,
-};
 
 use futures::future::FutureExt;
 use futures_lite::StreamExt;
+use tokio::time::sleep;
 
 use crate::{
     charge_thresholds::{
@@ -41,30 +38,13 @@ use crate::{
     polkit, Power, DBUS_IFACE, DBUS_NAME, DBUS_PATH,
 };
 
-mod profiles;
+mod interrupt;
+use self::interrupt::CONTINUE;
 
+mod profiles;
 use self::profiles::{balanced, battery, performance};
 
 const THRESHOLD_POLICY: &str = "com.system76.powerdaemon.set-charge-thresholds";
-
-static CONTINUE: AtomicBool = AtomicBool::new(true);
-
-fn signal_handling() {
-    let mut int = signal(SignalKind::interrupt()).unwrap();
-    let mut hup = signal(SignalKind::hangup()).unwrap();
-    let mut term = signal(SignalKind::terminate()).unwrap();
-
-    tokio::spawn(async move {
-        let sig = futures::select! {
-            _ = int.recv().fuse() => "SIGINT",
-            _ = hup.recv().fuse() => "SIGHUP",
-            _ = term.recv().fuse() => "SIGTERM"
-        };
-
-        log::info!("caught signal: {}", sig);
-        CONTINUE.store(false, Ordering::SeqCst);
-    });
-}
 
 // Disabled by default because some systems have quirky ACPI tables that fail to resume from
 // suspension.
@@ -225,7 +205,7 @@ impl Power for PowerDaemon {
 #[tokio::main(flavor = "current_thread")]
 #[allow(clippy::too_many_lines)]
 pub async fn daemon() -> Result<(), String> {
-    signal_handling();
+    interrupt::handle();
     let pci_runtime_pm = std::env::var("S76_POWER_PCI_RUNTIME_PM").ok().map_or(false, |v| v == "1");
 
     log::info!(
@@ -409,7 +389,6 @@ pub async fn daemon() -> Result<(), String> {
         }
     }
 
-    log::info!("daemon exited from loop");
     Ok(())
 }
 
