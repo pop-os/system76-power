@@ -11,6 +11,8 @@ use std::{
     io::{self, Read, Seek},
 };
 
+pub type Result<T> = std::result::Result<T, HotPlugDetectError>;
+
 #[derive(Debug, thiserror::Error)]
 pub enum HotPlugDetectError {
     #[error("failed to read DMI product version: {}", _0)]
@@ -43,7 +45,7 @@ struct Amd {
 }
 
 impl Amd {
-    unsafe fn new(gpios: Vec<u32>) -> Result<Self, HotPlugDetectError> {
+    unsafe fn new(gpios: Vec<u32>) -> Result<Self> {
         let mem = fs::OpenOptions::new()
             .read(true)
             .write(true)
@@ -111,7 +113,7 @@ impl HotPlugDetect {
     /// - If `/sys/class/dmi/id/product_version` cannot be read
     /// - If `Sideband::new` fails
     #[allow(clippy::too_many_lines)]
-    pub unsafe fn new(nvidia_device: Option<String>) -> Result<Self, HotPlugDetectError> {
+    pub unsafe fn new(nvidia_device: Option<String>) -> Result<Self> {
         let model = fs::read_to_string("/sys/class/dmi/id/product_version")
             .map_err(HotPlugDetectError::ProductVersion)?;
 

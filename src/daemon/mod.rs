@@ -33,10 +33,11 @@ use crate::{
     fan::FanDaemon,
     graphics::{Graphics, GraphicsMode},
     hid_backlight,
-    hotplug::{mux, Detect, HotPlugDetect},
     kernel_parameters::{KernelParameter, NmiWatchdog},
     polkit, Power, DBUS_IFACE, DBUS_NAME, DBUS_PATH,
 };
+
+mod hotplug;
 
 mod interrupt;
 use self::interrupt::CONTINUE;
@@ -332,23 +333,12 @@ pub async fn daemon() -> Result<(), String> {
     // Spawn the HID backlight daemon.
     let _hid_backlight_task = tokio::spawn(hid_backlight::daemon());
 
+    // Initialize the hotplug signal emitter.
+    let mut hotplug_emitter = self::hotplug::Emitter::new(nvidia_device_id);
+
+    // Initialize the fan management daemon.
     let mut fan_daemon = FanDaemon::new(nvidia_exists);
 
-    let mut hpd_res = unsafe { HotPlugDetect::new(nvidia_device_id) };
-
-    let mux_res = unsafe { mux::DisplayPortMux::new() };
-
-    let mut hpd = || -> [bool; 4] {
-        if let Ok(ref mut hpd) = hpd_res {
-            unsafe { hpd.detect() }
-        } else {
-            [false; 4]
-        }
-    };
-
-    let mut last = hpd();
-
-    log::info!("Handling dbus requests");
     while CONTINUE.load(Ordering::SeqCst) {
         sleep(Duration::from_millis(1000)).await;
 
@@ -367,26 +357,8 @@ pub async fn daemon() -> Result<(), String> {
 
         fan_daemon.step();
 
-        let hpd = hpd();
-        for i in 0..hpd.len() {
-            if hpd[i] != last[i] && hpd[i] {
-                log::info!("HotPlugDetect {}", i);
-                c.send(
-                    Message::new_signal(DBUS_PATH, DBUS_NAME, "HotPlugDetect")
-                        .unwrap()
-                        .append1(i as u64),
-                )
-                .map_err(|()| "failed to send message".to_string())?;
-            }
-        }
-
-        last = hpd;
-
-        if let Ok(ref mux) = mux_res {
-            unsafe {
-                mux.step();
-            }
-        }
+        hotplug_emitter.emit_on_detect(&c);
+        hotplug_emitter.mux_step();
     }
 
     Ok(())
