@@ -54,9 +54,9 @@ pub(crate) fn pci_runtime_pm_support() -> bool { PCI_RUNTIME_PM.load(Ordering::S
 
 struct PowerDaemon {
     initial_set:     bool,
+    on_battery:      bool,
     graphics:        Graphics,
     power_profile:   String,
-    profile_errors:  Vec<ProfileError>,
     dbus_connection: Arc<SyncConnection>,
 }
 
@@ -65,16 +65,16 @@ impl PowerDaemon {
         let graphics = Graphics::new().map_err(err_str)?;
         Ok(PowerDaemon {
             initial_set: false,
+            on_battery: false,
             graphics,
             power_profile: String::new(),
-            profile_errors: Vec::new(),
             dbus_connection,
         })
     }
 
     fn apply_profile(
         &mut self,
-        func: fn(&mut Vec<ProfileError>, bool),
+        func: fn(&mut Vec<ProfileError>, bool, bool),
         name: &str,
     ) -> Result<(), String> {
         if self.power_profile == name {
@@ -82,7 +82,9 @@ impl PowerDaemon {
             return Ok(());
         }
 
-        func(&mut self.profile_errors, self.initial_set);
+        let mut profile_errors = Vec::new();
+
+        func(&mut profile_errors, self.on_battery, self.initial_set);
 
         let message =
             Message::new_signal(DBUS_PATH, DBUS_NAME, "PowerProfileSwitch").unwrap().append1(name);
@@ -93,11 +95,11 @@ impl PowerDaemon {
 
         self.power_profile = name.into();
 
-        if self.profile_errors.is_empty() {
+        if profile_errors.is_empty() {
             Ok(())
         } else {
             let mut error_message = String::from("Errors found when setting profile:");
-            for error in self.profile_errors.drain(..) {
+            for error in profile_errors.drain(..) {
                 error_message = format!("{}\n    - {}", error_message, error);
             }
 
@@ -108,9 +110,11 @@ impl PowerDaemon {
     /// Called when the status changes between AC and battery.
     ///
     /// We want to disable CPU frequency boosting if the system is on
-    /// battery power when the Balanced profile is in use.
+    /// battery power when the Battery profile is in use.
     fn on_battery_changed(&mut self, on_battery: bool) {
-        if self.power_profile == "Balanced" {
+        self.on_battery = on_battery;
+
+        if self.power_profile == "Battery" {
             // intel_pstate has its own mechanism for managing boost.
             if let Ok(pstate) = intel_pstate::PState::new() {
                 let _res = pstate.set_no_turbo(on_battery);
@@ -222,6 +226,9 @@ pub async fn daemon() -> Result<(), String> {
     });
 
     let mut daemon = PowerDaemon::new(c.clone())?;
+
+    let mut on_battery_stream = on_battery_stream(&mut daemon).await;
+
     let nvidia_exists = !daemon.graphics.nvidia.is_empty();
 
     log::info!("Disabling NMI Watchdog (for kernel debugging only)");
@@ -246,8 +253,6 @@ pub async fn daemon() -> Result<(), String> {
     if let Err(why) = daemon.balanced() {
         log::warn!("Failed to set initial profile: {}", why);
     }
-
-    let mut on_battery_stream = on_battery_stream(&mut daemon).await;
 
     daemon.initial_set = true;
 
