@@ -5,7 +5,10 @@ authors = ["Jeremy Soller <jackpot51@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-clap = { version = "4.0.32", features = ["derive"] }
+# Requires 1.64.0 to update
+clap = { version = "=4.0.32", features = ["derive"] }
+# Remove after updating to 1.64.0
+clap_lex = "=0.3.0"
 concat-in-place = "1.1.0"
 dbus = "0.9"
 dbus-crossroads = "0.5"
@@ -13,7 +16,7 @@ dbus-tokio = "0.7"
 fern = "0.6"
 futures = "0.3"
 futures-lite = "1.12.0"
-hidapi = "1.5"
+hidapi = "2.1.1"
 inotify = "0.10"
 intel-pstate = "1.0.1"
 libc = "0.2"
