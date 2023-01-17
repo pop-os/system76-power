@@ -17,54 +17,33 @@ use std::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
-    thread,
     time::Duration,
-};
-use tokio::{
-    signal::unix::{signal, SignalKind},
-    time::sleep,
 };
 
 use futures::future::FutureExt;
+use futures_lite::StreamExt;
+use tokio::time::sleep;
 
 use crate::{
     charge_thresholds::{
         get_charge_profiles, get_charge_thresholds, set_charge_thresholds, ChargeProfile,
     },
-    err_str,
+    cpufreq, err_str,
     errors::ProfileError,
     fan::FanDaemon,
     graphics::{Graphics, GraphicsMode},
-    hid_backlight,
-    hotplug::{mux, Detect, HotPlugDetect},
+    hid_backlight, hotplug,
     kernel_parameters::{KernelParameter, NmiWatchdog},
     polkit, Power, DBUS_IFACE, DBUS_NAME, DBUS_PATH,
 };
 
-mod profiles;
+mod interrupt;
+use self::interrupt::CONTINUE;
 
+mod profiles;
 use self::profiles::{balanced, battery, performance};
 
 const THRESHOLD_POLICY: &str = "com.system76.powerdaemon.set-charge-thresholds";
-
-static CONTINUE: AtomicBool = AtomicBool::new(true);
-
-fn signal_handling() {
-    let mut int = signal(SignalKind::interrupt()).unwrap();
-    let mut hup = signal(SignalKind::hangup()).unwrap();
-    let mut term = signal(SignalKind::terminate()).unwrap();
-
-    tokio::spawn(async move {
-        let sig = futures::select! {
-            _ = int.recv().fuse() => "SIGINT",
-            _ = hup.recv().fuse() => "SIGHUP",
-            _ = term.recv().fuse() => "SIGTERM"
-        };
-
-        log::info!("caught signal: {}", sig);
-        CONTINUE.store(false, Ordering::SeqCst);
-    });
-}
 
 // Disabled by default because some systems have quirky ACPI tables that fail to resume from
 // suspension.
@@ -75,9 +54,9 @@ pub(crate) fn pci_runtime_pm_support() -> bool { PCI_RUNTIME_PM.load(Ordering::S
 
 struct PowerDaemon {
     initial_set:     bool,
+    on_battery:      bool,
     graphics:        Graphics,
     power_profile:   String,
-    profile_errors:  Vec<ProfileError>,
     dbus_connection: Arc<SyncConnection>,
 }
 
@@ -86,16 +65,16 @@ impl PowerDaemon {
         let graphics = Graphics::new().map_err(err_str)?;
         Ok(PowerDaemon {
             initial_set: false,
+            on_battery: false,
             graphics,
             power_profile: String::new(),
-            profile_errors: Vec::new(),
             dbus_connection,
         })
     }
 
     fn apply_profile(
         &mut self,
-        func: fn(&mut Vec<ProfileError>, bool),
+        func: fn(&mut Vec<ProfileError>, bool, bool),
         name: &str,
     ) -> Result<(), String> {
         if self.power_profile == name {
@@ -103,7 +82,9 @@ impl PowerDaemon {
             return Ok(());
         }
 
-        func(&mut self.profile_errors, self.initial_set);
+        let mut profile_errors = Vec::new();
+
+        func(&mut profile_errors, self.on_battery, self.initial_set);
 
         let message =
             Message::new_signal(DBUS_PATH, DBUS_NAME, "PowerProfileSwitch").unwrap().append1(name);
@@ -114,15 +95,38 @@ impl PowerDaemon {
 
         self.power_profile = name.into();
 
-        if self.profile_errors.is_empty() {
+        if profile_errors.is_empty() {
             Ok(())
         } else {
             let mut error_message = String::from("Errors found when setting profile:");
-            for error in self.profile_errors.drain(..) {
+            for error in profile_errors.drain(..) {
                 error_message = format!("{}\n    - {}", error_message, error);
             }
 
             Err(error_message)
+        }
+    }
+
+    /// Called when the status changes between AC and battery.
+    ///
+    /// We want to disable CPU frequency boosting if the system is on
+    /// battery power when the Battery profile is in use.
+    fn on_battery_changed(&mut self, on_battery: bool) {
+        self.on_battery = on_battery;
+
+        if self.power_profile == "Battery" {
+            // intel_pstate has its own mechanism for managing boost.
+            if let Ok(pstate) = intel_pstate::PState::new() {
+                let _res = pstate.set_no_turbo(on_battery);
+
+                return;
+            }
+
+            if on_battery {
+                cpufreq::boost::disable();
+            } else {
+                cpufreq::boost::enable();
+            }
         }
     }
 }
@@ -204,7 +208,7 @@ impl Power for PowerDaemon {
 #[tokio::main(flavor = "current_thread")]
 #[allow(clippy::too_many_lines)]
 pub async fn daemon() -> Result<(), String> {
-    signal_handling();
+    interrupt::handle();
     let pci_runtime_pm = std::env::var("S76_POWER_PCI_RUNTIME_PM").ok().map_or(false, |v| v == "1");
 
     log::info!(
@@ -222,6 +226,9 @@ pub async fn daemon() -> Result<(), String> {
     });
 
     let mut daemon = PowerDaemon::new(c.clone())?;
+
+    let mut on_battery_stream = on_battery_stream(&mut daemon).await;
+
     let nvidia_exists = !daemon.graphics.nvidia.is_empty();
 
     log::info!("Disabling NMI Watchdog (for kernel debugging only)");
@@ -314,62 +321,61 @@ pub async fn daemon() -> Result<(), String> {
     cr.insert(DBUS_PATH, &[iface_token], daemon);
 
     let cr = Arc::new(std::sync::Mutex::new(cr));
-    c.start_receive(
-        MatchRule::new_method_call(),
-        Box::new(move |msg, c| {
-            cr.lock().unwrap().handle_message(msg, c).unwrap();
-            true
-        }),
-    );
 
-    // Spawn hid backlight daemon
-    let _hid_backlight = thread::spawn(hid_backlight::daemon);
+    {
+        let cr = cr.clone();
+        c.start_receive(
+            MatchRule::new_method_call(),
+            Box::new(move |msg, c| {
+                cr.lock().unwrap().handle_message(msg, c).unwrap();
+                true
+            }),
+        );
+    }
 
+    // Spawn the HID backlight daemon.
+    let _hid_backlight_task = tokio::spawn(hid_backlight::daemon());
+
+    // Initialize the hotplug signal emitter.
+    let mut hotplug_emitter = hotplug::Emitter::new(nvidia_device_id);
+
+    // Initialize the fan management daemon.
     let mut fan_daemon = FanDaemon::new(nvidia_exists);
 
-    let mut hpd_res = unsafe { HotPlugDetect::new(nvidia_device_id) };
-
-    let mux_res = unsafe { mux::DisplayPortMux::new() };
-
-    let mut hpd = || -> [bool; 4] {
-        if let Ok(ref mut hpd) = hpd_res {
-            unsafe { hpd.detect() }
-        } else {
-            [false; 4]
-        }
-    };
-
-    let mut last = hpd();
-
-    log::info!("Handling dbus requests");
     while CONTINUE.load(Ordering::SeqCst) {
         sleep(Duration::from_millis(1000)).await;
 
+        // Notify the daemon on battery status changes
+        if let Some(stream) = on_battery_stream.as_mut() {
+            if let Some(Some(property_changed)) = stream.next().now_or_never() {
+                if let Ok(on_battery) = property_changed.get().await {
+                    if let Some(daemon) =
+                        cr.lock().unwrap().data_mut::<PowerDaemon>(&dbus::Path::from(DBUS_PATH))
+                    {
+                        daemon.on_battery_changed(on_battery);
+                    }
+                }
+            }
+        }
+
         fan_daemon.step();
 
-        let hpd = hpd();
-        for i in 0..hpd.len() {
-            if hpd[i] != last[i] && hpd[i] {
-                log::info!("HotPlugDetect {}", i);
-                c.send(
-                    Message::new_signal(DBUS_PATH, DBUS_NAME, "HotPlugDetect")
-                        .unwrap()
-                        .append1(i as u64),
-                )
-                .map_err(|()| "failed to send message".to_string())?;
+        for id in hotplug_emitter.emit_on_detect() {
+            log::info!("HotPlugDetect {}", id);
+            let result = c.send(
+                Message::new_signal(DBUS_PATH, DBUS_NAME, "HotPlugDetect")
+                    .unwrap()
+                    .append1(id as u64),
+            );
+
+            if result.is_err() {
+                log::error!("failed to send HotPlugDetect signal");
             }
         }
 
-        last = hpd;
-
-        if let Ok(ref mux) = mux_res {
-            unsafe {
-                mux.step();
-            }
-        }
+        hotplug_emitter.mux_step();
     }
 
-    log::info!("daemon exited from loop");
     Ok(())
 }
 
@@ -428,4 +434,20 @@ fn sync_set_method<T, F>(
     F: Fn(&mut PowerDaemon, T) -> Result<(), String> + Send + 'static,
 {
     sync_method(b, name, (input_arg,), (), move |d, (arg,)| f(d, arg));
+}
+
+/// Create a stream for listening to battery AC events.
+async fn on_battery_stream(
+    daemon: &mut PowerDaemon,
+) -> Option<zbus::PropertyStream<'static, bool>> {
+    if let Ok(connection) = zbus::Connection::system().await {
+        if let Ok(proxy) = upower_dbus::UPowerProxy::new(&connection).await {
+            if let Ok(on_battery) = proxy.on_battery().await {
+                daemon.on_battery_changed(on_battery);
+                return Some(proxy.receive_on_battery_changed().await);
+            }
+        }
+    }
+
+    None
 }

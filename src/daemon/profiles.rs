@@ -33,7 +33,7 @@ macro_rules! catch {
 }
 
 /// Sets parameters for the balanced profile.
-pub fn balanced(errors: &mut Vec<ProfileError>, set_brightness: bool) {
+pub fn balanced(errors: &mut Vec<ProfileError>, _on_battery: bool, set_brightness: bool) {
     // Use the ACPI Platform Profile if the hardware is supported by the kernel.
     if crate::acpi_platform::supported() {
         crate::acpi_platform::balanced();
@@ -92,7 +92,7 @@ pub fn balanced(errors: &mut Vec<ProfileError>, set_brightness: bool) {
 }
 
 /// Sets parameters for the performance profile
-pub fn performance(errors: &mut Vec<ProfileError>, _set_brightness: bool) {
+pub fn performance(errors: &mut Vec<ProfileError>, _on_battery: bool, _set_brightness: bool) {
     // Use the ACPI Platform Profile if the hardware is supported by the kernel.
     if crate::acpi_platform::supported() {
         crate::acpi_platform::performance();
@@ -124,7 +124,7 @@ pub fn performance(errors: &mut Vec<ProfileError>, _set_brightness: bool) {
 }
 
 /// Sets parameters for the battery profile
-pub fn battery(errors: &mut Vec<ProfileError>, set_brightness: bool) {
+pub fn battery(errors: &mut Vec<ProfileError>, on_battery: bool, set_brightness: bool) {
     // Use the ACPI Platform Profile if the hardware is supported by the kernel.
     if crate::acpi_platform::supported() {
         crate::acpi_platform::battery();
@@ -138,7 +138,9 @@ pub fn battery(errors: &mut Vec<ProfileError>, set_brightness: bool) {
 
     catch!(
         errors,
-        pstate_values(PStateValues::default().min_perf_pct(0).max_perf_pct(50).no_turbo(true))
+        pstate_values(
+            PStateValues::default().min_perf_pct(0).max_perf_pct(50).no_turbo(on_battery)
+        )
     );
 
     if set_brightness {

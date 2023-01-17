@@ -1,3 +1,2 @@
-use system76_power::hid_backlight;
-
-fn main() { hid_backlight::daemon(); }
+#[tokio::main(flavor = "current_thread")]
+async fn main() { system76_power::hid_backlight::daemon().await; }
