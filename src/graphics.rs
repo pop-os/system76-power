@@ -76,6 +76,8 @@ const PRIME_DISCRETE_PATH: &str = "/etc/prime-discrete";
 const EXTERNAL_DISPLAY_REQUIRES_NVIDIA: &[&str] = &[
     "addw1",
     "addw2",
+    "addw3",
+    "bonw15",
     "gaze14",
     "gaze15",
     "gaze16-3050",
@@ -92,6 +94,8 @@ const EXTERNAL_DISPLAY_REQUIRES_NVIDIA: &[&str] = &[
     "oryp8",
     "oryp9",
     "oryp10",
+    "oryp11",
+    "serw13",
 ];
 
 const SYSTEMCTL_CMD: &str = "systemctl";

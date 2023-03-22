@@ -128,6 +128,30 @@ impl HotPlugDetect {
                     ],
                 }),
             }),
+            "addw3" => Ok(Self {
+                integrated: Integrated::Intel(Intel {
+                    sideband: Sideband::new(0xE000_0000)?,
+                    port:     0x6E,
+                    pins:     [
+                        0x04, // Mini DisplayPort
+                        0x08, // HDMI
+                        0x00, // TODO: USB-C?
+                        0x00, // Not connected
+                    ],
+                }),
+            }),
+            "bonw15" => Ok(Self {
+                integrated: Integrated::Intel(Intel {
+                    sideband: Sideband::new(0xE000_0000)?,
+                    port:     0x6E,
+                    pins:     [
+                        0x02, // Mini DisplayPort
+                        0x06, // HDMI
+                        0x00, // TODO: USB-C?
+                        0x00, // Not connected
+                    ],
+                }),
+            }),
             "gaze14" => {
                 let variant =
                     fs::read_to_string("/sys/bus/pci/devices/0000:00:00.0/subsystem_device")
@@ -295,6 +319,30 @@ impl HotPlugDetect {
                         0x78, // HDMI
                         0x7C, // USB-C
                         0x00, // Not Connected
+                    ],
+                }),
+            }),
+            "oryp11" => Ok(Self {
+                integrated: Integrated::Intel(Intel {
+                    sideband: Sideband::new(PCR_BASE_ADDRESS)?,
+                    port:     0x6E,
+                    pins:     [
+                        0x72, // Mini DisplayPort
+                        0x78, // HDMI
+                        0x00, // TODO: USB-C?
+                        0x00, // Not connected
+                    ],
+                }),
+            }),
+            "serw13" => Ok(Self {
+                integrated: Integrated::Intel(Intel {
+                    sideband: Sideband::new(0xE000_0000)?,
+                    port:     0x6E,
+                    pins:     [
+                        0x00, // FIXME: USB-C is pin 0, but also doesn't work
+                        0x00, // TBT connected to iGPU
+                        0x04, // HDMI
+                        0x08, // Mini DisplayPort
                     ],
                 }),
             }),
