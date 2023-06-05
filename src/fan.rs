@@ -68,7 +68,7 @@ impl FanDaemon {
                 match name.as_str() {
                     "amdgpu" => self.amdgpus.push(hwmon),
                     "system76" => (), // TODO: Support laptops
-                    "system76_io" => self.platforms.push(hwmon),
+                    "system76_io" | "system76_thelio_io" => self.platforms.push(hwmon),
                     "coretemp" | "k10temp" => self.cpus.push(hwmon),
                     _ => (),
                 }
@@ -146,6 +146,8 @@ impl FanDaemon {
                 let _ = platform.write_file("pwm1_enable", "1");
                 let _ = platform.write_file("pwm1", &duty_str);
                 let _ = platform.write_file("pwm2", &duty_str);
+                let _ = platform.write_file("pwm3", &duty_str);
+                let _ = platform.write_file("pwm4", &duty_str);
             }
         } else {
             for platform in &self.platforms {
