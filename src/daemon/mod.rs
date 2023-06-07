@@ -168,6 +168,8 @@ impl Power for PowerDaemon {
 
     fn get_switchable(&mut self) -> Result<bool, String> { Ok(self.graphics.can_switch()) }
 
+    fn get_desktop(&mut self) -> Result<bool, String> { Ok(self.graphics.is_desktop()) }
+
     fn set_graphics(&mut self, vendor: &str) -> Result<(), String> {
         let vendor = match vendor {
             "nvidia" => GraphicsMode::Discrete,
@@ -284,6 +286,7 @@ pub async fn daemon() -> Result<(), String> {
         sync_set_method(b, "SetGraphics", "vendor", |d, s: String| d.set_graphics(&s));
         sync_get_method(b, "GetProfile", "profile", PowerDaemon::get_profile);
         sync_get_method(b, "GetSwitchable", "switchable", PowerDaemon::get_switchable);
+        sync_get_method(b, "GetDesktop", "desktop", PowerDaemon::get_desktop);
         sync_get_method(b, "GetGraphicsPower", "power", PowerDaemon::get_graphics_power);
         sync_set_method(b, "SetGraphicsPower", "power", PowerDaemon::set_graphics_power);
         sync_get_method(b, "GetChargeThresholds", "thresholds", PowerDaemon::get_charge_thresholds);
