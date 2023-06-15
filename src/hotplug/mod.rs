@@ -135,8 +135,8 @@ impl HotPlugDetect {
                     sideband: Sideband::new(0xE000_0000)?,
                     port:     0x6E,
                     pins:     [
-                        0x04, // Mini DisplayPort
-                        0x08, // HDMI
+                        0x04,   // Mini DisplayPort
+                        0x08,   // HDMI
                         NO_PIN, // TODO: USB-C?
                         NO_PIN, // Not connected
                     ],
@@ -147,8 +147,8 @@ impl HotPlugDetect {
                     sideband: Sideband::new(0xE000_0000)?,
                     port:     0x6E,
                     pins:     [
-                        0x02, // Mini DisplayPort
-                        0x06, // HDMI
+                        0x02,   // Mini DisplayPort
+                        0x06,   // HDMI
                         NO_PIN, // TODO: USB-C?
                         NO_PIN, // Not connected
                     ],
@@ -169,9 +169,9 @@ impl HotPlugDetect {
                             sideband: Sideband::new(PCR_BASE_ADDRESS)?,
                             port:     0x6A,
                             pins:     [
-                                0x2a, // HDMI
+                                0x2a,   // HDMI
                                 NO_PIN, // Mini DisplayPort (0x2c) is connected to Intel graphics
-                                0x2e, // USB-C
+                                0x2e,   // USB-C
                                 NO_PIN, // Not Connected
                             ],
                         }),
@@ -183,7 +183,7 @@ impl HotPlugDetect {
                             port:     0x6A,
                             pins:     [
                                 NO_PIN, // HDMI (0x2a) is connected to Intel graphics
-                                0x2e, // Mini DisplayPort
+                                0x2e,   // Mini DisplayPort
                                 NO_PIN, // Not Connected
                                 NO_PIN, // Not Connected
                             ],
@@ -205,9 +205,9 @@ impl HotPlugDetect {
                             sideband: Sideband::new(PCR_BASE_ADDRESS)?,
                             port:     0x6A,
                             pins:     [
-                                0x2a, // HDMI
+                                0x2a,   // HDMI
                                 NO_PIN, // Mini DisplayPort (0x2c) is connected to Intel graphics
-                                0x2e, // USB-C
+                                0x2e,   // USB-C
                                 NO_PIN, // Not Connected
                             ],
                         }),
@@ -219,7 +219,7 @@ impl HotPlugDetect {
                             port:     0x6A,
                             pins:     [
                                 NO_PIN, // HDMI (0x2a) is connected to Intel graphics
-                                0x2e, // Mini DisplayPort
+                                0x2e,   // Mini DisplayPort
                                 NO_PIN, // Not Connected
                                 NO_PIN, // Not Connected
                             ],
@@ -237,7 +237,7 @@ impl HotPlugDetect {
                     port:     0x6A,
                     pins:     [
                         NO_PIN, // HDMI (0x52) is connected to Intel graphics
-                        0x58, // Mini DisplayPort
+                        0x58,   // Mini DisplayPort
                         NO_PIN, // Not Connected
                         NO_PIN, // Not Connected
                     ],
@@ -248,8 +248,8 @@ impl HotPlugDetect {
                     sideband: Sideband::new(PCR_BASE_ADDRESS)?,
                     port:     0x69,
                     pins:     [
-                        0x02, // Mini DisplayPort
-                        0x04, // USB-C
+                        0x02,   // Mini DisplayPort
+                        0x04,   // USB-C
                         NO_PIN, // Not Connected
                         NO_PIN, // Not Connected
                     ],
@@ -260,8 +260,8 @@ impl HotPlugDetect {
                     sideband: Sideband::new(PCR_BASE_ADDRESS)?,
                     port:     0x6E,
                     pins:     [
-                        0x72, // Mini DisplayPort
-                        0x78, // HDMI
+                        0x72,   // Mini DisplayPort
+                        0x78,   // HDMI
                         NO_PIN, // Not Connected
                         NO_PIN, // Not Connected
                     ],
@@ -281,9 +281,9 @@ impl HotPlugDetect {
                     sideband: Sideband::new(PCR_BASE_ADDRESS)?,
                     port:     0x6A,
                     pins:     [
-                        0x28, // USB-C
-                        0x2a, // HDMI
-                        0x2c, // Mini DisplayPort
+                        0x28,   // USB-C
+                        0x2a,   // HDMI
+                        0x2c,   // Mini DisplayPort
                         NO_PIN, // Not Connected
                     ],
                 }),
@@ -293,9 +293,9 @@ impl HotPlugDetect {
                     sideband: Sideband::new(PCR_BASE_ADDRESS)?,
                     port:     0x6A,
                     pins:     [
-                        0x2a, // HDMI
-                        0x2c, // Mini DisplayPort
-                        0x2e, // USB-C
+                        0x2a,   // HDMI
+                        0x2c,   // Mini DisplayPort
+                        0x2e,   // USB-C
                         NO_PIN, // Not Connected
                     ],
                 }),
@@ -305,9 +305,9 @@ impl HotPlugDetect {
                     sideband: Sideband::new(PCR_BASE_ADDRESS)?,
                     port:     0x69,
                     pins:     [
-                        0x02, // Mini DisplayPort
-                        0x04, // HDMI
-                        0x06, // USB-C
+                        0x02,   // Mini DisplayPort
+                        0x04,   // HDMI
+                        0x06,   // USB-C
                         NO_PIN, // Not Connected
                     ],
                 }),
@@ -317,9 +317,9 @@ impl HotPlugDetect {
                     sideband: Sideband::new(PCR_BASE_ADDRESS)?,
                     port:     0x6E,
                     pins:     [
-                        0x72, // Mini DisplayPort
-                        0x78, // HDMI
-                        0x7C, // USB-C
+                        0x72,   // Mini DisplayPort
+                        0x78,   // HDMI
+                        0x7C,   // USB-C
                         NO_PIN, // Not Connected
                     ],
                 }),
@@ -329,8 +329,8 @@ impl HotPlugDetect {
                     sideband: Sideband::new(PCR_BASE_ADDRESS)?,
                     port:     0x6E,
                     pins:     [
-                        0x72, // Mini DisplayPort
-                        0x78, // HDMI
+                        0x72,   // Mini DisplayPort
+                        0x78,   // HDMI
                         NO_PIN, // TODO: USB-C?
                         NO_PIN, // Not connected
                     ],
@@ -341,10 +341,10 @@ impl HotPlugDetect {
                     sideband: Sideband::new(0xE000_0000)?,
                     port:     0x6E,
                     pins:     [
-                        0x00, // USB-C
+                        0x00,   // USB-C
                         NO_PIN, // TBT connected to iGPU
-                        0x04, // HDMI
-                        0x08, // Mini DisplayPort
+                        0x04,   // HDMI
+                        0x08,   // Mini DisplayPort
                     ],
                 }),
             }),
