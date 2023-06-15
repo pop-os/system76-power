@@ -89,7 +89,7 @@ impl DiskPower for Disk {
 
     fn set_autosuspend_delay(&self, ms: i32) -> Result<(), DiskPowerError> {
         log::debug!("Setting autosuspend delay on {:?} to {}", &self.block, ms);
-        write(&self.block.join(AUTOSUSPEND), ms.to_string().as_bytes())
+        write(self.block.join(AUTOSUSPEND), ms.to_string().as_bytes())
             .map_err(|why| DiskPowerError::AutosuspendDelay(self.block.clone(), ms, why))
     }
 }
