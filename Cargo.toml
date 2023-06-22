@@ -3,6 +3,8 @@ name = "system76-power"
 version = "1.1.25"
 authors = ["Jeremy Soller <jackpot51@gmail.com>"]
 edition = "2021"
+description = "system76-power is a utility for managing graphics and power profiles."
+license = "GPL-3.0"
 
 [dependencies]
 clap = { version = "4.0.19", features = ["derive"] }
@@ -23,3 +25,12 @@ serde_json = "1.0"
 sysfs-class = { git = "https://github.com/pop-os/sysfs-class" }
 thiserror = "1.0"
 tokio = { version = "1.28", features = ["macros", "rt", "time", "signal"] }
+
+[package.metadata.generate-rpm]
+assets = [
+  { source = "target/release/system76-power", dest = "/usr/bin/system76-power", mode = "755" },
+	{ source = "data/com.system76.PowerDaemon.conf", dest = "/usr/share/dbus-1/system.d/com.system76.PowerDaemon.conf", mode = "644" },
+	{ source = "data/com.system76.PowerDaemon.policy", dest = "/usr/share/polkit-1/actions/com.system76.PowerDaemon.policy", mode = "644" },
+	{ source = "data/com.system76.PowerDaemon.service", dest = "/usr/lib/systemd/system/com.system76.PowerDaemon.service", mode = "644" },
+	{ source = "data/com.system76.PowerDaemon.xml", dest = "/usr/share/dbus-1/interfaces/com.system76.PowerDaemon.xml", mode = "644" }
+]
