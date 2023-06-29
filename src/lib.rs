@@ -27,9 +27,9 @@ pub mod module;
 pub mod pci;
 pub mod polkit;
 pub mod radeon;
+pub mod runtime_pm;
 pub mod snd;
 pub mod sys_devices;
-pub mod thunderbolt;
 pub mod util;
 pub mod wifi;
 
