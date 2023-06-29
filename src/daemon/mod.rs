@@ -39,7 +39,7 @@ use crate::{
     hotplug::{mux, Detect, HotPlugDetect},
     kernel_parameters::{KernelParameter, NmiWatchdog},
     polkit, Power, DBUS_IFACE, DBUS_NAME, DBUS_PATH,
-    thunderbolt::thunderbolt_runtime_pm,
+    runtime_pm::runtime_pm_quirks,
 };
 
 mod profiles;
@@ -243,10 +243,10 @@ pub async fn daemon() -> Result<(), String> {
         }
     }
 
-    match thunderbolt_runtime_pm() {
+    match runtime_pm_quirks() {
         Ok(()) => (),
         Err(err) => {
-            log::warn!("Failed to set thunderbolt runtime power management: {}", err);
+            log::warn!("Failed to set runtime power management quirks: {}", err);
         }
     }
 
