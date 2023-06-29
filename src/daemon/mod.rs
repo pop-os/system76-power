@@ -39,6 +39,7 @@ use crate::{
     hotplug::{mux, Detect, HotPlugDetect},
     kernel_parameters::{KernelParameter, NmiWatchdog},
     polkit, Power, DBUS_IFACE, DBUS_NAME, DBUS_PATH,
+    thunderbolt::thunderbolt_runtime_pm,
 };
 
 mod profiles;
@@ -239,6 +240,13 @@ pub async fn daemon() -> Result<(), String> {
         Ok(()) => (),
         Err(err) => {
             log::warn!("Failed to set automatic graphics power: {}", err);
+        }
+    }
+
+    match thunderbolt_runtime_pm() {
+        Ok(()) => (),
+        Err(err) => {
+            log::warn!("Failed to set thunderbolt runtime power management: {}", err);
         }
     }
 
