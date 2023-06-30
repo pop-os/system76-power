@@ -38,8 +38,9 @@ use crate::{
     hid_backlight,
     hotplug::{mux, Detect, HotPlugDetect},
     kernel_parameters::{KernelParameter, NmiWatchdog},
-    polkit, Power, DBUS_IFACE, DBUS_NAME, DBUS_PATH,
+    polkit,
     runtime_pm::runtime_pm_quirks,
+    Power, DBUS_IFACE, DBUS_NAME, DBUS_PATH,
 };
 
 mod profiles;
