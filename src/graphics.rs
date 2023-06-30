@@ -485,11 +485,13 @@ impl Graphics {
         Self::set_prime_discrete(mode)?;
 
         let supports_gc6 = {
-            let dmi_vendor = fs::read_to_string("/sys/class/dmi/id/sys_vendor").unwrap_or(String::new());
-            let dmi_model = fs::read_to_string("/sys/class/dmi/id/product_version").unwrap_or(String::new());
+            let dmi_vendor =
+                fs::read_to_string("/sys/class/dmi/id/sys_vendor").unwrap_or(String::new());
+            let dmi_model =
+                fs::read_to_string("/sys/class/dmi/id/product_version").unwrap_or(String::new());
             match (dmi_vendor.trim(), dmi_model.trim()) {
                 ("System76", "bonw15") => false,
-                _ => true
+                _ => true,
             }
         };
 
@@ -505,8 +507,20 @@ impl Graphics {
 
             let text = match vendor {
                 GraphicsMode::Integrated => MODPROBE_INTEGRATED,
-                GraphicsMode::Compute => if supports_gc6 { MODPROBE_COMPUTE } else { MODPROBE_COMPUTE_NO_GC6 },
-                GraphicsMode::Hybrid => if supports_gc6 { MODPROBE_HYBRID } else { MODPROBE_HYBRID_NO_GC6 },
+                GraphicsMode::Compute => {
+                    if supports_gc6 {
+                        MODPROBE_COMPUTE
+                    } else {
+                        MODPROBE_COMPUTE_NO_GC6
+                    }
+                }
+                GraphicsMode::Hybrid => {
+                    if supports_gc6 {
+                        MODPROBE_HYBRID
+                    } else {
+                        MODPROBE_HYBRID_NO_GC6
+                    }
+                }
                 GraphicsMode::Discrete => MODPROBE_NVIDIA,
             };
 
