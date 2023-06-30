@@ -11,16 +11,26 @@ fn keyboard(device: &HidDevice, brightness: u8, color: u32) -> HidResult<()> {
     let raw_brightness = (((brightness as u16) * 10 + 254) / 255) as u8;
     log::debug!("keyboard brightness {}/10 color #{:06X}", raw_brightness, color);
 
+    // Determine color channel values
+    let r = (color >> 16) as u8;
+    let mut g = (color >> 8) as u8;
+    let mut b = color as u8;
+
+    // Color correction based on model
+    let dmi_vendor = fs::read_to_string("/sys/class/dmi/id/sys_vendor").unwrap_or(String::new());
+    let dmi_model =
+        fs::read_to_string("/sys/class/dmi/id/product_version").unwrap_or(String::new());
+    match (dmi_vendor.trim(), dmi_model.trim()) {
+        ("System76", "bonw15") => {
+            g = (((g as u16) * 0x65) / 0xFF) as u8;
+            b = (((b as u16) * 0x60) / 0xFF) as u8;
+        }
+        _ => {}
+    }
+
     // Set all LED colors
     for led in 0..=255 {
-        device.send_feature_report(&[
-            0xCC,
-            0x01,
-            led,
-            (color >> 16) as u8,
-            (color >> 8) as u8,
-            color as u8,
-        ])?;
+        device.send_feature_report(&[0xCC, 0x01, led, r, g, b])?;
     }
 
     // Set brightness

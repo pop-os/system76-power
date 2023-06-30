@@ -5,10 +5,12 @@
 #![deny(clippy::all)]
 #![deny(unused_crate_dependencies)]
 #![deny(unused_imports)]
-#![allow(clippy::missing_safety_doc)]
+#![allow(clippy::match_like_matches_macro)]
 #![allow(clippy::missing_errors_doc)]
 #![allow(clippy::missing_panics_doc)]
+#![allow(clippy::missing_safety_doc)]
 #![allow(clippy::module_name_repetitions)]
+#![allow(clippy::single_match)]
 
 pub mod acpi_platform;
 pub mod args;
