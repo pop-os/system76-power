@@ -8,13 +8,6 @@ pub fn runtime_pm_quirks() -> io::Result<()> {
     match (vendor.trim(), model.trim()) {
         ("System76", "bonw15") => for dev in PciDevice::all()? {
             match (dev.vendor()?, dev.device()?) {
-                (0x10DE, _) => {
-                    log::info!(
-                        "Disabling runtime power management on NVIDIA device at {:?}",
-                        dev.path()
-                    );
-                    dev.set_runtime_pm(RuntimePowerManagement::Off)?;
-                },
                 (0x8086, 0x1138) => {
                     log::info!(
                         "Disabling runtime power management on Thunderbolt XHCI device at {:?}",
