@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 #![deny(clippy::all)]
+#![deny(unused_crate_dependencies)]
+#![deny(unused_imports)]
 #![allow(clippy::missing_safety_doc)]
 #![allow(clippy::missing_errors_doc)]
 #![allow(clippy::missing_panics_doc)]
@@ -14,7 +16,6 @@ pub mod charge_thresholds;
 pub mod client;
 pub mod cpufreq;
 pub mod daemon;
-pub mod disks;
 pub mod errors;
 pub mod fan;
 pub mod graphics;
