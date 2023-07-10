@@ -1,3 +1,13 @@
+system76-power (1.1.25) jammy; urgency=medium
+
+  * Add addw3
+  * Add bonw15
+  * Add oryp11
+  * Add serw13
+  * Add thelio-io-2 support
+
+ -- Jeremy Soller <jeremy@system76.com>  Mon, 10 Jul 2023 12:58:09 -0600
+
 system76-power (1.1.24) jammy; urgency=medium
 
   * Dependency updates
