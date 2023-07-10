@@ -6,10 +6,22 @@
 
 use std::{
     cell::Cell,
-    cmp, fs, io,
+    cmp,
+    collections::VecDeque,
+    fs,
+    io,
     process::{Command, Stdio},
 };
 use sysfs_class::{HwMon, SysClass};
+
+const COOLDOWN_SIZE: usize = from_seconds(2) as usize;
+const HEATUP_SIZE: usize = from_seconds(1) as usize;
+
+const fn from_seconds (seconds: u8) -> u8 {
+    const INTERVAL: usize = 1000;
+
+    return (1000 * (seconds as usize) / INTERVAL) as u8;
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum FanDaemonError {
@@ -28,10 +40,13 @@ pub struct FanDaemon {
     cpus:              Vec<HwMon>,
     nvidia_exists:     bool,
     displayed_warning: Cell<bool>,
+    fan_cooldown:      VecDeque<u8>,
+    fan_heatup:        VecDeque<u8>,
+    last_duty:         u8,
 }
 
 impl FanDaemon {
-    pub fn new(nvidia_exists: bool) -> Self {
+    pub fn new(nvidia_exists: bool, profile: String) -> Self {
         let model = fs::read_to_string("/sys/class/dmi/id/product_version").unwrap_or_default();
         let mut daemon = FanDaemon {
             curve: match model.trim() {
@@ -39,6 +54,7 @@ impl FanDaemon {
                 "thelio-major-r2" | "thelio-major-r2.1" | "thelio-major-b1" | "thelio-major-b2"
                 | "thelio-major-b3" | "thelio-mega-r1" | "thelio-mega-r1.1" => FanCurve::hedt(),
                 "thelio-massive-b1" => FanCurve::xeon(),
+                "galp5" => FanCurve::galp5(profile),
                 _ => FanCurve::standard(),
             },
             amdgpus: Vec::new(),
@@ -46,6 +62,9 @@ impl FanDaemon {
             cpus: Vec::new(),
             nvidia_exists,
             displayed_warning: Cell::new(false),
+            fan_cooldown: VecDeque::with_capacity(COOLDOWN_SIZE),
+            fan_heatup: VecDeque::with_capacity(HEATUP_SIZE),
+            last_duty: 0,
         };
 
         if let Err(err) = daemon.discover() {
@@ -67,7 +86,7 @@ impl FanDaemon {
 
                 match name.as_str() {
                     "amdgpu" => self.amdgpus.push(hwmon),
-                    "system76" => (), // TODO: Support laptops
+                    "system76_acpi" => self.platforms.push(hwmon),
                     "system76_io" => self.platforms.push(hwmon),
                     "coretemp" | "k10temp" => self.cpus.push(hwmon),
                     _ => (),
@@ -98,7 +117,7 @@ impl FanDaemon {
             .fold(None, |mut temp_opt, input| {
                 // Assume temperatures are always above freezing
                 if temp_opt.map_or(true, |x| input as u32 > x) {
-                    log::debug!("highest hwmon cpu/gpu temp: {}", input);
+                    log::warn!("highest hwmon cpu/gpu temp: {}", input);
                     temp_opt = Some(input as u32);
                 }
 
@@ -139,11 +158,13 @@ impl FanDaemon {
 
     /// Set the current duty cycle, from 0 to 255
     /// 0 to 255 is the standard Linux hwmon pwm unit
-    pub fn set_duty(&self, duty_opt: Option<u8>) {
+    pub fn set_duty(&mut self, duty_opt: Option<u8>) {
         if let Some(duty) = duty_opt {
+            self.last_duty = duty;
             let duty_str = format!("{}", duty);
             for platform in &self.platforms {
-                let _ = platform.write_file("pwm1_enable", "1");
+                let _ = platform.write_file("pwm1_enable", "2");
+                let _ = platform.write_file("pwm2_enable", "2");
                 let _ = platform.write_file("pwm1", &duty_str);
                 let _ = platform.write_file("pwm2", &duty_str);
             }
@@ -154,10 +175,65 @@ impl FanDaemon {
         }
     }
 
+    fn smooth_duty(&mut self, duty_opt: Option<u8>) -> Option<u8> {
+        let SMOOTH_FANS = self.curve.SMOOTH_FANS.unwrap_or(0);
+        let SMOOTH_FANS_DOWN = self.curve.SMOOTH_FANS_DOWN.unwrap_or(SMOOTH_FANS);
+        let SMOOTH_FANS_UP = self.curve.SMOOTH_FANS_UP.unwrap_or(SMOOTH_FANS);
+        let SMOOTH_FANS_MIN = self.curve.SMOOTH_FANS_MIN;
+        let MAX_JUMP_DOWN = (255 / SMOOTH_FANS_DOWN) as u8;
+        let MAX_JUMP_UP = (255 / SMOOTH_FANS_UP) as u8;
+
+        if let Some(duty) = duty_opt {
+            let last_duty = self.last_duty;
+            let mut next_duty = duty;
+
+            self.fan_heatup.truncate(HEATUP_SIZE - 1);
+            self.fan_heatup.push_front(next_duty);
+            next_duty = *self.fan_heatup.iter().min().unwrap();
+
+            self.fan_cooldown.truncate(COOLDOWN_SIZE - 1);
+            self.fan_cooldown.push_front(next_duty);
+            next_duty = *self.fan_cooldown.iter().max().unwrap();
+
+            log::warn!("last_duty:{}, duty:{}, next_duty:{}", last_duty, duty, next_duty);
+
+            // ramping down
+            if next_duty < last_duty {
+                // out of bounds (lower) safeguard
+                let smoothed = last_duty.saturating_sub(MAX_JUMP_DOWN);
+
+                // use smoothed value if above min and if smoothed is closer than raw
+                if smoothed > SMOOTH_FANS_MIN {
+                    next_duty = cmp::max(smoothed, next_duty);
+                }
+
+                log::warn!("ramping down, last_duty:{}, smoothed:{}, next_duty:{}", last_duty, smoothed, next_duty);
+            }
+
+            // ramping up
+            if next_duty > last_duty {
+                // out of bounds (higher) safeguard
+                let smoothed = last_duty.saturating_add(MAX_JUMP_UP);
+
+                // use smoothed value if above min and if smoothed is closer than raw
+                if smoothed > SMOOTH_FANS_MIN {
+                    next_duty = cmp::min(smoothed, next_duty);
+                }
+
+                log::warn!("ramping up, last_duty:{}, smoothed:{}, next_duty:{}", last_duty, smoothed, next_duty);
+            }
+
+            return Some(next_duty);
+        }
+
+        Some(0)
+    }
+
     /// Calculate the correct duty cycle and apply it to all fans
     pub fn step(&mut self) {
         if let Ok(()) = self.discover() {
-            self.set_duty(self.get_temp().and_then(|temp| self.get_duty(temp)));
+            let duty_opt: Option<u8> = self.smooth_duty(self.get_temp().and_then(|temp| self.get_duty(temp)));
+            self.set_duty(duty_opt);
         }
     }
 }
@@ -192,7 +268,8 @@ impl FanPoint {
 
         // If the temp is in between the previous and next points, interpolate the duty
         if self.temp < temp && next.temp > temp {
-            return Some(self.interpolate_duties(next, temp));
+            return Some(self.duty);
+            // return Some(self.interpolate_duties(next, temp));
         }
 
         None
@@ -212,9 +289,25 @@ impl FanPoint {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FanCurve {
-    points: Vec<FanPoint>,
+    points:             Vec<FanPoint>,
+    SMOOTH_FANS:        Option<u8>,
+    SMOOTH_FANS_DOWN:   Option<u8>,
+    SMOOTH_FANS_MIN:    u8,
+    SMOOTH_FANS_UP:     Option<u8>,
+}
+
+impl Default for FanCurve {
+    fn default() -> FanCurve {
+        FanCurve {
+            points: Vec::default(),
+            SMOOTH_FANS: None,
+            SMOOTH_FANS_DOWN: Some(from_seconds(12)),
+            SMOOTH_FANS_MIN: 0,
+            SMOOTH_FANS_UP: Some(from_seconds(8)),
+        }
+    }
 }
 
 impl FanCurve {
@@ -238,6 +331,29 @@ impl FanCurve {
             .append(84_00, 80_00)
             .append(86_00, 90_00)
             .append(88_00, 100_00)
+    }
+
+    /// test galp5 curve
+    pub fn galp5(profile: String) -> Self {
+        let mut curve = Self::default()
+            .append(69_00, 0_00)
+            .append(70_00, 25_00)
+            .append(79_99, 25_00)
+            .append(80_00, 40_00)
+            .append(87_99, 40_00)
+            .append(88_00, 100_00);
+
+        if profile == String::from("performance") {
+            curve = Self::default()
+                .append(69_00, 0_00)
+                .append(70_00, 25_00)
+                .append(79_99, 25_00)
+                .append(80_00, 100_00);
+
+            curve.SMOOTH_FANS_UP = Some(from_seconds(4));
+        }
+
+        return curve;
     }
 
     /// Fan curve for threadripper 2
