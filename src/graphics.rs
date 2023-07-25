@@ -65,6 +65,9 @@ alias nvidia-drm off
 alias nvidia-modeset off
 "#;
 
+// Systems that cannot use other sleep options
+static SYSTEM_SLEEP_EMPTY: &[u8] = b"";
+
 // Systems using S0ix must enable S0ix-based power management.
 static SYSTEM_SLEEP_S0IX: &[u8] = br#"# Preserve video memory through suspend
 options nvidia NVreg_EnableS0ixPowerManagement=1
@@ -484,14 +487,14 @@ impl Graphics {
         log::info!("Setting {} to {}", PRIME_DISCRETE_PATH, mode);
         Self::set_prime_discrete(mode)?;
 
-        let supports_gc6 = {
+        let bonw15_hack = {
             let dmi_vendor =
                 fs::read_to_string("/sys/class/dmi/id/sys_vendor").unwrap_or(String::new());
             let dmi_model =
                 fs::read_to_string("/sys/class/dmi/id/product_version").unwrap_or(String::new());
             match (dmi_vendor.trim(), dmi_model.trim()) {
-                ("System76", "bonw15") => false,
-                _ => true,
+                ("System76", "bonw15") => true,
+                _ => false,
             }
         };
 
@@ -508,17 +511,17 @@ impl Graphics {
             let text = match vendor {
                 GraphicsMode::Integrated => MODPROBE_INTEGRATED,
                 GraphicsMode::Compute => {
-                    if supports_gc6 {
-                        MODPROBE_COMPUTE
-                    } else {
+                    if bonw15_hack {
                         MODPROBE_COMPUTE_NO_GC6
+                    } else {
+                        MODPROBE_COMPUTE
                     }
                 }
                 GraphicsMode::Hybrid => {
-                    if supports_gc6 {
-                        MODPROBE_HYBRID
-                    } else {
+                    if bonw15_hack {
                         MODPROBE_HYBRID_NO_GC6
+                    } else {
+                        MODPROBE_HYBRID
                     }
                 }
                 GraphicsMode::Discrete => MODPROBE_NVIDIA,
@@ -536,7 +539,13 @@ impl Graphics {
                     .unwrap_or_default()
                     .contains("[s2idle]");
 
-                let sleep = if s0ix { SYSTEM_SLEEP_S0IX } else { SYSTEM_SLEEP_S3 };
+                let sleep = if bonw15_hack {
+                    SYSTEM_SLEEP_EMPTY
+                } else if s0ix {
+                    SYSTEM_SLEEP_S0IX
+                } else {
+                    SYSTEM_SLEEP_S3
+                };
 
                 // We should also check if the GPU supports Video Memory Self
                 // Refresh, but that requires already being in hybrid or nvidia
