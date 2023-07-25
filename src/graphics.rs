@@ -539,12 +539,12 @@ impl Graphics {
                     .unwrap_or_default()
                     .contains("[s2idle]");
 
-                let sleep = if bonw15_hack {
-                    SYSTEM_SLEEP_EMPTY
+                let (sleep, action) = if bonw15_hack {
+                    (SYSTEM_SLEEP_EMPTY, "disable")
                 } else if s0ix {
-                    SYSTEM_SLEEP_S0IX
+                    (SYSTEM_SLEEP_S0IX, "enable")
                 } else {
-                    SYSTEM_SLEEP_S3
+                    (SYSTEM_SLEEP_S3, "enable")
                 };
 
                 // We should also check if the GPU supports Video Memory Self
@@ -554,6 +554,27 @@ impl Graphics {
                 file.write_all(sleep)
                     .and_then(|_| file.sync_all())
                     .map_err(GraphicsDeviceError::ModprobeFileWrite)?;
+
+                for service in
+                    &["nvidia-hibernate.service", "nvidia-resume.service", "nvidia-suspend.service"]
+                {
+                    let status = process::Command::new(SYSTEMCTL_CMD)
+                        .arg(action)
+                        .arg(service)
+                        .status()
+                        .map_err(|why| GraphicsDeviceError::Command { cmd: SYSTEMCTL_CMD, why })?;
+
+                    if !status.success() {
+                        // Error is ignored in case this service is removed
+                        log::warn!(
+                            "systemctl {} {}: failed with {} (not an error if service does not \
+                             exist!)",
+                            action,
+                            service,
+                            status
+                        );
+                    }
+                }
             }
         }
 

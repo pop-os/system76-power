@@ -7,6 +7,9 @@ case "$1" in
         rm -f /etc/modprobe.d/system76-power.conf
         rm -f /etc/modules-load.d/system76-power.conf
         systemctl enable nvidia-fallback.service || true
+        systemctl enable nvidia-hibernate.service || true
+        systemctl enable nvidia-resume.service || true
+        systemctl enable nvidia-suspend.service || true
         ;;
 
     *)
