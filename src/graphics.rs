@@ -427,7 +427,13 @@ impl Graphics {
             .map(|s| s.trim().to_string())?;
         let blacklisted = DEFAULT_INTEGRATED.contains(&product.as_str());
 
-        let runtimepm = self.gpu_supports_runtimepm().unwrap_or_default();
+        let runtimepm = match self.gpu_supports_runtimepm() {
+            Ok(ok) => ok,
+            Err(err) => {
+                log::warn!("could not determine GPU runtimepm support: {}", err);
+                false
+            }
+        };
 
         // Only default to hybrid on System76 models
         let vendor = fs::read_to_string("/sys/class/dmi/id/sys_vendor")
