@@ -366,25 +366,26 @@ impl Graphics {
     }
 
     fn get_nvidia_device(id: u16) -> Result<NvidiaDevice, GraphicsDeviceError> {
-        let docs: Vec<path::PathBuf> = fs::read_dir("/usr/share/doc")
+        let supported_gpus: Vec<path::PathBuf> = fs::read_dir("/usr/share/doc")
             .map_err(|e| {
                 GraphicsDeviceError::Json(io::Error::new(io::ErrorKind::InvalidData, e.to_string()))
             })?
             .filter_map(Result::ok)
             .map(|f| f.path())
             .filter(|f| f.to_str().unwrap_or_default().contains("nvidia-driver-"))
+            .map(|f| f.join("supported-gpus.json"))
+            .filter(|f| f.exists())
             .collect();
 
         // There should be only 1 driver version installed.
-        if docs.len() != 1 {
+        if supported_gpus.len() != 1 {
             return Err(GraphicsDeviceError::Json(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "NVIDIA drivers misconfigured",
             )));
         }
 
-        let supported_gpus = docs[0].join("supported-gpus.json");
-        let raw = fs::read_to_string(supported_gpus).map_err(GraphicsDeviceError::Json)?;
+        let raw = fs::read_to_string(&supported_gpus[0]).map_err(GraphicsDeviceError::Json)?;
         let gpus: SupportedGpus = serde_json::from_str(&raw).map_err(|e| {
             GraphicsDeviceError::Json(io::Error::new(io::ErrorKind::InvalidData, e.to_string()))
         })?;
