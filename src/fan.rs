@@ -23,9 +23,11 @@ pub enum FanDaemonError {
 
 pub struct FanDaemon {
     curve:             FanCurve,
+    curve_nvme:        FanCurve,
     amdgpus:           Vec<HwMon>,
     platforms:         Vec<HwMon>,
     cpus:              Vec<HwMon>,
+    nvmes:             Vec<HwMon>,
     nvidia_exists:     bool,
     displayed_warning: Cell<bool>,
 }
@@ -41,9 +43,11 @@ impl FanDaemon {
                 "thelio-massive-b1" => FanCurve::xeon(),
                 _ => FanCurve::standard(),
             },
+            curve_nvme: FanCurve::nvme(),
             amdgpus: Vec::new(),
             platforms: Vec::new(),
             cpus: Vec::new(),
+            nvmes: Vec::new(),
             nvidia_exists,
             displayed_warning: Cell::new(false),
         };
@@ -60,6 +64,7 @@ impl FanDaemon {
         self.amdgpus.clear();
         self.platforms.clear();
         self.cpus.clear();
+        self.nvmes.clear();
 
         for hwmon in HwMon::all().map_err(FanDaemonError::HwmonDevices)? {
             if let Ok(name) = hwmon.name() {
@@ -70,6 +75,7 @@ impl FanDaemon {
                     "system76" => (), // TODO: Support laptops
                     "system76_io" | "system76_thelio_io" => self.platforms.push(hwmon),
                     "coretemp" | "k10temp" => self.cpus.push(hwmon),
+                    "nvme" => self.nvmes.push(hwmon),
                     _ => (),
                 }
             }
@@ -81,6 +87,10 @@ impl FanDaemon {
 
         if self.cpus.is_empty() {
             return Err(FanDaemonError::CpuHwmonNotFound);
+        }
+
+        if self.nvmes.is_empty() {
+            // No error.
         }
 
         Ok(())
@@ -128,11 +138,39 @@ impl FanDaemon {
         temp_opt
     }
 
+    /// Get the maximum measured temperature from any NVME on the system, in thousandths of a
+    /// Celsius. Thousandths celsius is the standard Linux hwmon temperature unit.
+    pub fn get_nvme_temp(&self) -> Option<u32> {
+        self
+            .nvmes
+            .iter()
+            .filter_map(|sensor| sensor.temp(1).ok())
+            .filter_map(|temp| temp.input().ok())
+            .fold(None, |mut temp_opt, input| {
+                // Assume temperatures are always above freezing
+                if temp_opt.map_or(true, |x| input as u32 > x) {
+                    log::debug!("highest hwmon nvme temp: {}", input);
+                    temp_opt = Some(input as u32);
+                }
+
+                temp_opt
+            })
+    }
+
     /// Get the correct duty cycle for a temperature in thousandths Celsius, from 0 to 255
     /// Thousandths celsius is the standard Linux hwmon temperature unit
     /// 0 to 255 is the standard Linux hwmon pwm unit
     pub fn get_duty(&self, temp: u32) -> Option<u8> {
         self.curve
+            .get_duty((temp / 10) as i16)
+            .map(|duty| (((u32::from(duty)) * 255) / 10_000) as u8)
+    }
+
+    /// Get the correct duty cycle for an NVME temperature in thousandths Celsius, from 0 to 255
+    /// Thousandths celsius is the standard Linux hwmon temperature unit
+    /// 0 to 255 is the standard Linux hwmon pwm unit
+    pub fn get_nvme_duty(&self, temp: u32) -> Option<u8> {
+        self.curve_nvme
             .get_duty((temp / 10) as i16)
             .map(|duty| (((u32::from(duty)) * 255) / 10_000) as u8)
     }
@@ -159,7 +197,20 @@ impl FanDaemon {
     /// Calculate the correct duty cycle and apply it to all fans
     pub fn step(&mut self) {
         if let Ok(()) = self.discover() {
-            self.set_duty(self.get_temp().and_then(|temp| self.get_duty(temp)));
+            self.set_duty({
+                let cpu_duty = self.get_temp().and_then(|temp| self.get_duty(temp));
+                log::debug!("cpu duty: {:?}", cpu_duty);
+                if self.nvmes.is_empty() {
+                    cpu_duty
+                } else {
+                    let nvme_duty = self.get_nvme_temp().and_then(|temp| self.get_nvme_duty(temp));
+                    log::debug!("nvme duty: {:?}", nvme_duty);
+                    match(cpu_duty, nvme_duty) {
+                        (Some(cpu_duty), Some(nvme_duty)) => Some(cmp::max(cpu_duty, nvme_duty)),
+                        _ => None,
+                    }
+                }
+            });
         }
     }
 }
@@ -280,6 +331,15 @@ impl FanCurve {
             .append(76_00, 85_00)
             .append(77_00, 90_00)
             .append(78_00, 100_00)
+    }
+
+    /// Fan curve for NVME drives
+    pub fn nvme() -> Self {
+        Self::default()
+            .append(00_00, 00_00)
+            .append(60_00, 00_00)
+            .append(65_00, 70_00)
+            .append(68_00, 100_00)
     }
 
     pub fn get_duty(&self, temp: i16) -> Option<u16> {
