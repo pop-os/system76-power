@@ -18,23 +18,35 @@ pub fn set(profile: Profile, max_percent: u8) {
     if let Some(driver) = core.scaling_driver() {
         let is_amd_pstate = driver.starts_with("amd-pstate");
 
+        // The profile for the `energy_performance_preference`.
+        let mut epp = None;
+
         // Decide the scaling governor to use with this profile.
         let governor = match profile {
             // Prefer battery life over efficiency
             Profile::Battery => match driver {
                 "amd-pstate" | "intel_pstate" => "powersave",
-                "amd-pstate-epp" => "balance_power",
+                "amd-pstate-epp" => {
+                    epp = Some("balance_power");
+                    "powersave"
+                }
                 _ => "conservative",
             },
             // The most energy-efficient profile
             Profile::Balanced => match driver {
                 "amd-pstate" => "ondemand",
-                "amd-pstate-epp" => "balance_performance",
+                "amd-pstate-epp" => {
+                    epp = Some("balance_performance");
+                    "powersave"
+                }
                 "intel_pstate" => "powersave",
                 _ => "schedutil",
             },
             // Maximum performance
-            Profile::Performance => "performance",
+            Profile::Performance => {
+                epp = (driver == "amd-pstate-epp").then_some("performance");
+                "performance"
+            }
         };
 
         if let Some((cpus, (min, max))) = num_cpus().zip(min_freq.zip(max_freq)) {
@@ -50,6 +62,10 @@ pub fn set(profile: Profile, max_percent: u8) {
                 }
 
                 core.set_governor(governor);
+
+                if let Some(preference) = epp {
+                    core.set_epp(preference);
+                }
             }
         }
     }
@@ -91,6 +107,10 @@ impl Cpu {
 
     #[must_use]
     pub fn scaling_driver(&mut self) -> Option<&str> { self.get_value("scaling_driver") }
+
+    pub fn set_epp(&mut self, preference: &str) {
+        self.set_value("energy_performance_preference", preference);
+    }
 
     pub fn set_frequency_maximum(&mut self, frequency: usize) {
         self.set_value("scaling_max_freq", frequency);
