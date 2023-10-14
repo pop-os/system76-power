@@ -410,7 +410,7 @@ fn sync_action_method<F>(b: &mut IfaceBuilder<PowerDaemon>, name: &'static str, 
 where
     F: Fn(&mut PowerDaemon) -> Result<(), String> + Send + 'static,
 {
-    sync_method(b, name, (), (), move |d, _: ()| f(d));
+    sync_method(b, name, (), (), move |d, ()| f(d));
 }
 
 /// `DBus` wrapper for method taking no arguments and returning one value
@@ -423,7 +423,7 @@ fn sync_get_method<T, F>(
     T: arg::Arg + arg::Append + Debug,
     F: Fn(&mut PowerDaemon) -> Result<T, String> + Send + 'static,
 {
-    sync_method(b, name, (), (output_arg,), move |d, _: ()| f(d).map(|x| (x,)));
+    sync_method(b, name, (), (output_arg,), move |d, ()| f(d).map(|x| (x,)));
 }
 
 /// `DBus` wrapper for method taking one argument and returning no values

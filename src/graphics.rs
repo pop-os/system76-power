@@ -534,7 +534,7 @@ impl Graphics {
             };
 
             file.write_all(text)
-                .and_then(|_| file.sync_all())
+                .and_then(|()| file.sync_all())
                 .map_err(GraphicsDeviceError::ModprobeFileWrite)?;
 
             // Power management must be configured depending on if the system
@@ -558,7 +558,7 @@ impl Graphics {
                 // graphics mode. In compute mode, it just reports '?'.
 
                 file.write_all(sleep)
-                    .and_then(|_| file.sync_all())
+                    .and_then(|()| file.sync_all())
                     .map_err(GraphicsDeviceError::ModprobeFileWrite)?;
 
                 for service in
@@ -594,7 +594,7 @@ impl Graphics {
                 .map_err(GraphicsDeviceError::XserverConf)?;
 
             file.write_all(XORG_CONF_DISCRETE)
-                .and_then(|_| file.sync_all())
+                .and_then(|()| file.sync_all())
                 .map_err(GraphicsDeviceError::XserverConf)?;
         } else if path::Path::new(XORG_CONF_PATH).exists() {
             fs::remove_file(XORG_CONF_PATH).map_err(GraphicsDeviceError::XserverConf)?;
@@ -706,7 +706,7 @@ fn sysfs_power_control(pciid: String, mode: GraphicsMode) {
 
         #[allow(unused_must_use)]
         if let Ok(mut file) = file {
-            file.write_all(pm.as_bytes()).and_then(|_| file.sync_all());
+            file.write_all(pm.as_bytes()).and_then(|()| file.sync_all());
         }
     });
 }
