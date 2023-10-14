@@ -495,10 +495,9 @@ impl Graphics {
         Self::set_prime_discrete(mode)?;
 
         let bonw15_hack = {
-            let dmi_vendor =
-                fs::read_to_string("/sys/class/dmi/id/sys_vendor").unwrap_or(String::new());
+            let dmi_vendor = fs::read_to_string("/sys/class/dmi/id/sys_vendor").unwrap_or_default();
             let dmi_model =
-                fs::read_to_string("/sys/class/dmi/id/product_version").unwrap_or(String::new());
+                fs::read_to_string("/sys/class/dmi/id/product_version").unwrap_or_default();
             match (dmi_vendor.trim(), dmi_model.trim()) {
                 ("System76", "bonw15") => true,
                 _ => false,
