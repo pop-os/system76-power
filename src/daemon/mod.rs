@@ -227,7 +227,7 @@ pub async fn daemon() -> Result<(), String> {
     let nvidia_exists = !daemon.graphics.nvidia.is_empty();
 
     log::info!("Disabling NMI Watchdog (for kernel debugging only)");
-    NmiWatchdog::default().set(b"0");
+    NmiWatchdog.set(b"0");
 
     // Get the NVIDIA device ID before potentially removing it.
     let nvidia_device_id = if nvidia_exists {

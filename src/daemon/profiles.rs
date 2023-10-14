@@ -46,7 +46,7 @@ pub fn balanced(errors: &mut Vec<ProfileError>, set_brightness: bool) {
 
     // Enables the laptop mode feature in the kernel, which allows mechanical drives to spin down
     // when inactive.
-    LaptopMode::default().set(b"2");
+    LaptopMode.set(b"2");
 
     // Sets radeon power profiles for AMD graphics.
     RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("auto", "performance", "auto"));
@@ -99,7 +99,7 @@ pub fn performance(errors: &mut Vec<ProfileError>, _set_brightness: bool) {
     }
 
     Dirty::default().set_max_lost_work(15);
-    LaptopMode::default().set(b"0");
+    LaptopMode.set(b"0");
     RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("high", "performance", "auto"));
     catch!(errors, scsi_host_link_time_pm_policy(&["med_power_with_dipm", "max_performance"]));
     crate::cpufreq::set(Profile::Performance, 100);
@@ -131,7 +131,7 @@ pub fn battery(errors: &mut Vec<ProfileError>, set_brightness: bool) {
     }
 
     Dirty::default().set_max_lost_work(15);
-    LaptopMode::default().set(b"2");
+    LaptopMode.set(b"2");
     RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("low", "battery", "low"));
     catch!(errors, scsi_host_link_time_pm_policy(&["min_power", "min_power"]));
     crate::cpufreq::set(Profile::Battery, 50);
