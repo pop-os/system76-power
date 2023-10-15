@@ -301,7 +301,7 @@ impl Graphics {
         let mut other = Vec::new();
         for dev in &devs {
             let c = dev.class()?;
-            if let 0x03 = (c >> 16) & 0xFF {
+            if (c >> 16) & 0xFF == 0x03 {
                 match dev.vendor()? {
                     0x1002 => {
                         log::info!("{}: AMD graphics", dev.id());

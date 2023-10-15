@@ -110,7 +110,7 @@ impl PowerDaemon {
         let message =
             Message::new_signal(DBUS_PATH, DBUS_NAME, "PowerProfileSwitch").unwrap().append1(name);
 
-        if let Err(()) = self.dbus_connection.send(message) {
+        if self.dbus_connection.send(message).is_err() {
             log::error!("failed to send power profile switch message");
         }
 

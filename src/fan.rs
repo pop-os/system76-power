@@ -158,7 +158,7 @@ impl FanDaemon {
 
     /// Calculate the correct duty cycle and apply it to all fans
     pub fn step(&mut self) {
-        if let Ok(()) = self.discover() {
+        if self.discover().is_ok() {
             self.set_duty(self.get_temp().and_then(|temp| self.get_duty(temp)));
         }
     }
