@@ -177,7 +177,7 @@ pub struct FanPoint {
 }
 
 impl FanPoint {
-    pub fn new(temp: i16, duty: u16) -> Self { Self { temp, duty } }
+    pub const fn new(temp: i16, duty: u16) -> Self { Self { temp, duty } }
 
     /// Find the duty between two points and a given temperature, if the temperature
     /// lies within this range.

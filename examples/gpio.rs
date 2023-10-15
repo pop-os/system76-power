@@ -16,7 +16,7 @@ struct GpioCommunity<'a> {
 }
 
 impl<'a> GpioCommunity<'a> {
-    pub fn skylake() -> &'static [GpioCommunity<'static>] {
+    pub const fn skylake() -> &'static [GpioCommunity<'static>] {
         &[
             GpioCommunity {
                 id:     0xAF,
@@ -42,7 +42,7 @@ impl<'a> GpioCommunity<'a> {
     }
 
     #[allow(dead_code)]
-    pub fn cannonlake() -> &'static [GpioCommunity<'static>] {
+    pub const fn cannonlake() -> &'static [GpioCommunity<'static>] {
         &[
             GpioCommunity {
                 id:     0x6E,

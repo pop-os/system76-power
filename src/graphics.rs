@@ -173,7 +173,7 @@ impl GraphicsDevice {
     pub fn exists(&self) -> bool { self.functions.iter().any(|func| func.path().exists()) }
 
     #[must_use]
-    pub fn device(&self) -> u16 { self.devid }
+    pub const fn device(&self) -> u16 { self.devid }
 
     pub unsafe fn unbind(&self) -> Result<(), GraphicsDeviceError> {
         for func in &self.functions {
