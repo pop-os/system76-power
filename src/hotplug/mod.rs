@@ -28,7 +28,7 @@ pub enum HotPlugDetectError {
 }
 
 impl From<SidebandError> for HotPlugDetectError {
-    fn from(err: SidebandError) -> Self { HotPlugDetectError::Sideband(err) }
+    fn from(err: SidebandError) -> Self { Self::Sideband(err) }
 }
 
 pub trait Detect {

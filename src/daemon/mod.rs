@@ -84,9 +84,9 @@ struct PowerDaemon {
 }
 
 impl PowerDaemon {
-    fn new(dbus_connection: Arc<SyncConnection>) -> Result<PowerDaemon, String> {
+    fn new(dbus_connection: Arc<SyncConnection>) -> Result<Self, String> {
         let graphics = Graphics::new().map_err(err_str)?;
-        Ok(PowerDaemon {
+        Ok(Self {
             initial_set: false,
             graphics,
             power_profile: String::new(),

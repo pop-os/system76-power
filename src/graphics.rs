@@ -165,8 +165,8 @@ pub struct GraphicsDevice {
 
 impl GraphicsDevice {
     #[must_use]
-    pub fn new(id: String, devid: u16, functions: Vec<PciDevice>) -> GraphicsDevice {
-        GraphicsDevice { id, devid, functions }
+    pub fn new(id: String, devid: u16, functions: Vec<PciDevice>) -> Self {
+        Self { id, devid, functions }
     }
 
     #[must_use]
@@ -272,7 +272,7 @@ pub struct Graphics {
 }
 
 impl Graphics {
-    pub fn new() -> io::Result<Graphics> {
+    pub fn new() -> io::Result<Self> {
         let bus = PciBus::new()?;
 
         log::info!("Rescanning PCI bus");
@@ -339,7 +339,7 @@ impl Graphics {
             }
         }
 
-        Ok(Graphics { bus, amd, intel, nvidia, other })
+        Ok(Self { bus, amd, intel, nvidia, other })
     }
 
     pub fn is_desktop(&self) -> bool {

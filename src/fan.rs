@@ -33,7 +33,7 @@ pub struct FanDaemon {
 impl FanDaemon {
     pub fn new(nvidia_exists: bool) -> Self {
         let model = fs::read_to_string("/sys/class/dmi/id/product_version").unwrap_or_default();
-        let mut daemon = FanDaemon {
+        let mut daemon = Self {
             curve: match model.trim() {
                 "thelio-major-r1" => FanCurve::threadripper2(),
                 "thelio-major-r2" | "thelio-major-r2.1" | "thelio-major-b1" | "thelio-major-b2"
@@ -181,7 +181,7 @@ impl FanPoint {
 
     /// Find the duty between two points and a given temperature, if the temperature
     /// lies within this range.
-    fn get_duty_between_points(self, next: FanPoint, temp: i16) -> Option<u16> {
+    fn get_duty_between_points(self, next: Self, temp: i16) -> Option<u16> {
         // If the temp matches the next point, return the next point duty
         if temp == next.temp {
             return Some(next.duty);
@@ -201,7 +201,7 @@ impl FanPoint {
     }
 
     /// Interpolates the current duty with that of the given next point and temperature.
-    fn interpolate_duties(self, next: FanPoint, temp: i16) -> u16 {
+    fn interpolate_duties(self, next: Self, temp: i16) -> u16 {
         let dtemp = next.temp - self.temp;
         let dduty = next.duty - self.duty;
 

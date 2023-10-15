@@ -303,7 +303,7 @@ impl ModelProfiles {
         let model_line =
             fs::read_to_string("/sys/class/dmi/id/product_version").unwrap_or_default();
         match model_line.trim() {
-            "galp5" => Some(ModelProfiles {
+            "galp5" => Some(Self {
                 balanced:    ModelProfile {
                     pl1:        Some(28),
                     pl2:        None,     // galp5 doesn't like setting pl2
@@ -320,7 +320,7 @@ impl ModelProfiles {
                     tcc_offset: Some(32), // 68 C
                 },
             }),
-            "lemp9" => Some(ModelProfiles {
+            "lemp9" => Some(Self {
                 balanced:    ModelProfile {
                     pl1:        Some(20),
                     pl2:        Some(40), // Upped from 30
