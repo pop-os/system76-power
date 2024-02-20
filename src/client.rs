@@ -23,9 +23,9 @@ pub struct PowerClient {
 }
 
 impl PowerClient {
-    pub fn new() -> Result<PowerClient, String> {
+    pub fn new() -> Result<Self, String> {
         let bus = Connection::new_system().map_err(err_str)?;
-        Ok(PowerClient { bus })
+        Ok(Self { bus })
     }
 
     fn call_method<A: Append>(

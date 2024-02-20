@@ -16,7 +16,7 @@ struct GpioCommunity<'a> {
 }
 
 impl<'a> GpioCommunity<'a> {
-    pub fn skylake() -> &'static [GpioCommunity<'static>] {
+    pub const fn skylake() -> &'static [GpioCommunity<'static>] {
         &[
             GpioCommunity {
                 id:     0xAF,
@@ -42,7 +42,7 @@ impl<'a> GpioCommunity<'a> {
     }
 
     #[allow(dead_code)]
-    pub fn cannonlake() -> &'static [GpioCommunity<'static>] {
+    pub const fn cannonlake() -> &'static [GpioCommunity<'static>] {
         &[
             GpioCommunity {
                 id:     0x6E,
@@ -77,9 +77,9 @@ fn inner() -> Result<(), SidebandError> {
 
     let sideband = unsafe { Sideband::new(PCR_BASE_ADDRESS)? };
 
-    for community in communities.iter() {
+    for community in communities {
         let mut pad = 0;
-        for group in community.groups.iter() {
+        for group in community.groups {
             for i in 0..group.count {
                 let data = unsafe { sideband.gpio(community.id, pad) };
                 let low = data as u32;
