@@ -17,9 +17,9 @@ pub struct RadeonDevice {
 
 impl RadeonDevice {
     #[must_use]
-    pub fn new(card: u8) -> Option<RadeonDevice> {
+    pub fn new(card: u8) -> Option<Self> {
         let path = format!("/sys/class/drm/card{}/device", card);
-        let device = RadeonDevice {
+        let device = Self {
             card,
             dpm_state: RadeonDpmState::new(&path),
             dpm_force_performance: RadeonDpmForcePerformance::new(&path),
@@ -56,10 +56,8 @@ impl RadeonDevice {
     }
 }
 
-impl DeviceList<RadeonDevice> for RadeonDevice {
+impl DeviceList<Self> for RadeonDevice {
     const SUPPORTED: &'static [&'static str] = &[""];
 
-    fn get_devices() -> Box<dyn Iterator<Item = RadeonDevice>> {
-        Box::new((0u8..10).filter_map(RadeonDevice::new))
-    }
+    fn get_devices() -> Box<dyn Iterator<Item = Self>> { Box::new((0u8..10).filter_map(Self::new)) }
 }

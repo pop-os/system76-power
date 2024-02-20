@@ -9,7 +9,7 @@ pub struct Module {
 }
 
 impl Module {
-    pub fn all() -> io::Result<Vec<Module>> {
+    pub fn all() -> io::Result<Vec<Self>> {
         read_to_string("/proc/modules")?.lines().map(parse).collect()
     }
 }

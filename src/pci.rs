@@ -9,10 +9,10 @@ pub struct PciBus {
 }
 
 impl PciBus {
-    pub fn new() -> io::Result<PciBus> {
+    pub fn new() -> io::Result<Self> {
         let path = PathBuf::from("/sys/bus/pci");
         if path.is_dir() {
-            Ok(PciBus { path })
+            Ok(Self { path })
         } else {
             Err(io::Error::new(io::ErrorKind::NotFound, "pci directory not found"))
         }

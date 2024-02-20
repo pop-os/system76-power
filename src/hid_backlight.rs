@@ -8,7 +8,7 @@ use std::{fs, path::Path};
 
 fn keyboard(device: &HidDevice, brightness: u8, color: u32) -> HidResult<()> {
     // TODO: reset
-    let raw_brightness = (((brightness as u16) * 10 + 254) / 255) as u8;
+    let raw_brightness = ((u16::from(brightness) * 10 + 254) / 255) as u8;
     log::debug!("keyboard brightness {}/10 color #{:06X}", raw_brightness, color);
 
     // Determine color channel values
@@ -17,13 +17,12 @@ fn keyboard(device: &HidDevice, brightness: u8, color: u32) -> HidResult<()> {
     let mut b = color as u8;
 
     // Color correction based on model
-    let dmi_vendor = fs::read_to_string("/sys/class/dmi/id/sys_vendor").unwrap_or(String::new());
-    let dmi_model =
-        fs::read_to_string("/sys/class/dmi/id/product_version").unwrap_or(String::new());
+    let dmi_vendor = fs::read_to_string("/sys/class/dmi/id/sys_vendor").unwrap_or_default();
+    let dmi_model = fs::read_to_string("/sys/class/dmi/id/product_version").unwrap_or_default();
     match (dmi_vendor.trim(), dmi_model.trim()) {
         ("System76", "bonw15") => {
-            g = (((g as u16) * 0x65) / 0xFF) as u8;
-            b = (((b as u16) * 0x60) / 0xFF) as u8;
+            g = ((u16::from(g) * 0x65) / 0xFF) as u8;
+            b = ((u16::from(b) * 0x60) / 0xFF) as u8;
         }
         _ => {}
     }
@@ -44,7 +43,7 @@ fn keyboard(device: &HidDevice, brightness: u8, color: u32) -> HidResult<()> {
 
 fn lightguide(device: &HidDevice, brightness: u8, color: u32) -> HidResult<()> {
     // TODO: reset
-    let raw_brightness = (((brightness as u16) * 4 + 254) / 255) as u8;
+    let raw_brightness = ((u16::from(brightness) * 4 + 254) / 255) as u8;
     log::debug!("lightguide brightness {}/4 color #{:06X}", raw_brightness, color);
 
     // Set all LED colors
