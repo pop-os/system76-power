@@ -51,6 +51,10 @@
     <method name="GetSwitchable">
       <arg name="switchable" type="b" direction="out"/>
     </method>
+
+    <method name="GetDesktop">
+      <arg name="desktop" type="b" direction="out"/>
+    </method>
     
     <signal name="HotPlugDetect">
       <arg name="port" type="t"/>

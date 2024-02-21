@@ -23,9 +23,9 @@ pub struct PowerClient {
 }
 
 impl PowerClient {
-    pub fn new() -> Result<PowerClient, String> {
+    pub fn new() -> Result<Self, String> {
         let bus = Connection::new_system().map_err(err_str)?;
-        Ok(PowerClient { bus })
+        Ok(Self { bus })
     }
 
     fn call_method<A: Append>(
@@ -86,6 +86,11 @@ impl Power for PowerClient {
 
     fn get_switchable(&mut self) -> Result<bool, String> {
         let r = self.call_method::<bool>("GetSwitchable", None)?;
+        r.get1().ok_or_else(|| "return value not found".to_string())
+    }
+
+    fn get_desktop(&mut self) -> Result<bool, String> {
+        let r = self.call_method::<bool>("GetDesktop", None)?;
         r.get1().ok_or_else(|| "return value not found".to_string())
     }
 
@@ -173,44 +178,68 @@ pub fn client(args: &Args) -> Result<(), String> {
     let mut client = PowerClient::new()?;
 
     match args {
-        Args::Profile { profile: name } => match name.as_deref() {
-            Some("balanced") => client.balanced(),
-            Some("battery") => client.battery(),
-            Some("performance") => client.performance(),
-            _ => profile(&mut client).map_err(err_str),
-        },
-        Args::Graphics { cmd } => match cmd.as_ref() {
-            Some(GraphicsArgs::Compute) => client.set_graphics("compute"),
-            Some(GraphicsArgs::Hybrid) => client.set_graphics("hybrid"),
-            Some(GraphicsArgs::Integrated) => client.set_graphics("integrated"),
-            Some(GraphicsArgs::Nvidia) => client.set_graphics("nvidia"),
-            Some(GraphicsArgs::Switchable) => {
-                if client.get_switchable()? {
-                    println!("switchable");
-                } else {
-                    println!("not switchable");
-                }
-                Ok(())
+        Args::Profile { profile: name } => {
+            if client.get_desktop()? {
+                return Err(String::from(
+                    r#"
+Power profiles are not supported on desktop computers.
+"#,
+                ));
             }
-            Some(GraphicsArgs::Power { state }) => match state.as_deref() {
-                Some("auto") => client.auto_graphics_power(),
-                Some("off") => client.set_graphics_power(false),
-                Some("on") => client.set_graphics_power(true),
-                _ => {
-                    if client.get_graphics_power()? {
-                        println!("on (discrete)");
-                    } else {
-                        println!("off (discrete)");
+
+            match name.as_deref() {
+                Some("balanced") => client.balanced(),
+                Some("battery") => client.battery(),
+                Some("performance") => client.performance(),
+                _ => profile(&mut client).map_err(err_str),
+            }
+        }
+        Args::Graphics { cmd } => {
+            if !client.get_switchable()? {
+                return Err(String::from(
+                    r#"
+Graphics switching is not supported on this device, because
+this device is either a desktop or doesn't have both an iGPU and dGPU.
+"#,
+                ));
+            }
+
+            match cmd.as_ref() {
+                Some(GraphicsArgs::Compute) => client.set_graphics("compute"),
+                Some(GraphicsArgs::Hybrid) => client.set_graphics("hybrid"),
+                Some(GraphicsArgs::Integrated) => client.set_graphics("integrated"),
+                Some(GraphicsArgs::Nvidia) => client.set_graphics("nvidia"),
+                Some(GraphicsArgs::Switchable) => client
+                    .get_switchable()
+                    .map(|b| println!("{}", if b { "switchable" } else { "not switchable" })),
+                Some(GraphicsArgs::Power { state }) => match state.as_deref() {
+                    Some("auto") => client.auto_graphics_power(),
+                    Some("off") => client.set_graphics_power(false),
+                    Some("on") => client.set_graphics_power(true),
+                    _ => {
+                        if client.get_graphics_power()? {
+                            println!("on (discrete)");
+                        } else {
+                            println!("off (discrete)");
+                        }
+                        Ok(())
                     }
+                },
+                None => {
+                    println!("{}", client.get_graphics()?);
                     Ok(())
                 }
-            },
-            None => {
-                println!("{}", client.get_graphics()?);
-                Ok(())
             }
-        },
+        }
         Args::ChargeThresholds { profile, list_profiles, thresholds } => {
+            if client.get_desktop()? {
+                return Err(String::from(
+                    r#"
+Charge thresholds are not supported on desktop computers.
+"#,
+                ));
+            }
+
             let profiles = client.get_charge_profiles()?;
 
             if !thresholds.is_empty() {

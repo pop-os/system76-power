@@ -84,9 +84,9 @@ struct PowerDaemon {
 }
 
 impl PowerDaemon {
-    fn new(dbus_connection: Arc<SyncConnection>) -> Result<PowerDaemon, String> {
+    fn new(dbus_connection: Arc<SyncConnection>) -> Result<Self, String> {
         let graphics = Graphics::new().map_err(err_str)?;
-        Ok(PowerDaemon {
+        Ok(Self {
             initial_set: false,
             graphics,
             power_profile: String::new(),
@@ -110,7 +110,7 @@ impl PowerDaemon {
         let message =
             Message::new_signal(DBUS_PATH, DBUS_NAME, "PowerProfileSwitch").unwrap().append1(name);
 
-        if let Err(()) = self.dbus_connection.send(message) {
+        if self.dbus_connection.send(message).is_err() {
             log::error!("failed to send power profile switch message");
         }
 
@@ -167,6 +167,8 @@ impl Power for PowerDaemon {
     fn get_profile(&mut self) -> Result<String, String> { Ok(self.power_profile.clone()) }
 
     fn get_switchable(&mut self) -> Result<bool, String> { Ok(self.graphics.can_switch()) }
+
+    fn get_desktop(&mut self) -> Result<bool, String> { Ok(self.graphics.is_desktop()) }
 
     fn set_graphics(&mut self, vendor: &str) -> Result<(), String> {
         let vendor = match vendor {
@@ -227,7 +229,7 @@ pub async fn daemon() -> Result<(), String> {
     let nvidia_exists = !daemon.graphics.nvidia.is_empty();
 
     log::info!("Disabling NMI Watchdog (for kernel debugging only)");
-    NmiWatchdog::default().set(b"0");
+    NmiWatchdog.set(b"0");
 
     // Get the NVIDIA device ID before potentially removing it.
     let nvidia_device_id = if nvidia_exists {
@@ -284,6 +286,7 @@ pub async fn daemon() -> Result<(), String> {
         sync_set_method(b, "SetGraphics", "vendor", |d, s: String| d.set_graphics(&s));
         sync_get_method(b, "GetProfile", "profile", PowerDaemon::get_profile);
         sync_get_method(b, "GetSwitchable", "switchable", PowerDaemon::get_switchable);
+        sync_get_method(b, "GetDesktop", "desktop", PowerDaemon::get_desktop);
         sync_get_method(b, "GetGraphicsPower", "power", PowerDaemon::get_graphics_power);
         sync_set_method(b, "SetGraphicsPower", "power", PowerDaemon::set_graphics_power);
         sync_get_method(b, "GetChargeThresholds", "thresholds", PowerDaemon::get_charge_thresholds);
@@ -410,7 +413,7 @@ fn sync_action_method<F>(b: &mut IfaceBuilder<PowerDaemon>, name: &'static str, 
 where
     F: Fn(&mut PowerDaemon) -> Result<(), String> + Send + 'static,
 {
-    sync_method(b, name, (), (), move |d, _: ()| f(d));
+    sync_method(b, name, (), (), move |d, ()| f(d));
 }
 
 /// `DBus` wrapper for method taking no arguments and returning one value
@@ -423,7 +426,7 @@ fn sync_get_method<T, F>(
     T: arg::Arg + arg::Append + Debug,
     F: Fn(&mut PowerDaemon) -> Result<T, String> + Send + 'static,
 {
-    sync_method(b, name, (), (output_arg,), move |d, _: ()| f(d).map(|x| (x,)));
+    sync_method(b, name, (), (output_arg,), move |d, ()| f(d).map(|x| (x,)));
 }
 
 /// `DBus` wrapper for method taking one argument and returning no values
