@@ -142,6 +142,18 @@ impl HotPlugDetect {
                     ],
                 }),
             }),
+            "addw4" => Ok(Self {
+                integrated: Integrated::Intel(Intel {
+                    sideband: Sideband::new(0xE000_0000)?,
+                    port:     0x6E,
+                    pins:     [
+                        0x02,   // USB-C
+                        0x04,   // HDMI
+                        NO_PIN, // NC
+                        NO_PIN, // NC
+                    ],
+                }),
+            }),
             "bonw15" => Ok(Self {
                 integrated: Integrated::Intel(Intel {
                     sideband: Sideband::new(0xE000_0000)?,
