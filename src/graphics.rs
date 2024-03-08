@@ -97,6 +97,7 @@ const EXTERNAL_DISPLAY_REQUIRES_NVIDIA: &[&str] = &[
     "addw1",
     "addw2",
     "addw3",
+    "addw4",
     "bonw15",
     "gaze14",
     "gaze15",
