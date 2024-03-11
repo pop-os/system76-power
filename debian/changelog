@@ -1,3 +1,10 @@
+system76-power (1.1.26) jammy; urgency=medium
+
+  * Add addw4
+  * Add oryp12
+
+ -- Levi Portenier <levi@system76.com>  Mon, 11 Mar 2024 12:01:30 -0600
+
 system76-power (1.1.25) jammy; urgency=medium
 
   * Add addw3
