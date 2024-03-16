@@ -179,17 +179,16 @@ pub fn client(args: &Args) -> Result<(), String> {
 
     match args {
         Args::Profile { profile: name } => {
-            if client.get_desktop()? {
-                return Err(String::from(
-                    r#"
-Power profiles are not supported on desktop computers.
-"#,
-                ));
-            }
-
             match name.as_deref() {
                 Some("balanced") => client.balanced(),
-                Some("battery") => client.battery(),
+                Some("battery") => {
+                  if client.get_desktop()? {
+                    return Err(String::from(r#"
+Battery power profile is not supported on desktop computers.
+"#));
+                  }
+                  client.battery()
+                },
                 Some("performance") => client.performance(),
                 _ => profile(&mut client).map_err(err_str),
             }
