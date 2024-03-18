@@ -192,7 +192,7 @@ Battery power profile is not supported on desktop computers.
             }
             Some("performance") => client.performance(),
             _ => profile(&mut client).map_err(err_str),
-        }
+        },
         Args::Graphics { cmd } => {
             if !client.get_switchable()? {
                 return Err(String::from(
