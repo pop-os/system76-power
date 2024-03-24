@@ -87,7 +87,9 @@ pub fn daemon() {
     let mut inotify = Inotify::init().unwrap();
     let mut watches = inotify.watches();
     watches.add(&brightness_file, WatchMask::MODIFY).unwrap();
-    watches.add(&brightness_hw_changed_file, WatchMask::MODIFY).unwrap();
+    if let Err(e) = watches.add(&brightness_hw_changed_file, WatchMask::MODIFY) {
+        log::warn!("hid_backlight: failed to watch hardware changed file: {}", e);
+    }
     if let Err(e) = watches.add(&color_file, WatchMask::MODIFY) {
         log::warn!("hid_backlight: failed to watch keyboard color: {}", e);
     }
