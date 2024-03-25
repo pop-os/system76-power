@@ -178,22 +178,21 @@ pub fn client(args: &Args) -> Result<(), String> {
     let mut client = PowerClient::new()?;
 
     match args {
-        Args::Profile { profile: name } => {
-            if client.get_desktop()? {
-                return Err(String::from(
-                    r#"
-Power profiles are not supported on desktop computers.
+        Args::Profile { profile: name } => match name.as_deref() {
+            Some("balanced") => client.balanced(),
+            Some("battery") => {
+                if client.get_desktop()? {
+                    return Err(String::from(
+                        r#"
+Battery power profile is not supported on desktop computers.
 "#,
-                ));
+                    ));
+                }
+                client.battery()
             }
-
-            match name.as_deref() {
-                Some("balanced") => client.balanced(),
-                Some("battery") => client.battery(),
-                Some("performance") => client.performance(),
-                _ => profile(&mut client).map_err(err_str),
-            }
-        }
+            Some("performance") => client.performance(),
+            _ => profile(&mut client).map_err(err_str),
+        },
         Args::Graphics { cmd } => {
             if !client.get_switchable()? {
                 return Err(String::from(
