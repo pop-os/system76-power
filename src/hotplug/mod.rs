@@ -279,6 +279,12 @@ impl HotPlugDetect {
                     ],
                 }),
             }),
+            "gaze19" => {
+                let gpios = vec![
+                    0x04, // HDMI
+                ];
+                Ok(Self { integrated: Integrated::Amd(Amd::new(gpios)?) })
+            },
             "kudu6" => {
                 let gpios = vec![
                     0x02, // USB-C
