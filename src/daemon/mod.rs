@@ -6,12 +6,16 @@ use anyhow::Context;
 use std::{
     fmt::Display,
     fs,
-    sync::atomic::{AtomicBool, Ordering},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
     thread,
     time::Duration,
 };
 use tokio::{
     signal::unix::{signal, SignalKind},
+    sync::Mutex,
     time::sleep,
 };
 
@@ -66,87 +70,156 @@ struct PowerDaemon {
     connection:     zbus::Connection,
 }
 
-#[zbus::interface(name = "com.sytem76.PowerDaemon")]
 impl PowerDaemon {
+    fn new(connection: zbus::Connection) -> anyhow::Result<Self> {
+        let graphics = Graphics::new()?;
+
+        Ok(Self {
+            initial_set: false,
+            graphics,
+            power_profile: String::new(),
+            profile_errors: Vec::new(),
+            connection,
+        })
+    }
+
+    async fn apply_profile(
+        &mut self,
+        context: &zbus::SignalContext<'_>,
+        func: fn(&mut Vec<ProfileError>, bool),
+        name: &str,
+    ) -> Result<(), String> {
+        if self.power_profile == name {
+            log::info!("profile was already set");
+            return Ok(());
+        }
+
+        let _res = System76Power::power_profile_switch(context, name).await;
+
+        func(&mut self.profile_errors, self.initial_set);
+
+        self.power_profile = name.into();
+
+        if self.profile_errors.is_empty() {
+            Ok(())
+        } else {
+            let mut error_message = String::from("Errors found when setting profile:");
+            for error in self.profile_errors.drain(..) {
+                error_message = format!("{}\n    - {}", error_message, error);
+            }
+
+            Err(error_message)
+        }
+    }
+}
+
+struct System76Power(Arc<Mutex<PowerDaemon>>);
+
+#[zbus::interface(name = "com.sytem76.PowerDaemon")]
+impl System76Power {
     async fn battery(
         &mut self,
         #[zbus(signal_context)] context: zbus::SignalContext<'_>,
     ) -> zbus::fdo::Result<()> {
-        self.apply_profile(&context, battery, "Battery").await.map_err(zbus_error_from_display)
+        self.0
+            .lock()
+            .await
+            .apply_profile(&context, battery, "Battery")
+            .await
+            .map_err(zbus_error_from_display)
     }
 
     async fn balanced(
         &mut self,
         #[zbus(signal_context)] context: zbus::SignalContext<'_>,
     ) -> zbus::fdo::Result<()> {
-        self.apply_profile(&context, balanced, "Balanced").await.map_err(zbus_error_from_display)
+        self.0
+            .lock()
+            .await
+            .apply_profile(&context, balanced, "Balanced")
+            .await
+            .map_err(zbus_error_from_display)
     }
 
     async fn performance(
         &mut self,
         #[zbus(signal_context)] context: zbus::SignalContext<'_>,
     ) -> zbus::fdo::Result<()> {
-        self.apply_profile(&context, performance, "Performance")
+        self.0
+            .lock()
+            .await
+            .apply_profile(&context, performance, "Performance")
             .await
             .map_err(zbus_error_from_display)
     }
 
     #[zbus(out_args("profile"))]
-    async fn get_profile(&mut self) -> zbus::fdo::Result<String> { Ok(self.power_profile.clone()) }
+    async fn get_profile(&self) -> zbus::fdo::Result<String> {
+        Ok(self.0.lock().await.power_profile.clone())
+    }
 
     #[zbus(out_args("required"))]
     async fn get_external_displays_require_dgpu(&mut self) -> zbus::fdo::Result<bool> {
-        self.graphics.get_external_displays_require_dgpu().map_err(zbus_error_from_display)
+        self.0
+            .lock()
+            .await
+            .graphics
+            .get_external_displays_require_dgpu()
+            .map_err(zbus_error_from_display)
     }
 
     #[zbus(out_args("vendor"))]
-    async fn get_default_graphics(&mut self) -> zbus::fdo::Result<String> {
-        match self.graphics.get_default_graphics().map_err(zbus_error_from_display)? {
-            GraphicsMode::Integrated => Ok("integrated".to_string()),
-            GraphicsMode::Compute => Ok("compute".to_string()),
-            GraphicsMode::Hybrid => Ok("hybrid".to_string()),
-            GraphicsMode::Discrete => Ok("nvidia".to_string()),
-        }
+    async fn get_default_graphics(&self) -> zbus::fdo::Result<String> {
+        self.0
+            .lock()
+            .await
+            .graphics
+            .get_default_graphics()
+            .map_err(zbus_error_from_display)
+            .map(|mode| <&'static str>::from(mode).to_owned())
     }
 
     #[zbus(out_args("vendor"))]
-    async fn get_graphics(&mut self) -> zbus::fdo::Result<String> {
-        match self.graphics.get_vendor().map_err(zbus_error_from_display)? {
-            GraphicsMode::Integrated => Ok("integrated".to_string()),
-            GraphicsMode::Compute => Ok("compute".to_string()),
-            GraphicsMode::Hybrid => Ok("hybrid".to_string()),
-            GraphicsMode::Discrete => Ok("nvidia".to_string()),
-        }
+    async fn get_graphics(&self) -> zbus::fdo::Result<String> {
+        self.0
+            .lock()
+            .await
+            .graphics
+            .get_vendor()
+            .map_err(zbus_error_from_display)
+            .map(|mode| <&'static str>::from(mode).to_owned())
     }
 
     async fn set_graphics(&mut self, vendor: &str) -> zbus::fdo::Result<()> {
-        let vendor = match vendor {
-            "nvidia" => GraphicsMode::Discrete,
-            "hybrid" => GraphicsMode::Hybrid,
-            "compute" => GraphicsMode::Compute,
-            _ => GraphicsMode::Integrated,
-        };
-
-        self.graphics.set_vendor(vendor).map_err(zbus_error_from_display)
+        self.0
+            .lock()
+            .await
+            .graphics
+            .set_vendor(GraphicsMode::from(vendor))
+            .map_err(zbus_error_from_display)
     }
 
     #[zbus(out_args("desktop"))]
-    async fn get_desktop(&mut self) -> zbus::fdo::Result<bool> { Ok(self.graphics.is_desktop()) }
+    async fn get_desktop(&mut self) -> zbus::fdo::Result<bool> {
+        Ok(self.0.lock().await.graphics.is_desktop())
+    }
 
     #[zbus(out_args("switchable"))]
-    async fn get_switchable(&mut self) -> zbus::fdo::Result<bool> { Ok(self.graphics.can_switch()) }
+    async fn get_switchable(&mut self) -> zbus::fdo::Result<bool> {
+        Ok(self.0.lock().await.graphics.can_switch())
+    }
 
     #[zbus(out_args("power"))]
     async fn get_graphics_power(&mut self) -> zbus::fdo::Result<bool> {
-        self.graphics.get_power().map_err(zbus_error_from_display)
+        self.0.lock().await.graphics.get_power().map_err(zbus_error_from_display)
     }
 
     async fn set_graphics_power(&mut self, power: bool) -> zbus::fdo::Result<()> {
-        self.graphics.set_power(power).map_err(zbus_error_from_display)
+        self.0.lock().await.graphics.set_power(power).map_err(zbus_error_from_display)
     }
 
     async fn auto_graphics_power(&mut self) -> zbus::fdo::Result<()> {
-        self.graphics.auto_power().map_err(zbus_error_from_display)
+        self.0.lock().await.graphics.auto_power().map_err(zbus_error_from_display)
     }
 
     #[zbus(out_args("start", "end"))]
@@ -155,7 +228,8 @@ impl PowerDaemon {
     }
 
     async fn set_charge_thresholds(&mut self, thresholds: (u8, u8)) -> zbus::fdo::Result<()> {
-        let polkit = zbus_polkit::policykit1::AuthorityProxy::new(&self.connection)
+        let connection = &self.0.lock().await.connection;
+        let polkit = zbus_polkit::policykit1::AuthorityProxy::new(connection)
             .await
             .context("could not connect to polkit authority daemon")
             .map_err(zbus_error_from_display)?;
@@ -205,47 +279,55 @@ impl PowerDaemon {
     ) -> zbus::Result<()>;
 }
 
-impl PowerDaemon {
-    fn new(connection: zbus::Connection) -> anyhow::Result<Self> {
-        let graphics = Graphics::new()?;
+struct UPowerPowerProfiles(Arc<Mutex<PowerDaemon>>);
 
-        Ok(Self {
-            initial_set: false,
-            graphics,
-            power_profile: String::new(),
-            profile_errors: Vec::new(),
-            connection,
-        })
-    }
-
-    async fn apply_profile(
+#[zbus::interface(name = "org.freedesktop.UPower.PowerProfiles")]
+impl UPowerPowerProfiles {
+    async fn hold_profile(
         &mut self,
-        context: &zbus::SignalContext<'_>,
-        func: fn(&mut Vec<ProfileError>, bool),
-        name: &str,
-    ) -> Result<(), String> {
-        if self.power_profile == name {
-            log::info!("profile was already set");
-            return Ok(());
-        }
+        profile: &str,
+        reason: &str,
+        application_id: &str,
+        cookie: u32,
+    ) {
+    }
 
-        let _res = Self::power_profile_switch(context, name).await;
+    async fn release_profile(&mut self, cookie: u32) {}
 
-        func(&mut self.profile_errors, self.initial_set);
-
-        self.power_profile = name.into();
-
-        if self.profile_errors.is_empty() {
-            Ok(())
-        } else {
-            let mut error_message = String::from("Errors found when setting profile:");
-            for error in self.profile_errors.drain(..) {
-                error_message = format!("{}\n    - {}", error_message, error);
-            }
-
-            Err(error_message)
+    #[zbus(property)]
+    async fn active_profile(&self) -> &str {
+        match self.0.lock().await.power_profile.as_str() {
+            "Battery" => "power-saver",
+            "Balanced" => "balanced",
+            "Performance" => "performance",
+            _ => "unknown",
         }
     }
+
+    #[zbus(property)]
+    async fn set_active_profile(&mut self, profile: &str) {
+        let (func, profile): (fn(&mut Vec<ProfileError>, bool), &'static str) = match profile {
+            "power-saver" => (battery, "Battery"),
+            "balanced" => (balanced, "Balanced"),
+            "performance" => (performance, "Performance"),
+            _ => return,
+        };
+
+        let mut this = self.0.lock().await;
+        if let Ok(context) = zbus::SignalContext::new(&this.connection, DBUS_PATH) {
+            let _res =
+                this.apply_profile(&context, func, profile).await.map_err(zbus_error_from_display);
+        }
+    }
+
+    #[zbus(property)]
+    async fn performance_degraded(&self) -> &str { "" }
+
+    #[zbus(property)]
+    async fn active_profile_holds(&self) -> Vec<(String, String, String)> { Vec::new() }
+
+    #[zbus(property)]
+    async fn version(&self) -> &str { "sytem76-power 1.2.0" }
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -263,7 +345,7 @@ pub async fn daemon() -> anyhow::Result<()> {
     let context = zbus::SignalContext::new(&connection, DBUS_PATH)
         .context("unable to create signal context")?;
 
-    let mut daemon = PowerDaemon::new(connection)?;
+    let daemon = PowerDaemon::new(connection)?;
 
     let nvidia_exists = !daemon.graphics.nvidia.is_empty();
 
@@ -276,7 +358,10 @@ pub async fn daemon() -> anyhow::Result<()> {
         None
     };
 
-    match daemon.auto_graphics_power().await {
+    let daemon = Arc::new(Mutex::new(daemon));
+    let mut system76_daemon = System76Power(daemon.clone());
+
+    match system76_daemon.auto_graphics_power().await {
         Ok(()) => (),
         Err(err) => {
             log::warn!("Failed to set automatic graphics power: {}", err);
@@ -290,21 +375,33 @@ pub async fn daemon() -> anyhow::Result<()> {
         }
     }
 
-    if let Err(why) = daemon.balanced(context.clone()).await {
+    if let Err(why) = system76_daemon.balanced(context.clone()).await {
         log::warn!("Failed to set initial profile: {}", why);
     }
 
-    daemon.initial_set = true;
+    system76_daemon.0.lock().await.initial_set = true;
 
+    // Register DBus interface for com.system76.PowerDaemon.
     let _connection = zbus::ConnectionBuilder::system()
         .context("failed to create zbus connection builder")?
         .name(DBUS_NAME)
         .context("unable to register name")?
-        .serve_at(DBUS_PATH, daemon)
+        .serve_at(DBUS_PATH, system76_daemon)
         .context("unable to serve")?
         .build()
         .await
         .context("unable to create system service for com.system76.PowerDaemon")?;
+
+    // Register DBus interface for org.freedesktop.UPower.PowerProfiles.
+    let _connection = zbus::ConnectionBuilder::system()
+        .context("failed to create zbus connection builder")?
+        .name("org.freedesktop.UPower.PowerProfiles")
+        .context("unable to register name")?
+        .serve_at("/org/freedesktop/UPower/PowerProfiles", UPowerPowerProfiles(daemon))
+        .context("unable to serve")?
+        .build()
+        .await
+        .context("unable to create system service for org.freedesktop.UPower.PowerProfiles")?;
 
     // Spawn hid backlight daemon
     let _hid_backlight = thread::spawn(hid_backlight::daemon);
@@ -331,7 +428,7 @@ pub async fn daemon() -> anyhow::Result<()> {
             for i in 0..hpd.len() {
                 if hpd[i] != last[i] && hpd[i] {
                     log::info!("HotPlugDetect {}", i);
-                    let _res = PowerDaemon::hot_plug_detect(&context, i as u64).await;
+                    let _res = System76Power::hot_plug_detect(&context, i as u64).await;
                 }
             }
 
