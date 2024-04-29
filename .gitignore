@@ -1,5 +1,9 @@
+/debian/.debhelper
+/debian/tmp
+/debian/system76-power
 /.cargo/
 /debian/files
 /target/
 /vendor/
+vendor.tar
 vendor.tar.xz

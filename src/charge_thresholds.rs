@@ -2,70 +2,14 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-use dbus::{
-    arg::{cast, Append, Arg, ArgType, Get, Iter, IterAppend, RefArg, Variant},
-    strings::Signature,
-};
-use std::{collections::HashMap, fs, path::Path};
-
-use crate::err_str;
+use std::{fs, path::Path};
+use system76_power_zbus::ChargeProfile;
 
 const START_THRESHOLD: &str = "/sys/class/power_supply/BAT0/charge_control_start_threshold";
 const END_THRESHOLD: &str = "/sys/class/power_supply/BAT0/charge_control_end_threshold";
 const UNSUPPORTED_ERROR: &str = "Not running System76 firmware with charge threshold support";
 const OUT_OF_RANGE_ERROR: &str = "Charge threshold out of range: should be 0-100";
 const ORDER_ERROR: &str = "Charge end threshold must be strictly greater than start";
-
-#[derive(Debug)]
-pub struct ChargeProfile {
-    pub id:          String,
-    pub title:       String,
-    pub description: String,
-    pub start:       u8,
-    pub end:         u8,
-}
-
-type DbusChargeProfile<'a> = HashMap<&'a str, Variant<Box<dyn RefArg>>>;
-
-impl ChargeProfile {
-    fn to_dbus(&self) -> DbusChargeProfile<'static> {
-        let mut map: DbusChargeProfile = HashMap::new();
-        map.insert("id", Variant(Box::new(self.id.clone())));
-        map.insert("title", Variant(Box::new(self.title.clone())));
-        map.insert("description", Variant(Box::new(self.description.clone())));
-        map.insert("start", Variant(Box::new(self.start)));
-        map.insert("end", Variant(Box::new(self.end)));
-        map
-    }
-
-    fn from_dbus(map: &DbusChargeProfile) -> Option<Self> {
-        type RefVariant = Variant<Box<dyn RefArg>>;
-        Some(Self {
-            id:          map.get("id")?.as_str()?.to_string(),
-            title:       map.get("title")?.as_str()?.to_string(),
-            description: map.get("description")?.as_str()?.to_string(),
-            start:       *cast(&cast::<RefVariant>(map.get("start")?)?.0)?,
-            end:         *cast(&cast::<RefVariant>(map.get("end")?)?.0)?,
-        })
-    }
-}
-
-impl Arg for ChargeProfile {
-    const ARG_TYPE: ArgType = DbusChargeProfile::ARG_TYPE;
-
-    fn signature() -> Signature<'static> { DbusChargeProfile::signature() }
-}
-
-impl Append for ChargeProfile {
-    fn append_by_ref(&self, i: &mut IterAppend) { self.to_dbus().append_by_ref(i); }
-}
-
-impl<'a> Get<'a> for ChargeProfile {
-    fn get(i: &mut Iter<'a>) -> Option<Self> {
-        let map: DbusChargeProfile = i.get()?;
-        Self::from_dbus(&map)
-    }
-}
 
 fn is_s76_ec() -> bool {
     // For now, only support thresholds on System76 hardware
@@ -111,35 +55,35 @@ pub fn get_charge_profiles() -> Vec<ChargeProfile> {
     ]
 }
 
-pub(crate) fn get_charge_thresholds() -> Result<(u8, u8), String> {
+pub(crate) fn get_charge_thresholds() -> anyhow::Result<(u8, u8)> {
     if !is_s76_ec() || !supports_thresholds() {
-        return Err(UNSUPPORTED_ERROR.to_string());
+        return Err(anyhow::anyhow!(UNSUPPORTED_ERROR));
     }
 
-    let start_str = fs::read_to_string(START_THRESHOLD).map_err(err_str)?;
-    let end_str = fs::read_to_string(END_THRESHOLD).map_err(err_str)?;
+    let start_str = fs::read_to_string(START_THRESHOLD)?;
+    let end_str = fs::read_to_string(END_THRESHOLD)?;
 
-    let start = start_str.trim().parse::<u8>().map_err(err_str)?;
-    let end = end_str.trim().parse::<u8>().map_err(err_str)?;
+    let start = start_str.trim().parse::<u8>()?;
+    let end = end_str.trim().parse::<u8>()?;
 
     Ok((start, end))
 }
 
-pub(crate) fn set_charge_thresholds((start, end): (u8, u8)) -> Result<(), String> {
+pub(crate) fn set_charge_thresholds((start, end): (u8, u8)) -> anyhow::Result<()> {
     if !is_s76_ec() || !supports_thresholds() {
-        return Err(UNSUPPORTED_ERROR.to_string());
+        return Err(anyhow::anyhow!(UNSUPPORTED_ERROR));
     } else if start > 100 || end > 100 {
-        return Err(OUT_OF_RANGE_ERROR.to_string());
+        return Err(anyhow::anyhow!(OUT_OF_RANGE_ERROR));
     } else if end <= start {
-        return Err(ORDER_ERROR.to_string());
+        return Err(anyhow::anyhow!(ORDER_ERROR));
     }
 
     // Without this, setting start threshold may fail if the previous end
     // threshold is higher.
-    fs::write(END_THRESHOLD, "100").map_err(err_str)?;
+    fs::write(END_THRESHOLD, "100")?;
 
-    fs::write(START_THRESHOLD, format!("{}", start)).map_err(err_str)?;
-    fs::write(END_THRESHOLD, format!("{}", end)).map_err(err_str)?;
+    fs::write(START_THRESHOLD, format!("{}", start))?;
+    fs::write(END_THRESHOLD, format!("{}", end))?;
 
     Ok(())
 }

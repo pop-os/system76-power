@@ -28,7 +28,7 @@ fn main() {
             if unsafe { libc::geteuid() } == 0 {
                 daemon::daemon()
             } else {
-                Err("must be run as root".to_string())
+                Err(anyhow::anyhow!("must be run as root"))
             }
         }
         _ => client::client(&args),
