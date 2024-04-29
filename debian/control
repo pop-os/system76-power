@@ -14,8 +14,8 @@ Homepage: https://github.com/pop-os/system76-power
 Package: system76-power
 Architecture: amd64 arm64
 Conflicts: nvidia-prime, power-profiles-daemon
-Provides: nvidia-prime
-Replaces: nvidia-prime
+Provides: nvidia-prime, power-profiles-daemon
+Replaces: nvidia-prime, power-profiles-daemon
 Depends:
   dbus,
   systemd,
