@@ -37,6 +37,7 @@ use self::profiles::{balanced, battery, performance};
 use system76_power_zbus::ChargeProfile;
 
 const THRESHOLD_POLICY: &str = "com.system76.powerdaemon.set-charge-thresholds";
+const UPP_DBUS_PATH: &str = "/org/freedesktop/UPower/PowerProfiles";
 
 static CONTINUE: AtomicBool = AtomicBool::new(true);
 
@@ -338,9 +339,18 @@ impl UPowerPowerProfiles {
         if let Some(pos) = this.held_profiles.iter().position(|(id, ..)| *id == cookie) {
             this.held_profiles.swap_remove(pos);
             drop(this);
+
             self.apply_held_profile().await;
+
+            let this = self.0.lock().await;
+            if let Ok(context) = zbus::SignalContext::new(&this.connection, UPP_DBUS_PATH) {
+                let _res = Self::profile_released(&context, cookie);
+            }
         }
     }
+
+    #[zbus(signal)]
+    async fn profile_released(context: &zbus::SignalContext<'_>, cookie: u32) -> zbus::Result<()>;
 
     #[zbus(property)]
     async fn active_profile(&self) -> &str {
@@ -445,7 +455,7 @@ pub async fn daemon() -> anyhow::Result<()> {
         .context("failed to create zbus connection builder")?
         .name("org.freedesktop.UPower.PowerProfiles")
         .context("unable to register name")?
-        .serve_at("/org/freedesktop/UPower/PowerProfiles", UPowerPowerProfiles(daemon))
+        .serve_at(UPP_DBUS_PATH, UPowerPowerProfiles(daemon))
         .context("unable to serve")?
         .build()
         .await
