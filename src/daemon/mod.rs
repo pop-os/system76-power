@@ -67,6 +67,8 @@ struct PowerDaemon {
     graphics:       Graphics,
     power_profile:  String,
     profile_errors: Vec<ProfileError>,
+    held_profiles:  Vec<(u32, &'static str, String, String)>,
+    profile_ids:    u32,
     connection:     zbus::Connection,
 }
 
@@ -79,6 +81,8 @@ impl PowerDaemon {
             graphics,
             power_profile: String::new(),
             profile_errors: Vec::new(),
+            held_profiles: Vec::new(),
+            profile_ids: 0,
             connection,
         })
     }
@@ -281,18 +285,62 @@ impl System76Power {
 
 struct UPowerPowerProfiles(Arc<Mutex<PowerDaemon>>);
 
+impl UPowerPowerProfiles {
+    pub async fn apply_held_profile(&mut self) {
+        let mut set_profile = "balanced";
+
+        for (_, profile, ..) in &self.0.lock().await.held_profiles {
+            match *profile {
+                "power-saver" => {
+                    set_profile = "power-saver";
+                    break;
+                }
+                "performance" => set_profile = "performance",
+                _ => (),
+            }
+        }
+
+        self.set_active_profile(set_profile).await;
+    }
+}
+
 #[zbus::interface(name = "org.freedesktop.UPower.PowerProfiles")]
 impl UPowerPowerProfiles {
+    #[zbus(out_args("cookie"))]
     async fn hold_profile(
         &mut self,
         profile: &str,
         reason: &str,
         application_id: &str,
-        cookie: u32,
-    ) {
+    ) -> zbus::fdo::Result<u32> {
+        let mut this = self.0.lock().await;
+        let id = this.profile_ids;
+
+        let profile_static = match profile {
+            "power-saver" => "power-saver",
+            "balanced" => "balanced",
+            "performance" => "performance",
+            _ => return Err(zbus::fdo::Error::Failed(String::from("unknown power profile"))),
+        };
+
+        this.profile_ids += 1;
+        this.held_profiles.push((id, profile_static, reason.into(), application_id.into()));
+        drop(this);
+
+        self.apply_held_profile().await;
+
+        Ok(id)
     }
 
-    async fn release_profile(&mut self, cookie: u32) {}
+    async fn release_profile(&mut self, cookie: u32) {
+        let mut this = self.0.lock().await;
+
+        if let Some(pos) = this.held_profiles.iter().position(|(id, ..)| *id == cookie) {
+            this.held_profiles.swap_remove(pos);
+            drop(this);
+            self.apply_held_profile().await;
+        }
+    }
 
     #[zbus(property)]
     async fn active_profile(&self) -> &str {
