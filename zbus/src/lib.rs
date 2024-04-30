@@ -14,7 +14,7 @@ pub struct ChargeProfile {
 }
 
 #[proxy(
-    interface = "com.sytem76.PowerDaemon",
+    interface = "com.system76.PowerDaemon",
     default_service = "com.system76.PowerDaemon",
     default_path = "/com/system76/PowerDaemon"
 )]
