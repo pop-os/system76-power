@@ -37,7 +37,7 @@ fn main() {
     match res {
         Ok(()) => (),
         Err(err) => {
-            eprintln!("{}", err);
+            eprintln!("{:?}", err);
             process::exit(1);
         }
     }
