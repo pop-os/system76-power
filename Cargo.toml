@@ -31,3 +31,4 @@ thiserror = "1.0"
 tokio = { version = "1.37", features = ["macros", "rt", "time", "signal"] }
 zbus = { version = "4.1.2", default-features = false, features = [ "tokio"] }
 zbus_polkit = { version = "4.0.0", features = ["tokio"] }
+zvariant = "4.0.2"
