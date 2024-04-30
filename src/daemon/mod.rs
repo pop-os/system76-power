@@ -4,6 +4,7 @@
 
 use anyhow::Context;
 use std::{
+    collections::{BTreeMap, HashMap},
     fmt::Display,
     fs,
     sync::{
@@ -37,7 +38,8 @@ use self::profiles::{balanced, battery, performance};
 use system76_power_zbus::ChargeProfile;
 
 const THRESHOLD_POLICY: &str = "com.system76.powerdaemon.set-charge-thresholds";
-const UPP_DBUS_PATH: &str = "/org/freedesktop/UPower/PowerProfiles";
+const POWER_PROFILES_DBUS_NAME: &str = "org.freedesktop.UPower.PowerProfiles";
+const POWER_PROFILES_DBUS_PATH: &str = "/org/freedesktop/UPower/PowerProfiles";
 
 static CONTINUE: AtomicBool = AtomicBool::new(true);
 
@@ -343,7 +345,9 @@ impl UPowerPowerProfiles {
             self.apply_held_profile().await;
 
             let this = self.0.lock().await;
-            if let Ok(context) = zbus::SignalContext::new(&this.connection, UPP_DBUS_PATH) {
+            if let Ok(context) =
+                zbus::SignalContext::new(&this.connection, POWER_PROFILES_DBUS_PATH)
+            {
                 let _res = Self::profile_released(&context, cookie);
             }
         }
@@ -379,10 +383,31 @@ impl UPowerPowerProfiles {
     }
 
     #[zbus(property)]
+    async fn profiles(&self) -> Vec<HashMap<&'static str, zvariant::Value>> {
+        vec![
+            {
+                let mut map = HashMap::new();
+                map.insert("Profile", zvariant::Value::Str(zvariant::Str::from("balanced")));
+                map
+            },
+            {
+                let mut map = HashMap::new();
+                map.insert("Profile", zvariant::Value::Str(zvariant::Str::from("performance")));
+                map
+            },
+            {
+                let mut map = HashMap::new();
+                map.insert("Profile", zvariant::Value::Str(zvariant::Str::from("power-saver")));
+                map
+            },
+        ]
+    }
+
+    #[zbus(property)]
     async fn performance_degraded(&self) -> &str { "" }
 
     #[zbus(property)]
-    async fn active_profile_holds(&self) -> Vec<(String, String, String)> { Vec::new() }
+    async fn active_profile_holds(&self) -> Vec<HashMap<String, zvariant::Value>> { Vec::new() }
 
     #[zbus(property)]
     async fn version(&self) -> &str { "system76-power 1.2.0" }
@@ -453,9 +478,9 @@ pub async fn daemon() -> anyhow::Result<()> {
     // Register DBus interface for org.freedesktop.UPower.PowerProfiles.
     let _connection = zbus::ConnectionBuilder::system()
         .context("failed to create zbus connection builder")?
-        .name("org.freedesktop.UPower.PowerProfiles")
+        .name(POWER_PROFILES_DBUS_NAME)
         .context("unable to register name")?
-        .serve_at(UPP_DBUS_PATH, UPowerPowerProfiles(daemon))
+        .serve_at(POWER_PROFILES_DBUS_PATH, UPowerPowerProfiles(daemon))
         .context("unable to serve")?
         .build()
         .await
