@@ -4,7 +4,7 @@
 
 use anyhow::Context;
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::HashMap,
     fmt::Display,
     fs,
     sync::{
@@ -407,10 +407,40 @@ impl UPowerPowerProfiles {
     async fn performance_degraded(&self) -> &str { "" }
 
     #[zbus(property)]
+    async fn performance_inhibited(&self) -> &str { "" }
+
+    #[zbus(property)]
     async fn active_profile_holds(&self) -> Vec<HashMap<String, zvariant::Value>> { Vec::new() }
 
     #[zbus(property)]
+    async fn actions(&self) -> Vec<String> { vec![] }
+
+    #[zbus(property)]
     async fn version(&self) -> &str { "system76-power 1.2.0" }
+}
+
+pub struct NetHadessPowerProfiles(UPowerPowerProfiles);
+
+#[zbus::interface(name = "net.hadess.PowerProfiles")]
+impl NetHadessPowerProfiles {
+    #[zbus(property)]
+    async fn active_profile(&self) -> &str { self.0.active_profile().await }
+
+    #[zbus(property)]
+    async fn set_active_profile(&mut self, profile: &str) {
+        self.0.set_active_profile(profile).await
+    }
+
+    #[zbus(property)]
+    async fn performance_inhibited(&self) -> &str { self.0.performance_inhibited().await }
+
+    #[zbus(property)]
+    async fn profiles(&self) -> Vec<HashMap<&'static str, zvariant::Value>> {
+        self.0.profiles().await
+    }
+
+    #[zbus(property)]
+    async fn actions(&self) -> Vec<String> { self.0.actions().await }
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -476,15 +506,28 @@ pub async fn daemon() -> anyhow::Result<()> {
         .context("unable to create system service for com.system76.PowerDaemon")?;
 
     // Register DBus interface for org.freedesktop.UPower.PowerProfiles.
+    // This is used by powerprofilesctl
     let _connection = zbus::ConnectionBuilder::system()
         .context("failed to create zbus connection builder")?
         .name(POWER_PROFILES_DBUS_NAME)
         .context("unable to register name")?
-        .serve_at(POWER_PROFILES_DBUS_PATH, UPowerPowerProfiles(daemon))
+        .serve_at(POWER_PROFILES_DBUS_PATH, UPowerPowerProfiles(daemon.clone()))
         .context("unable to serve")?
         .build()
         .await
         .context("unable to create system service for org.freedesktop.UPower.PowerProfiles")?;
+
+    // Register DBus interface for net.hadess.PowerProfiles.
+    // This is used by gnome-shell
+    let _connection = zbus::ConnectionBuilder::system()
+        .context("failed to create zbus connection builder")?
+        .name("net.hadess.PowerProfiles")
+        .context("unable to register name")?
+        .serve_at("/net/hadess/PowerProfiles", NetHadessPowerProfiles(UPowerPowerProfiles(daemon)))
+        .context("unable to serve")?
+        .build()
+        .await
+        .context("unable to create system service for net.hadess.PowerProfiles")?;
 
     // Spawn hid backlight daemon
     let _hid_backlight = thread::spawn(hid_backlight::daemon);
