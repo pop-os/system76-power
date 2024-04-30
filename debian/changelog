@@ -1,3 +1,11 @@
+system76-power (1.2.0) jammy; urgency=medium
+
+  * Rewrite dbus interface with zbus
+  * Add compat for net.hadess.PowerProfiles for current gnome-shell support
+  * Add compat for org.freedesktop.UPower.PowerProfiles for future gnome-shell support
+
+ -- Michael Aaron Murphy <michael@mmurphy.dev>  Tue, 30 Apr 2024 21:42:28 +0200
+
 system76-power (1.1.26) jammy; urgency=medium
 
   * Add addw4
