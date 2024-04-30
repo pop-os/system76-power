@@ -120,7 +120,7 @@ impl PowerDaemon {
 
 struct System76Power(Arc<Mutex<PowerDaemon>>);
 
-#[zbus::interface(name = "com.sytem76.PowerDaemon")]
+#[zbus::interface(name = "com.system76.PowerDaemon")]
 impl System76Power {
     async fn battery(
         &mut self,
@@ -385,7 +385,7 @@ impl UPowerPowerProfiles {
     async fn active_profile_holds(&self) -> Vec<(String, String, String)> { Vec::new() }
 
     #[zbus(property)]
-    async fn version(&self) -> &str { "sytem76-power 1.2.0" }
+    async fn version(&self) -> &str { "system76-power 1.2.0" }
 }
 
 #[tokio::main(flavor = "current_thread")]
