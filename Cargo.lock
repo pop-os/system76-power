@@ -1171,6 +1171,7 @@ dependencies = [
  "tokio",
  "zbus",
  "zbus_polkit",
+ "zvariant",
 ]
 
 [[package]]
