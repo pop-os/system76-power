@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 
 use serde::{Deserialize, Serialize};
-use zbus::proxy;
 use zvariant::Type;
 
 #[derive(Deserialize, Serialize, Type, Debug)]
@@ -13,7 +12,7 @@ pub struct ChargeProfile {
     pub end:         u8,
 }
 
-#[proxy(
+#[zbus::dbus_proxy(
     interface = "com.system76.PowerDaemon",
     default_service = "com.system76.PowerDaemon",
     default_path = "/com/system76/PowerDaemon"
@@ -68,10 +67,10 @@ trait PowerDaemon {
     fn set_charge_thresholds(&self, thresholds: &(u8, u8)) -> zbus::Result<()>;
 
     /// HotPlugDetect signal
-    #[zbus(signal)]
+    #[dbus_proxy(signal)]
     fn hot_plug_detect(&self, port: u64) -> zbus::Result<()>;
 
     /// PowerProfileSwitch signal
-    #[zbus(signal)]
+    #[dbus_proxy(signal)]
     fn power_profile_switch(&self, profile: &str) -> zbus::Result<()>;
 }
