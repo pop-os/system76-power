@@ -19,6 +19,7 @@ use tokio::{
     sync::Mutex,
     time::sleep,
 };
+use zbus::Interface;
 
 use crate::{
     charge_thresholds::{get_charge_profiles, get_charge_thresholds, set_charge_thresholds},
@@ -38,6 +39,8 @@ use self::profiles::{balanced, battery, performance};
 use system76_power_zbus::ChargeProfile;
 
 const THRESHOLD_POLICY: &str = "com.system76.powerdaemon.set-charge-thresholds";
+const NET_HADES_POWER_PROFILES_DBUS_NAME: &str = "net.hadess.PowerProfiles";
+const NET_HADES_POWER_PROFILES_DBUS_PATH: &str = "/net/hadess/PowerProfiles";
 const POWER_PROFILES_DBUS_NAME: &str = "org.freedesktop.UPower.PowerProfiles";
 const POWER_PROFILES_DBUS_PATH: &str = "/org/freedesktop/UPower/PowerProfiles";
 
@@ -73,6 +76,7 @@ struct PowerDaemon {
     held_profiles:  Vec<(u32, &'static str, String, String)>,
     profile_ids:    u32,
     connection:     zbus::Connection,
+    connections:    Option<(zbus::Connection, zbus::Connection)>,
 }
 
 impl PowerDaemon {
@@ -87,6 +91,7 @@ impl PowerDaemon {
             held_profiles: Vec::new(),
             profile_ids: 0,
             connection,
+            connections: None,
         })
     }
 
@@ -120,7 +125,50 @@ impl PowerDaemon {
     }
 }
 
+#[derive(Clone)]
 struct System76Power(Arc<Mutex<PowerDaemon>>);
+
+impl System76Power {
+    pub async fn emit_active_profile_changed(&self) {
+        let (upp_connection, hadess_connection, profile) = {
+            let this = self.0.lock().await;
+            let Some((upp, hadess)) = this.connections.clone() else { return };
+
+            let profile = system76_profile_to_upp_str(&this.power_profile);
+            (upp, hadess, profile)
+        };
+
+        let value = zvariant::Value::Str(zvariant::Str::from(profile));
+        let changed = HashMap::from_iter(std::iter::once(("ActiveProfile", &value)));
+        let invalidated = &[];
+
+        if let Ok(context) = zbus::SignalContext::new(&upp_connection, POWER_PROFILES_DBUS_PATH) {
+            let _res = dbg!(
+                zbus::fdo::Properties::properties_changed(
+                    &context,
+                    UPowerPowerProfiles::name(),
+                    &changed,
+                    invalidated,
+                )
+                .await
+            );
+        }
+
+        if let Ok(context) =
+            zbus::SignalContext::new(&hadess_connection, NET_HADES_POWER_PROFILES_DBUS_PATH)
+        {
+            let _res = dbg!(
+                zbus::fdo::Properties::properties_changed(
+                    &context,
+                    NetHadessPowerProfiles::name(),
+                    &changed,
+                    invalidated
+                )
+                .await
+            );
+        }
+    }
+}
 
 #[zbus::dbus_interface(name = "com.system76.PowerDaemon")]
 impl System76Power {
@@ -128,36 +176,57 @@ impl System76Power {
         &mut self,
         #[zbus(signal_context)] context: zbus::SignalContext<'_>,
     ) -> zbus::fdo::Result<()> {
-        self.0
+        let result = self
+            .0
             .lock()
             .await
             .apply_profile(&context, battery, "Battery")
             .await
-            .map_err(zbus_error_from_display)
+            .map_err(zbus_error_from_display);
+
+        if result.is_ok() {
+            self.emit_active_profile_changed().await
+        }
+
+        result
     }
 
     async fn balanced(
         &mut self,
         #[zbus(signal_context)] context: zbus::SignalContext<'_>,
     ) -> zbus::fdo::Result<()> {
-        self.0
+        let result = self
+            .0
             .lock()
             .await
             .apply_profile(&context, balanced, "Balanced")
             .await
-            .map_err(zbus_error_from_display)
+            .map_err(zbus_error_from_display);
+
+        if result.is_ok() {
+            self.emit_active_profile_changed().await
+        }
+
+        result
     }
 
     async fn performance(
         &mut self,
         #[zbus(signal_context)] context: zbus::SignalContext<'_>,
     ) -> zbus::fdo::Result<()> {
-        self.0
+        let result = self
+            .0
             .lock()
             .await
             .apply_profile(&context, performance, "Performance")
             .await
-            .map_err(zbus_error_from_display)
+            .map_err(zbus_error_from_display);
+
+        if result.is_ok() {
+            self.emit_active_profile_changed().await
+        }
+
+        result
     }
 
     #[dbus_interface(out_args("profile"))]
@@ -358,12 +427,7 @@ impl UPowerPowerProfiles {
 
     #[dbus_interface(property)]
     async fn active_profile(&self) -> &str {
-        match self.0.lock().await.power_profile.as_str() {
-            "Battery" => "power-saver",
-            "Balanced" => "balanced",
-            "Performance" => "performance",
-            _ => "unknown",
-        }
+        system76_profile_to_upp_str(self.0.lock().await.power_profile.as_str())
     }
 
     #[dbus_interface(property)]
@@ -455,9 +519,6 @@ pub async fn daemon() -> anyhow::Result<()> {
     let connection =
         zbus::Connection::system().await.context("failed to create zbus connection")?;
 
-    let context = zbus::SignalContext::new(&connection, DBUS_PATH)
-        .context("unable to create signal context")?;
-
     let daemon = PowerDaemon::new(connection)?;
 
     let nvidia_exists = !daemon.graphics.nvidia.is_empty();
@@ -488,26 +549,9 @@ pub async fn daemon() -> anyhow::Result<()> {
         }
     }
 
-    if let Err(why) = system76_daemon.balanced(context.clone()).await {
-        log::warn!("Failed to set initial profile: {}", why);
-    }
-
-    system76_daemon.0.lock().await.initial_set = true;
-
-    // Register DBus interface for com.system76.PowerDaemon.
-    let _connection = zbus::ConnectionBuilder::system()
-        .context("failed to create zbus connection builder")?
-        .name(DBUS_NAME)
-        .context("unable to register name")?
-        .serve_at(DBUS_PATH, system76_daemon)
-        .context("unable to serve")?
-        .build()
-        .await
-        .context("unable to create system service for com.system76.PowerDaemon")?;
-
     // Register DBus interface for org.freedesktop.UPower.PowerProfiles.
     // This is used by powerprofilesctl
-    let _connection = zbus::ConnectionBuilder::system()
+    let upp_connection = zbus::ConnectionBuilder::system()
         .context("failed to create zbus connection builder")?
         .name(POWER_PROFILES_DBUS_NAME)
         .context("unable to register name")?
@@ -519,15 +563,40 @@ pub async fn daemon() -> anyhow::Result<()> {
 
     // Register DBus interface for net.hadess.PowerProfiles.
     // This is used by gnome-shell
-    let _connection = zbus::ConnectionBuilder::system()
+    let hadess_connection = zbus::ConnectionBuilder::system()
         .context("failed to create zbus connection builder")?
-        .name("net.hadess.PowerProfiles")
+        .name(NET_HADES_POWER_PROFILES_DBUS_NAME)
         .context("unable to register name")?
-        .serve_at("/net/hadess/PowerProfiles", NetHadessPowerProfiles(UPowerPowerProfiles(daemon)))
+        .serve_at(
+            NET_HADES_POWER_PROFILES_DBUS_PATH,
+            NetHadessPowerProfiles(UPowerPowerProfiles(daemon)),
+        )
         .context("unable to serve")?
         .build()
         .await
         .context("unable to create system service for net.hadess.PowerProfiles")?;
+
+    // Register DBus interface for com.system76.PowerDaemon.
+    let connection = zbus::ConnectionBuilder::system()
+        .context("failed to create zbus connection builder")?
+        .name(DBUS_NAME)
+        .context("unable to register name")?
+        .serve_at(DBUS_PATH, system76_daemon.clone())
+        .context("unable to serve")?
+        .build()
+        .await
+        .context("unable to create system service for com.system76.PowerDaemon")?;
+
+    system76_daemon.0.lock().await.connections = Some((upp_connection, hadess_connection));
+
+    let context = zbus::SignalContext::new(&connection, DBUS_PATH)
+        .context("unable to create signal context")?;
+
+    if let Err(why) = system76_daemon.balanced(context.clone()).await {
+        log::warn!("Failed to set initial profile: {}", why);
+    }
+
+    system76_daemon.0.lock().await.initial_set = true;
 
     // Spawn hid backlight daemon
     let _hid_backlight = thread::spawn(hid_backlight::daemon);
@@ -573,6 +642,15 @@ pub async fn daemon() -> anyhow::Result<()> {
 
     log::info!("daemon exited from loop");
     Ok(())
+}
+
+fn system76_profile_to_upp_str(system76_profile: &str) -> &'static str {
+    match system76_profile {
+        "Battery" => "power-saver",
+        "Balanced" => "balanced",
+        "Performance" => "performance",
+        _ => "unknown",
+    }
 }
 
 fn zbus_error_from_display<E: Display>(why: E) -> zbus::fdo::Error {
