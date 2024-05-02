@@ -29,6 +29,6 @@ sysfs-class = { git = "https://github.com/pop-os/sysfs-class" }
 system76-power-zbus = { path = "zbus" }
 thiserror = "1.0"
 tokio = { version = "1.37", features = ["macros", "rt", "time", "signal"] }
-zbus = { version = "4.1.2", default-features = false, features = [ "tokio"] }
+zbus = { version = "4.2.0", default-features = false, features = [ "tokio"] }
 zbus_polkit = { version = "4.0.0", features = ["tokio"] }
-zvariant = "4.0.2"
+zvariant = "4.0.3"

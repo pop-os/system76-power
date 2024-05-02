@@ -5,5 +5,5 @@ edition = "2021"
 
 [dependencies]
 serde.workspace = true
-zbus = { version = "4.1.2" }
-zvariant = "4.0.2"
+zbus = "4.0.0"
+zvariant = "4.0.0"
