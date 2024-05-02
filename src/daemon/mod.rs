@@ -122,7 +122,7 @@ impl PowerDaemon {
 
 struct System76Power(Arc<Mutex<PowerDaemon>>);
 
-#[zbus::interface(name = "com.system76.PowerDaemon")]
+#[zbus::dbus_interface(name = "com.system76.PowerDaemon")]
 impl System76Power {
     async fn battery(
         &mut self,
@@ -160,12 +160,12 @@ impl System76Power {
             .map_err(zbus_error_from_display)
     }
 
-    #[zbus(out_args("profile"))]
+    #[dbus_interface(out_args("profile"))]
     async fn get_profile(&self) -> zbus::fdo::Result<String> {
         Ok(self.0.lock().await.power_profile.clone())
     }
 
-    #[zbus(out_args("required"))]
+    #[dbus_interface(out_args("required"))]
     async fn get_external_displays_require_dgpu(&mut self) -> zbus::fdo::Result<bool> {
         self.0
             .lock()
@@ -175,7 +175,7 @@ impl System76Power {
             .map_err(zbus_error_from_display)
     }
 
-    #[zbus(out_args("vendor"))]
+    #[dbus_interface(out_args("vendor"))]
     async fn get_default_graphics(&self) -> zbus::fdo::Result<String> {
         self.0
             .lock()
@@ -186,7 +186,7 @@ impl System76Power {
             .map(|mode| <&'static str>::from(mode).to_owned())
     }
 
-    #[zbus(out_args("vendor"))]
+    #[dbus_interface(out_args("vendor"))]
     async fn get_graphics(&self) -> zbus::fdo::Result<String> {
         self.0
             .lock()
@@ -206,17 +206,17 @@ impl System76Power {
             .map_err(zbus_error_from_display)
     }
 
-    #[zbus(out_args("desktop"))]
+    #[dbus_interface(out_args("desktop"))]
     async fn get_desktop(&mut self) -> zbus::fdo::Result<bool> {
         Ok(self.0.lock().await.graphics.is_desktop())
     }
 
-    #[zbus(out_args("switchable"))]
+    #[dbus_interface(out_args("switchable"))]
     async fn get_switchable(&mut self) -> zbus::fdo::Result<bool> {
         Ok(self.0.lock().await.graphics.can_switch())
     }
 
-    #[zbus(out_args("power"))]
+    #[dbus_interface(out_args("power"))]
     async fn get_graphics_power(&mut self) -> zbus::fdo::Result<bool> {
         self.0.lock().await.graphics.get_power().map_err(zbus_error_from_display)
     }
@@ -229,7 +229,7 @@ impl System76Power {
         self.0.lock().await.graphics.auto_power().map_err(zbus_error_from_display)
     }
 
-    #[zbus(out_args("start", "end"))]
+    #[dbus_interface(out_args("start", "end"))]
     async fn get_charge_thresholds(&mut self) -> zbus::fdo::Result<(u8, u8)> {
         get_charge_thresholds().map_err(zbus_error_from_display)
     }
@@ -271,15 +271,15 @@ impl System76Power {
         }
     }
 
-    #[zbus(out_args("profiles"))]
+    #[dbus_interface(out_args("profiles"))]
     async fn get_charge_profiles(&mut self) -> zbus::fdo::Result<Vec<ChargeProfile>> {
         Ok(get_charge_profiles())
     }
 
-    #[zbus(signal)]
+    #[dbus_interface(signal)]
     async fn hot_plug_detect(context: &zbus::SignalContext<'_>, port: u64) -> zbus::Result<()>;
 
-    #[zbus(signal)]
+    #[dbus_interface(signal)]
     async fn power_profile_switch(
         context: &zbus::SignalContext<'_>,
         profile: &str,
@@ -307,9 +307,9 @@ impl UPowerPowerProfiles {
     }
 }
 
-#[zbus::interface(name = "org.freedesktop.UPower.PowerProfiles")]
+#[zbus::dbus_interface(name = "org.freedesktop.UPower.PowerProfiles")]
 impl UPowerPowerProfiles {
-    #[zbus(out_args("cookie"))]
+    #[dbus_interface(out_args("cookie"))]
     async fn hold_profile(
         &mut self,
         profile: &str,
@@ -353,10 +353,10 @@ impl UPowerPowerProfiles {
         }
     }
 
-    #[zbus(signal)]
+    #[dbus_interface(signal)]
     async fn profile_released(context: &zbus::SignalContext<'_>, cookie: u32) -> zbus::Result<()>;
 
-    #[zbus(property)]
+    #[dbus_interface(property)]
     async fn active_profile(&self) -> &str {
         match self.0.lock().await.power_profile.as_str() {
             "Battery" => "power-saver",
@@ -366,7 +366,7 @@ impl UPowerPowerProfiles {
         }
     }
 
-    #[zbus(property)]
+    #[dbus_interface(property)]
     async fn set_active_profile(&mut self, profile: &str) {
         let (func, profile): (fn(&mut Vec<ProfileError>, bool), &'static str) = match profile {
             "power-saver" => (battery, "Battery"),
@@ -382,7 +382,7 @@ impl UPowerPowerProfiles {
         }
     }
 
-    #[zbus(property)]
+    #[dbus_interface(property)]
     async fn profiles(&self) -> Vec<HashMap<&'static str, zvariant::Value>> {
         vec![
             {
@@ -403,43 +403,43 @@ impl UPowerPowerProfiles {
         ]
     }
 
-    #[zbus(property)]
+    #[dbus_interface(property)]
     async fn performance_degraded(&self) -> &str { "" }
 
-    #[zbus(property)]
+    #[dbus_interface(property)]
     async fn performance_inhibited(&self) -> &str { "" }
 
-    #[zbus(property)]
+    #[dbus_interface(property)]
     async fn active_profile_holds(&self) -> Vec<HashMap<String, zvariant::Value>> { Vec::new() }
 
-    #[zbus(property)]
+    #[dbus_interface(property)]
     async fn actions(&self) -> Vec<String> { vec![] }
 
-    #[zbus(property)]
+    #[dbus_interface(property)]
     async fn version(&self) -> &str { "system76-power 1.2.0" }
 }
 
 pub struct NetHadessPowerProfiles(UPowerPowerProfiles);
 
-#[zbus::interface(name = "net.hadess.PowerProfiles")]
+#[zbus::dbus_interface(name = "net.hadess.PowerProfiles")]
 impl NetHadessPowerProfiles {
-    #[zbus(property)]
+    #[dbus_interface(property)]
     async fn active_profile(&self) -> &str { self.0.active_profile().await }
 
-    #[zbus(property)]
+    #[dbus_interface(property)]
     async fn set_active_profile(&mut self, profile: &str) {
         self.0.set_active_profile(profile).await
     }
 
-    #[zbus(property)]
+    #[dbus_interface(property)]
     async fn performance_inhibited(&self) -> &str { self.0.performance_inhibited().await }
 
-    #[zbus(property)]
+    #[dbus_interface(property)]
     async fn profiles(&self) -> Vec<HashMap<&'static str, zvariant::Value>> {
         self.0.profiles().await
     }
 
-    #[zbus(property)]
+    #[dbus_interface(property)]
     async fn actions(&self) -> Vec<String> { self.0.actions().await }
 }
 
