@@ -75,12 +75,11 @@ struct PowerDaemon {
     profile_errors: Vec<ProfileError>,
     held_profiles:  Vec<(u32, &'static str, String, String)>,
     profile_ids:    u32,
-    connection:     zbus::Connection,
-    connections:    Option<(zbus::Connection, zbus::Connection)>,
+    connections:    Option<(zbus::Connection, zbus::Connection, zbus::Connection)>,
 }
 
 impl PowerDaemon {
-    fn new(connection: zbus::Connection) -> anyhow::Result<Self> {
+    fn new() -> anyhow::Result<Self> {
         let graphics = Graphics::new()?;
 
         Ok(Self {
@@ -90,7 +89,6 @@ impl PowerDaemon {
             profile_errors: Vec::new(),
             held_profiles: Vec::new(),
             profile_ids: 0,
-            connection,
             connections: None,
         })
     }
@@ -132,7 +130,7 @@ impl System76Power {
     pub async fn emit_active_profile_changed(&self) {
         let (upp_connection, hadess_connection, profile) = {
             let this = self.0.lock().await;
-            let Some((upp, hadess)) = this.connections.clone() else { return };
+            let Some((_, upp, hadess)) = this.connections.clone() else { return };
 
             let profile = system76_profile_to_upp_str(&this.power_profile);
             (upp, hadess, profile)
@@ -300,8 +298,8 @@ impl System76Power {
     }
 
     async fn set_charge_thresholds(&mut self, thresholds: (u8, u8)) -> zbus::fdo::Result<()> {
-        let connection = &self.0.lock().await.connection;
-        let polkit = zbus_polkit::policykit1::AuthorityProxy::new(connection)
+        let connection = zbus::Connection::system().await?;
+        let polkit = zbus_polkit::policykit1::AuthorityProxy::new(&connection)
             .await
             .context("could not connect to polkit authority daemon")
             .map_err(zbus_error_from_display)?;
@@ -410,9 +408,11 @@ impl UPowerPowerProfiles {
             self.apply_held_profile().await;
 
             let this = self.0.lock().await;
-            if let Ok(context) =
-                zbus::SignalContext::new(&this.connection, POWER_PROFILES_DBUS_PATH)
-            {
+            let Some((_, ref connection, _)) = this.connections else {
+                return;
+            };
+
+            if let Ok(context) = zbus::SignalContext::new(connection, POWER_PROFILES_DBUS_PATH) {
                 let _res = Self::profile_released(&context, cookie);
             }
         }
@@ -436,7 +436,11 @@ impl UPowerPowerProfiles {
         };
 
         let mut this = self.0.lock().await;
-        if let Ok(context) = zbus::SignalContext::new(&this.connection, DBUS_PATH) {
+        let Some((ref connection, ..)) = this.connections else {
+            return;
+        };
+
+        if let Ok(context) = zbus::SignalContext::new(connection, DBUS_PATH) {
             let _res =
                 this.apply_profile(&context, func, profile).await.map_err(zbus_error_from_display);
         }
@@ -512,10 +516,7 @@ pub async fn daemon() -> anyhow::Result<()> {
 
     PCI_RUNTIME_PM.store(pci_runtime_pm, Ordering::SeqCst);
 
-    let connection =
-        zbus::Connection::system().await.context("failed to create zbus connection")?;
-
-    let daemon = PowerDaemon::new(connection)?;
+    let daemon = PowerDaemon::new()?;
 
     let nvidia_exists = !daemon.graphics.nvidia.is_empty();
 
@@ -583,7 +584,8 @@ pub async fn daemon() -> anyhow::Result<()> {
         .await
         .context("unable to create system service for com.system76.PowerDaemon")?;
 
-    system76_daemon.0.lock().await.connections = Some((upp_connection, hadess_connection));
+    system76_daemon.0.lock().await.connections =
+        Some((connection.clone(), upp_connection, hadess_connection));
 
     let context = zbus::SignalContext::new(&connection, DBUS_PATH)
         .context("unable to create signal context")?;
