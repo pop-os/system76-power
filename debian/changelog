@@ -1,3 +1,28 @@
+system76-power (1.2.0) jammy; urgency=medium
+
+  * Rewrite dbus interface with zbus
+  * Add compat for net.hadess.PowerProfiles for current gnome-shell support
+  * Add compat for org.freedesktop.UPower.PowerProfiles for future gnome-shell support
+
+ -- Michael Aaron Murphy <michael@mmurphy.dev>  Tue, 30 Apr 2024 21:42:28 +0200
+
+system76-power (1.1.26) jammy; urgency=medium
+
+  * Add addw4
+  * Add oryp12
+
+ -- Levi Portenier <levi@system76.com>  Mon, 11 Mar 2024 12:01:30 -0600
+
+system76-power (1.1.25) jammy; urgency=medium
+
+  * Add addw3
+  * Add bonw15
+  * Add oryp11
+  * Add serw13
+  * Add thelio-io-2 support
+
+ -- Jeremy Soller <jeremy@system76.com>  Mon, 10 Jul 2023 12:58:09 -0600
+
 system76-power (1.1.24) jammy; urgency=medium
 
   * Dependency updates

@@ -5,7 +5,7 @@
 use std::{io, process::Command};
 
 pub fn reload(module: &str, options: &[&str]) -> io::Result<()> {
-    unload(module).and_then(|_| load(module, options))
+    unload(module).and_then(|()| load(module, options))
 }
 
 pub fn unload(module: &str) -> io::Result<()> {

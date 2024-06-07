@@ -1,0 +1,9 @@
+[package]
+name = "system76-power-zbus"
+version = "1.2.0"
+edition = "2021"
+
+[dependencies]
+serde.workspace = true
+zbus = "3.0.0"
+zvariant = "3.0.0"

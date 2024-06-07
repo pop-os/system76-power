@@ -8,19 +8,28 @@ use std::{fs, path::Path};
 
 fn keyboard(device: &HidDevice, brightness: u8, color: u32) -> HidResult<()> {
     // TODO: reset
-    let raw_brightness = (((brightness as u16) * 10 + 254) / 255) as u8;
+    let raw_brightness = ((u16::from(brightness) * 10 + 254) / 255) as u8;
     log::debug!("keyboard brightness {}/10 color #{:06X}", raw_brightness, color);
+
+    // Determine color channel values
+    let r = (color >> 16) as u8;
+    let mut g = (color >> 8) as u8;
+    let mut b = color as u8;
+
+    // Color correction based on model
+    let dmi_vendor = fs::read_to_string("/sys/class/dmi/id/sys_vendor").unwrap_or_default();
+    let dmi_model = fs::read_to_string("/sys/class/dmi/id/product_version").unwrap_or_default();
+    match (dmi_vendor.trim(), dmi_model.trim()) {
+        ("System76", "bonw15") => {
+            g = ((u16::from(g) * 0x65) / 0xFF) as u8;
+            b = ((u16::from(b) * 0x60) / 0xFF) as u8;
+        }
+        _ => {}
+    }
 
     // Set all LED colors
     for led in 0..=255 {
-        device.send_feature_report(&[
-            0xCC,
-            0x01,
-            led,
-            (color >> 16) as u8,
-            (color >> 8) as u8,
-            color as u8,
-        ])?;
+        device.send_feature_report(&[0xCC, 0x01, led, r, g, b])?;
     }
 
     // Set brightness
@@ -34,7 +43,7 @@ fn keyboard(device: &HidDevice, brightness: u8, color: u32) -> HidResult<()> {
 
 fn lightguide(device: &HidDevice, brightness: u8, color: u32) -> HidResult<()> {
     // TODO: reset
-    let raw_brightness = (((brightness as u16) * 4 + 254) / 255) as u8;
+    let raw_brightness = ((u16::from(brightness) * 4 + 254) / 255) as u8;
     log::debug!("lightguide brightness {}/4 color #{:06X}", raw_brightness, color);
 
     // Set all LED colors
@@ -76,9 +85,12 @@ pub fn daemon() {
     let color_file = dir.join("color");
 
     let mut inotify = Inotify::init().unwrap();
-    inotify.add_watch(&brightness_file, WatchMask::MODIFY).unwrap();
-    inotify.add_watch(&brightness_hw_changed_file, WatchMask::MODIFY).unwrap();
-    if let Err(e) = inotify.add_watch(&color_file, WatchMask::MODIFY) {
+    let mut watches = inotify.watches();
+    watches.add(&brightness_file, WatchMask::MODIFY).unwrap();
+    if let Err(e) = watches.add(&brightness_hw_changed_file, WatchMask::MODIFY) {
+        log::warn!("hid_backlight: failed to watch hardware changed file: {}", e);
+    }
+    if let Err(e) = watches.add(&color_file, WatchMask::MODIFY) {
         log::warn!("hid_backlight: failed to watch keyboard color: {}", e);
     }
 
