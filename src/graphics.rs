@@ -99,6 +99,7 @@ const EXTERNAL_DISPLAY_REQUIRES_NVIDIA: &[&str] = &[
     "addw3",
     "addw4",
     "bonw15",
+    "bonw15-b",
     "gaze14",
     "gaze15",
     "gaze16-3050",
@@ -524,6 +525,7 @@ impl Graphics {
                 fs::read_to_string("/sys/class/dmi/id/product_version").unwrap_or_default();
             match (dmi_vendor.trim(), dmi_model.trim()) {
                 ("System76", "bonw15") => true,
+                ("System76", "bonw15-b") => true,
                 _ => false,
             }
         };

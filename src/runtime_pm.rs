@@ -6,7 +6,7 @@ pub fn runtime_pm_quirks() -> io::Result<()> {
     let model = fs::read_to_string("/sys/class/dmi/id/product_version")?;
 
     match (vendor.trim(), model.trim()) {
-        ("System76", "bonw15") => {
+        ("System76", "bonw15") | ("System76", "bonw15-b") => {
             for dev in PciDevice::all()? {
                 match (dev.vendor()?, dev.device()?) {
                     (0x8086, 0x1138) => {
