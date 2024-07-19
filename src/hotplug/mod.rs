@@ -154,7 +154,7 @@ impl HotPlugDetect {
                     ],
                 }),
             }),
-            "bonw15" => Ok(Self {
+            "bonw15" | "bonw15-b" => Ok(Self {
                 integrated: Integrated::Intel(Intel {
                     sideband: Sideband::new(0xE000_0000)?,
                     port:     0x6E,
