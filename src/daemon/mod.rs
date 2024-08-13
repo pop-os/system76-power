@@ -29,7 +29,7 @@ use crate::{
     hid_backlight,
     hotplug::{mux, Detect, HotPlugDetect},
     kernel_parameters::{KernelParameter, NmiWatchdog},
-    runtime_pm::runtime_pm_quirks,
+    runtime_pm::{runtime_pm_quirks, thunderbolt_hotplug_wakeup},
     DBUS_NAME, DBUS_PATH,
 };
 
@@ -539,7 +539,9 @@ pub async fn daemon() -> anyhow::Result<()> {
         }
     }
 
-    match runtime_pm_quirks() {
+    let vendor = fs::read_to_string("/sys/class/dmi/id/sys_vendor")?;
+    let model = fs::read_to_string("/sys/class/dmi/id/product_version")?;
+    match runtime_pm_quirks(&model, &vendor) {
         Ok(()) => (),
         Err(err) => {
             log::warn!("Failed to set runtime power management quirks: {}", err);
@@ -622,6 +624,12 @@ pub async fn daemon() -> anyhow::Result<()> {
                 if hpd[i] != last[i] && hpd[i] {
                     log::info!("HotPlugDetect {}", i);
                     let _res = System76Power::hot_plug_detect(&context, i as u64).await;
+                    match thunderbolt_hotplug_wakeup(&vendor, &model) {
+                        Ok(()) => (),
+                        Err(err) => {
+                            log::warn!("Failed to wakeup thunderbolt on hotplug: {}", err);
+                        }
+                    }
                 }
             }
 
