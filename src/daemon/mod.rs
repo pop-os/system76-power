@@ -619,17 +619,20 @@ pub async fn daemon() -> anyhow::Result<()> {
 
             fan_daemon.step();
 
+            // HACK: As of Linux 6.9.3, TBT5 controller must be active for HPD
+            // to work on USB-C ports.
+            match thunderbolt_hotplug_wakeup(&vendor, &model) {
+                Ok(()) => (),
+                Err(err) => {
+                    log::warn!("Failed to wakeup thunderbolt on hotplug: {}", err);
+                }
+            }
+
             let hpd = hpd();
             for i in 0..hpd.len() {
                 if hpd[i] != last[i] && hpd[i] {
                     log::info!("HotPlugDetect {}", i);
                     let _res = System76Power::hot_plug_detect(&context, i as u64).await;
-                    match thunderbolt_hotplug_wakeup(&vendor, &model) {
-                        Ok(()) => (),
-                        Err(err) => {
-                            log::warn!("Failed to wakeup thunderbolt on hotplug: {}", err);
-                        }
-                    }
                 }
             }
 
