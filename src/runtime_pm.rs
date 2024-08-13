@@ -17,6 +17,20 @@ pub fn runtime_pm_quirks(vendor: &str, model: &str) -> io::Result<()> {
                 }
             }
         }
+        ("System76", "bonw15-b") => {
+            for dev in PciDevice::all()? {
+                match (dev.vendor()?, dev.device()?) {
+                    (0x8086, 0x5782) => {
+                        log::info!(
+                            "Disabling runtime power management on Thunderbolt XHCI device at {:?}",
+                            dev.path()
+                        );
+                        dev.set_runtime_pm(RuntimePowerManagement::Off)?;
+                    }
+                    _ => (),
+                }
+            }
+        }
         _ => (),
     }
 
