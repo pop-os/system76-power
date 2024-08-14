@@ -73,9 +73,13 @@ pub fn daemon() {
         }
     };
 
-    let dir = Path::new("/sys/class/leds/system76_acpi::kbd_backlight");
+    let mut dir = Path::new("/sys/class/leds/system76_acpi::kbd_backlight");
     if !dir.is_dir() {
-        log::error!("hid_backlight: no system76_acpi::kbd_backlight led");
+        // Check path from system76-dkms
+        dir = Path::new("/sys/class/leds/system76::kbd_backlight");
+    }
+    if !dir.is_dir() {
+        log::error!("hid_backlight: no kbd_backlight control");
         return;
     }
 
