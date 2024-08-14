@@ -29,7 +29,7 @@ pub fn get_charge_profiles() -> Vec<ChargeProfile> {
             description: "Battery is charged to its full capacity for the longest possible use on \
                           battery power. Charging resumes when the battery falls below 96% charge."
                 .to_string(),
-            start:       96,
+            start:       90,
             end:         100,
         },
         ChargeProfile {
