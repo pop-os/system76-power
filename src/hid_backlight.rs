@@ -6,6 +6,8 @@ use hidapi::{HidApi, HidDevice, HidResult};
 use inotify::{Inotify, WatchMask};
 use std::{fs, path::Path};
 
+const USB_VID_ITE: u16 = 0x048d;
+
 fn keyboard(device: &HidDevice, brightness: u8, color: u32) -> HidResult<()> {
     // TODO: reset
     let raw_brightness = ((u16::from(brightness) * 10 + 254) / 255) as u8;
@@ -83,37 +85,57 @@ pub fn daemon() {
         return;
     }
 
-    // TODO: check for existence of files
-    let brightness_file = dir.join("brightness");
-    let brightness_hw_changed_file = dir.join("brightness_hw_changed");
-    let color_file = dir.join("color");
-
     let mut inotify = Inotify::init().unwrap();
     let mut watches = inotify.watches();
-    watches.add(&brightness_file, WatchMask::MODIFY).unwrap();
-    if let Err(e) = watches.add(&brightness_hw_changed_file, WatchMask::MODIFY) {
-        log::warn!("hid_backlight: failed to watch hardware changed file: {}", e);
+
+    let brightness_file = dir.join("brightness");
+    if brightness_file.exists() {
+        watches.add(&brightness_file, WatchMask::MODIFY).unwrap();
     }
-    if let Err(e) = watches.add(&color_file, WatchMask::MODIFY) {
-        log::warn!("hid_backlight: failed to watch keyboard color: {}", e);
+
+    let brightness_hw_changed_file = dir.join("brightness_hw_changed");
+    if brightness_hw_changed_file.exists() {
+        if let Err(e) = watches.add(&brightness_hw_changed_file, WatchMask::MODIFY) {
+            log::warn!("hid_backlight: failed to watch hardware changed file: {}", e);
+        }
+    }
+
+    let color_file = dir.join("color");
+    let color_left_file = dir.join("color_left");
+
+    if color_file.exists() {
+        if let Err(e) = watches.add(&color_file, WatchMask::MODIFY) {
+            log::warn!("hid_backlight: failed to watch keyboard color: {}", e);
+        }
+    } else if color_left_file.exists() {
+        // XXX: Watch other zones?
+        watches.add(&color_left_file, WatchMask::MODIFY).unwrap();
     }
 
     let mut buffer = [0; 1024];
     loop {
-        let brightness_string = fs::read_to_string(&brightness_file).unwrap();
-        let brightness = brightness_string.trim().parse::<u8>().unwrap();
+        let brightness = if brightness_file.exists() {
+            let brightness_string = fs::read_to_string(&brightness_file).unwrap();
+            brightness_string.trim().parse::<u8>().unwrap()
+        } else {
+            0
+        };
 
-        let color_string = fs::read_to_string(&color_file)
-            // Fallback for non-colored keyboards
-            .unwrap_or_else(|_| String::from("FFFFFF"));
+        let color_string = if color_file.exists() {
+            fs::read_to_string(&color_file).unwrap()
+        } else if color_left_file.exists() {
+            fs::read_to_string(&color_left_file).unwrap()
+        } else {
+            String::from("FFFFFF")
+        };
         let color = u32::from_str_radix(color_string.trim(), 16).unwrap();
 
         let mut devices = 0;
 
         for info in api.device_list() {
             let f = match (info.vendor_id(), info.product_id()) {
-                (0x048d, 0x8297) => lightguide,
-                (0x048d, 0x8910) => keyboard,
+                (USB_VID_ITE, 0x8297) => lightguide,
+                (USB_VID_ITE, 0x8910) => keyboard,
                 _ => continue,
             };
 
