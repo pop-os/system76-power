@@ -480,7 +480,7 @@ impl UPowerPowerProfiles {
     async fn actions(&self) -> Vec<String> { vec![] }
 
     #[dbus_interface(property)]
-    async fn version(&self) -> &str { "system76-power 1.2.0" }
+    async fn version(&self) -> &str { "system76-power 1.2.1" }
 }
 
 pub struct NetHadessPowerProfiles(UPowerPowerProfiles);
