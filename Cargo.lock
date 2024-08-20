@@ -1285,7 +1285,7 @@ dependencies = [
 
 [[package]]
 name = "system76-power"
-version = "1.2.0"
+version = "1.2.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -1311,7 +1311,7 @@ dependencies = [
 
 [[package]]
 name = "system76-power-zbus"
-version = "1.2.0"
+version = "1.2.1"
 dependencies = [
  "serde",
  "zbus",

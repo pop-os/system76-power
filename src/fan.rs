@@ -69,7 +69,7 @@ impl FanDaemon {
                     "amdgpu" => self.amdgpus.push(hwmon),
                     "system76" => (), // TODO: Support laptops
                     "system76_io" | "system76_thelio_io" => self.platforms.push(hwmon),
-                    "coretemp" | "k10temp" => self.cpus.push(hwmon),
+                    "apm_xgene" | "coretemp" | "k10temp" => self.cpus.push(hwmon),
                     _ => (),
                 }
             }
