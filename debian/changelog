@@ -1,3 +1,9 @@
+system76-power (1.2.1) jammy; urgency=medium
+
+  * Allow use of apm_xgene temperatures
+
+ -- Jeremy Soller <jeremy@system76.com>  Tue, 20 Aug 2024 15:53:24 -0600
+
 system76-power (1.2.0) jammy; urgency=medium
 
   * Rewrite dbus interface with zbus
