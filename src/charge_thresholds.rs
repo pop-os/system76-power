@@ -11,9 +11,11 @@ const UNSUPPORTED_ERROR: &str = "Not running System76 firmware with charge thres
 const OUT_OF_RANGE_ERROR: &str = "Charge threshold out of range: should be 0-100";
 const ORDER_ERROR: &str = "Charge end threshold must be strictly greater than start";
 
-fn is_s76_ec() -> bool {
+fn is_supported() -> bool {
     // For now, only support thresholds on System76 hardware
-    Path::new("/sys/bus/acpi/devices/17761776:00").is_dir()
+    Path::new("/sys/bus/acpi/devices/17761776:00").is_dir() ||
+    // and Huawei
+    Path::new("/sys/devices/platform/huawei-wmi/charge_control_thresholds").exists()
 }
 
 fn supports_thresholds() -> bool {
@@ -56,7 +58,7 @@ pub fn get_charge_profiles() -> Vec<ChargeProfile> {
 }
 
 pub(crate) fn get_charge_thresholds() -> anyhow::Result<(u8, u8)> {
-    if !is_s76_ec() || !supports_thresholds() {
+    if !is_supported() || !supports_thresholds() {
         return Err(anyhow::anyhow!(UNSUPPORTED_ERROR));
     }
 
@@ -70,7 +72,7 @@ pub(crate) fn get_charge_thresholds() -> anyhow::Result<(u8, u8)> {
 }
 
 pub(crate) fn set_charge_thresholds((start, end): (u8, u8)) -> anyhow::Result<()> {
-    if !is_s76_ec() || !supports_thresholds() {
+    if !is_supported() || !supports_thresholds() {
         return Err(anyhow::anyhow!(UNSUPPORTED_ERROR));
     } else if start > 100 || end > 100 {
         return Err(anyhow::anyhow!(OUT_OF_RANGE_ERROR));
