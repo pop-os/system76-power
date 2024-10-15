@@ -4,6 +4,8 @@ version = "1.2.1"
 authors = ["Jeremy Soller <jackpot51@gmail.com>"]
 edition = "2021"
 rust-version = "1.75.0"
+description = "system76-power is a utility for managing graphics and power profiles."
+license = "GPL-3.0"
 
 [workspace]
 members = [ "zbus" ]
@@ -32,3 +34,16 @@ tokio = { version = "1.37", features = ["macros", "rt", "time", "signal"] }
 zbus = { version = "3.15.2", default-features = false, features = [ "tokio"] }
 zbus_polkit = { version = "3.0.0", features = ["tokio"] }
 zvariant = "3.15.2"
+
+[package.metadata.generate-rpm]
+assets = [
+  { source = "target/release/system76-power", dest = "/usr/bin/system76-power", mode = "755" },
+	{ source = "data/com.system76.PowerDaemon.conf", dest = "/usr/share/dbus-1/system.d/com.system76.PowerDaemon.conf", mode = "644" },
+	{ source = "data/com.system76.PowerDaemon.policy", dest = "/usr/share/polkit-1/actions/com.system76.PowerDaemon.policy", mode = "644" },
+	{ source = "data/com.system76.PowerDaemon.service", dest = "/usr/lib/systemd/system/com.system76.PowerDaemon.service", mode = "644" },
+	{ source = "data/com.system76.PowerDaemon.xml", dest = "/usr/share/dbus-1/interfaces/com.system76.PowerDaemon.xml", mode = "644" }
+]
+[package.metadata.generate-rpm.provides]
+  "power-profiles-daemon" = "*"
+[package.metadata.generate-rpm.conflicts]
+  "power-profiles-daemon" = "*"
