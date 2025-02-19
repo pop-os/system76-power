@@ -1,3 +1,9 @@
+system76-power (1.2.3) jammy; urgency=medium
+
+  * Use HEDT fan curve for thelio-astra-a1.1
+
+ -- Jeremy Soller <jeremy@system76.com>  Wed, 19 Feb 2025 14:52:17 -0700
+
 system76-power (1.2.2) jammy; urgency=medium
 
   * Use HEDT fan curve for thelio-astra-a1
