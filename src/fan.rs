@@ -36,10 +36,9 @@ impl FanDaemon {
         let mut daemon = Self {
             curve: match model.trim() {
                 "thelio-major-r1" => FanCurve::threadripper2(),
-                "thelio-astra-a1" | "thelio-major-r2" | "thelio-major-r2.1" | "thelio-major-b1"
-                | "thelio-major-b2" | "thelio-major-b3" | "thelio-mega-r1" | "thelio-mega-r1.1" => {
-                    FanCurve::hedt()
-                }
+                "thelio-astra-a1" | "thelio-astra-a1.1" | "thelio-major-r2"
+                | "thelio-major-r2.1" | "thelio-major-b1" | "thelio-major-b2"
+                | "thelio-major-b3" | "thelio-mega-r1" | "thelio-mega-r1.1" => FanCurve::hedt(),
                 "thelio-massive-b1" => FanCurve::xeon(),
                 _ => FanCurve::standard(),
             },
