@@ -55,6 +55,10 @@ vendor:
 	tar pcfJ vendor.tar.xz vendor
 	rm -rf vendor
 
+rpm: all
+	strip "target/release/$(BIN)"
+	cargo generate-rpm
+
 target/release/$(BIN): $(SRC)
 ifeq ($(VENDOR),1)
 	tar pxf vendor.tar.xz
