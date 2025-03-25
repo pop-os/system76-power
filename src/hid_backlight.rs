@@ -43,7 +43,7 @@ fn keyboard(device: &HidDevice, brightness: u8, color: u32) -> HidResult<()> {
     Ok(())
 }
 
-fn lightguide(device: &HidDevice, brightness: u8, color: u32) -> HidResult<()> {
+fn lightguide_8297(device: &HidDevice, brightness: u8, color: u32) -> HidResult<()> {
     // TODO: reset
     let raw_brightness = ((u16::from(brightness) * 4 + 254) / 255) as u8;
     log::debug!("lightguide brightness {}/4 color #{:06X}", raw_brightness, color);
@@ -65,8 +65,25 @@ fn lightguide(device: &HidDevice, brightness: u8, color: u32) -> HidResult<()> {
     Ok(())
 }
 
+fn lightguide_8911(device: &HidDevice, _brightness: u8, _color: u32) -> HidResult<()> {
+    // This light guide cannot set an arbitrary color, so we will instead set it to off
+    device.send_feature_report(&[0xCD, 0xE2, 0x02, 0])?;
+
+    // Set effect to static
+    device.send_feature_report(&[0xCD, 0xE2, 0x05])?;
+
+    Ok(())
+}
+
 // TODO: better error handling
 pub fn daemon() {
+    let dmi_vendor = fs::read_to_string("/sys/class/dmi/id/sys_vendor").unwrap_or_default();
+    let dmi_model = fs::read_to_string("/sys/class/dmi/id/product_version").unwrap_or_default();
+    match (dmi_vendor.trim(), dmi_model.trim()) {
+        ("System76", "bonw14" | "bonw15" | "bonw15-b" | "bonw16") => {}
+        _ => return,
+    }
+
     let api = match HidApi::new() {
         Ok(ok) => ok,
         Err(err) => {
@@ -134,8 +151,9 @@ pub fn daemon() {
 
         for info in api.device_list() {
             let f = match (info.vendor_id(), info.product_id()) {
-                (USB_VID_ITE, 0x8297) => lightguide,
+                (USB_VID_ITE, 0x8297) => lightguide_8297,
                 (USB_VID_ITE, 0x8910) => keyboard,
+                (USB_VID_ITE, 0x8911) => lightguide_8911,
                 _ => continue,
             };
 
