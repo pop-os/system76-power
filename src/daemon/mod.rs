@@ -541,7 +541,7 @@ pub async fn daemon() -> anyhow::Result<()> {
 
     let vendor = fs::read_to_string("/sys/class/dmi/id/sys_vendor")?;
     let model = fs::read_to_string("/sys/class/dmi/id/product_version")?;
-    match runtime_pm_quirks(&model, &vendor) {
+    match runtime_pm_quirks(&vendor, &model) {
         Ok(()) => (),
         Err(err) => {
             log::warn!("Failed to set runtime power management quirks: {}", err);

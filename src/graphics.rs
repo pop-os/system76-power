@@ -100,6 +100,7 @@ const EXTERNAL_DISPLAY_REQUIRES_NVIDIA: &[&str] = &[
     "addw4",
     "bonw15",
     "bonw15-b",
+    "bonw16",
     "gaze14",
     "gaze15",
     "gaze16-3050",
@@ -442,15 +443,18 @@ impl Graphics {
     }
 
     pub fn get_default_graphics(&self) -> Result<GraphicsMode, GraphicsDeviceError> {
-        // Models that support runtimepm, but should not use hybrid graphics
-        const DEFAULT_INTEGRATED: &[&str] = &[];
+        // Models that should default to discrete graphics only
+        const DEFAULT_DISCRETE: &[&str] = &["bonw16"];
 
         self.switchable_or_fail()?;
+
+        let vendor = fs::read_to_string("/sys/class/dmi/id/sys_vendor")
+            .map_err(GraphicsDeviceError::SysFs)
+            .map(|s| s.trim().to_string())?;
 
         let product = fs::read_to_string("/sys/class/dmi/id/product_version")
             .map_err(GraphicsDeviceError::SysFs)
             .map(|s| s.trim().to_string())?;
-        let blacklisted = DEFAULT_INTEGRATED.contains(&product.as_str());
 
         let runtimepm = match self.gpu_supports_runtimepm() {
             Ok(ok) => ok,
@@ -461,13 +465,9 @@ impl Graphics {
         };
 
         // Only default to hybrid on System76 models
-        let vendor = fs::read_to_string("/sys/class/dmi/id/sys_vendor")
-            .map_err(GraphicsDeviceError::SysFs)
-            .map(|s| s.trim().to_string())?;
-
-        if vendor != "System76" {
+        if vendor != "System76" || DEFAULT_DISCRETE.contains(&product.as_str()) {
             Ok(GraphicsMode::Discrete)
-        } else if runtimepm && !blacklisted {
+        } else if runtimepm {
             Ok(GraphicsMode::Hybrid)
         } else {
             Ok(GraphicsMode::Integrated)

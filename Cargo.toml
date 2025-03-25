@@ -32,3 +32,6 @@ tokio = { version = "1.37", features = ["macros", "rt", "time", "signal"] }
 zbus = { version = "3.15.2", default-features = false, features = [ "tokio"] }
 zbus_polkit = { version = "3.0.0", features = ["tokio"] }
 zvariant = "3.15.2"
+
+[dev-dependencies]
+env_logger = "0.11"
