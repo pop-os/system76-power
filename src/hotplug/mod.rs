@@ -166,6 +166,18 @@ impl HotPlugDetect {
                     ],
                 }),
             }),
+            "bonw16" => Ok(Self {
+                integrated: Integrated::Intel(Intel {
+                    sideband: Sideband::new(0x9F_F000_0000)?,
+                    port:     0x6B,
+                    pins:     [
+                        0x22,   // HDMI
+                        NO_PIN, // TODO: USB-C?
+                        NO_PIN, // TODO: USB-C?
+                        NO_PIN, // Not connected
+                    ],
+                }),
+            }),
             "gaze14" => {
                 let variant =
                     fs::read_to_string("/sys/bus/pci/devices/0000:00:00.0/subsystem_device")
