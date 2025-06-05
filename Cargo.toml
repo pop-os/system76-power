@@ -1,6 +1,6 @@
 [package]
 name = "system76-power"
-version = "1.2.4"
+version = "1.2.5"
 authors = ["Jeremy Soller <jackpot51@gmail.com>"]
 edition = "2021"
 rust-version = "1.75.0"

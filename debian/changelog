@@ -1,3 +1,9 @@
+system76-power (1.2.5) jammy; urgency=medium
+
+  * Add serw14
+
+ -- Tim Crawford <tcrawford@system76.com>  Thu, 01 May 2025 12:40:38 -0600
+
 system76-power (1.2.4) jammy; urgency=medium
 
   * Add bonw16
