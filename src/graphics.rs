@@ -120,6 +120,7 @@ const EXTERNAL_DISPLAY_REQUIRES_NVIDIA: &[&str] = &[
     "oryp11",
     "oryp12",
     "serw13",
+    "serw14",
 ];
 
 const SYSTEMCTL_CMD: &str = "systemctl";
