@@ -303,6 +303,16 @@ impl HotPlugDetect {
                     ],
                 }),
             }),
+            "gaze20" => Ok(Self {
+                integrated: Integrated::Intel(Intel {
+                    sideband: Sideband::new(PCR_BASE_ADDRESS)?,
+                    port:     0x6E,
+                    pins:     [
+                        0x7C, // HDMI
+                        NO_PIN, NO_PIN, NO_PIN,
+                    ],
+                }),
+            }),
             "kudu6" => {
                 let gpios = vec![
                     0x02, // USB-C

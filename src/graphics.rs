@@ -109,6 +109,7 @@ const EXTERNAL_DISPLAY_REQUIRES_NVIDIA: &[&str] = &[
     "gaze16-3060-b",
     "gaze17-3050",
     "gaze17-3060-b",
+    "gaze20",
     "kudu6",
     "oryp4",
     "oryp4-b",
