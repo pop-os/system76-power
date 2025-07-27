@@ -80,7 +80,7 @@ impl Sideband {
         let dw1: u32 = self.read(port, padbar + u32::from(pad) * 8 + 4);
         let dw0: u32 = self.read(port, padbar + u32::from(pad) * 8);
 
-        u64::from(dw0) | u64::from(dw1) << 32
+        u64::from(dw0) | (u64::from(dw1) << 32)
     }
 
     pub unsafe fn set_gpio(&self, port: u8, pad: u8, value: u64) {

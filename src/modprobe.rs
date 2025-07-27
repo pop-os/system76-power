@@ -10,7 +10,7 @@ pub fn reload(module: &str, options: &[&str]) -> io::Result<()> {
 
 pub fn unload(module: &str) -> io::Result<()> {
     log::info!("Unloading module named {}", module);
-    Command::new("modprobe").args(&["-r", module]).status().and_then(|stat| {
+    Command::new("modprobe").args(["-r", module]).status().and_then(|stat| {
         if stat.success() {
             Ok(())
         } else {

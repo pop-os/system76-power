@@ -512,7 +512,7 @@ impl NetHadessPowerProfiles {
 pub async fn daemon() -> anyhow::Result<()> {
     let signal_handling_fut = signal_handling();
 
-    let pci_runtime_pm = std::env::var("S76_POWER_PCI_RUNTIME_PM").ok().map_or(false, |v| v == "1");
+    let pci_runtime_pm = std::env::var("S76_POWER_PCI_RUNTIME_PM").ok().is_some_and(|v| v == "1");
 
     PCI_RUNTIME_PM.store(pci_runtime_pm, Ordering::SeqCst);
 
