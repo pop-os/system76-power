@@ -689,7 +689,7 @@ impl Graphics {
                 // Remove NVIDIA graphics devices and their functions
                 let removes = self.nvidia.iter().map(|dev| dev.remove());
 
-                unbinds.chain(removes).collect::<Result<_, _>>()?;
+                unbinds.chain(removes).collect::<Result<(), _>>()?;
             }
         }
 
