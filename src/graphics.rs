@@ -715,6 +715,8 @@ impl Graphics {
 fn update_initramfs_cmd() -> (&'static str, &'static str) {
     if path::Path::new("/usr/bin/dracut").exists() {
         ("dracut", "--force")
+    } else if path::Path::new("/usr/bin/mkinitcpio").exists() {
+        ("mkinitcpio", "-P")
     } else {
         ("update-initramfs", "-u")
     }
