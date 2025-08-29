@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-use crate::args::{Args, GraphicsArgs};
+use crate::args::Args;
 use anyhow::Context;
 use intel_pstate::PState;
 use std::io;
@@ -75,53 +75,6 @@ Battery power profile is not supported on desktop computers.
             Some("performance") => client.performance().await.map_err(zbus_error),
             _ => profile(&mut client).await.context("failed to get power profile"),
         },
-        Args::Graphics { cmd } => {
-            if !client.get_switchable().await? {
-                return Err(anyhow::anyhow!(
-                    r#"
-Graphics switching is not supported on this device, because
-this device is either a desktop or doesn't have both an iGPU and dGPU.
-"#,
-                ));
-            }
-
-            match cmd.as_ref() {
-                Some(GraphicsArgs::Compute) => {
-                    client.set_graphics("compute").await.map_err(zbus_error)
-                }
-                Some(GraphicsArgs::Hybrid) => {
-                    client.set_graphics("hybrid").await.map_err(zbus_error)
-                }
-                Some(GraphicsArgs::Integrated) => {
-                    client.set_graphics("integrated").await.map_err(zbus_error)
-                }
-                Some(GraphicsArgs::Nvidia) => {
-                    client.set_graphics("nvidia").await.map_err(zbus_error)
-                }
-                Some(GraphicsArgs::Switchable) => client
-                    .get_switchable()
-                    .await
-                    .map_err(zbus_error)
-                    .map(|b| println!("{}", if b { "switchable" } else { "not switchable" })),
-                Some(GraphicsArgs::Power { state }) => match state.as_deref() {
-                    Some("auto") => client.auto_graphics_power().await.map_err(zbus_error),
-                    Some("off") => client.set_graphics_power(false).await.map_err(zbus_error),
-                    Some("on") => client.set_graphics_power(true).await.map_err(zbus_error),
-                    _ => {
-                        if client.get_graphics_power().await.map_err(zbus_error)? {
-                            println!("on (discrete)");
-                        } else {
-                            println!("off (discrete)");
-                        }
-                        Ok(())
-                    }
-                },
-                None => {
-                    println!("{}", client.get_graphics().await.map_err(zbus_error)?);
-                    Ok(())
-                }
-            }
-        }
         Args::ChargeThresholds { profile, list_profiles, thresholds } => {
             if client.get_desktop().await.map_err(zbus_error)? {
                 return Err(anyhow::anyhow!(

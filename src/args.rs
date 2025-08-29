@@ -6,34 +6,6 @@ use clap::{builder::PossibleValuesParser, Parser};
 
 #[derive(Parser)]
 #[clap(
-    about = "Query or set the graphics mode",
-    long_about = "Query or set the graphics mode.\n\n - If an argument is not provided, the \
-                  graphics profile will be queried\n - Otherwise, that profile will be set, if it \
-                  is a valid profile\n\nA reboot is required after switching modes."
-)]
-pub enum GraphicsArgs {
-    #[clap(about = "Like integrated, but the dGPU is available for compute")]
-    Compute,
-    #[clap(about = "Set the graphics mode to Hybrid (PRIME)")]
-    Hybrid,
-    #[clap(about = "Set the graphics mode to integrated")]
-    Integrated,
-    #[clap(about = "Set the graphics mode to NVIDIA")]
-    Nvidia,
-    #[clap(about = "Determines if the system has switchable graphics")]
-    Switchable,
-    #[clap(about = "Query or set the discrete graphics power state")]
-    Power {
-        #[clap(help = "Set whether discrete graphics should be on or off")]
-        #[arg(
-            value_parser = PossibleValuesParser::new(["auto", "off", "on"])
-        )]
-        state: Option<String>,
-    },
-}
-
-#[derive(Parser)]
-#[clap(
     name = "system76-power",
     about = "Utility for managing graphics and power profiles",
     version = env!("CARGO_PKG_VERSION"),
@@ -77,10 +49,6 @@ pub enum Args {
             value_parser = PossibleValuesParser::new(["battery", "balanced", "performance"]),
         )]
         profile: Option<String>,
-    },
-    Graphics {
-        #[clap(subcommand)]
-        cmd: Option<GraphicsArgs>,
     },
     #[clap(
         about = "Set thresholds for battery charging",

@@ -26,7 +26,6 @@ pub mod hotplug;
 pub mod kernel_parameters;
 pub mod logging;
 pub mod modprobe;
-pub mod module;
 pub mod pci;
 pub mod radeon;
 pub mod runtime_pm;

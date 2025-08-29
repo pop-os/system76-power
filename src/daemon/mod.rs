@@ -25,7 +25,7 @@ use crate::{
     charge_thresholds::{get_charge_profiles, get_charge_thresholds, set_charge_thresholds},
     errors::ProfileError,
     fan::FanDaemon,
-    graphics::{Graphics, GraphicsMode},
+    graphics::Graphics,
     hid_backlight,
     hotplug::{mux, Detect, HotPlugDetect},
     kernel_parameters::{KernelParameter, NmiWatchdog},
@@ -238,58 +238,9 @@ impl System76Power {
             .map_err(zbus_error_from_display)
     }
 
-    #[dbus_interface(out_args("vendor"))]
-    async fn get_default_graphics(&self) -> zbus::fdo::Result<String> {
-        self.0
-            .lock()
-            .await
-            .graphics
-            .get_default_graphics()
-            .map_err(zbus_error_from_display)
-            .map(|mode| <&'static str>::from(mode).to_owned())
-    }
-
-    #[dbus_interface(out_args("vendor"))]
-    async fn get_graphics(&self) -> zbus::fdo::Result<String> {
-        self.0
-            .lock()
-            .await
-            .graphics
-            .get_vendor()
-            .map_err(zbus_error_from_display)
-            .map(|mode| <&'static str>::from(mode).to_owned())
-    }
-
-    async fn set_graphics(&mut self, vendor: &str) -> zbus::fdo::Result<()> {
-        self.0
-            .lock()
-            .await
-            .graphics
-            .set_vendor(GraphicsMode::from(vendor))
-            .map_err(zbus_error_from_display)
-    }
-
     #[dbus_interface(out_args("desktop"))]
     async fn get_desktop(&mut self) -> zbus::fdo::Result<bool> {
         Ok(self.0.lock().await.graphics.is_desktop())
-    }
-
-    #[dbus_interface(out_args("switchable"))]
-    async fn get_switchable(&mut self) -> zbus::fdo::Result<bool> {
-        Ok(self.0.lock().await.graphics.can_switch())
-    }
-
-    #[dbus_interface(out_args("power"))]
-    async fn get_graphics_power(&mut self) -> zbus::fdo::Result<bool> {
-        self.0.lock().await.graphics.get_power().map_err(zbus_error_from_display)
-    }
-
-    async fn set_graphics_power(&mut self, power: bool) -> zbus::fdo::Result<()> {
-        self.0.lock().await.graphics.set_power(power).map_err(zbus_error_from_display)
-    }
-
-    async fn auto_graphics_power(&mut self) -> zbus::fdo::Result<()> {
-        self.0.lock().await.graphics.auto_power().map_err(zbus_error_from_display)
     }
 
     #[dbus_interface(out_args("start", "end"))]
@@ -531,13 +482,6 @@ pub async fn daemon() -> anyhow::Result<()> {
 
     let daemon = Arc::new(Mutex::new(daemon));
     let mut system76_daemon = System76Power(daemon.clone());
-
-    match system76_daemon.auto_graphics_power().await {
-        Ok(()) => (),
-        Err(err) => {
-            log::warn!("Failed to set automatic graphics power: {}", err);
-        }
-    }
 
     let vendor = fs::read_to_string("/sys/class/dmi/id/sys_vendor")?;
     let model = fs::read_to_string("/sys/class/dmi/id/product_version")?;
