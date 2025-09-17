@@ -516,9 +516,6 @@ impl Graphics {
             _ => "off\n",
         };
 
-        log::info!("Setting {} to {}", PRIME_DISCRETE_PATH, mode);
-        Self::set_prime_discrete(mode)?;
-
         let bonw15_hack = {
             let dmi_vendor = fs::read_to_string("/sys/class/dmi/id/sys_vendor").unwrap_or_default();
             let dmi_model =
@@ -529,6 +526,22 @@ impl Graphics {
                 _ => false,
             }
         };
+
+        // Configure X server
+        if vendor == GraphicsMode::Discrete {
+            let mut file = fs::OpenOptions::new()
+                .create(true)
+                .truncate(true)
+                .write(true)
+                .open(get_xorg_conf_path())
+                .map_err(GraphicsDeviceError::XserverConf)?;
+
+            file.write_all(XORG_CONF_DISCRETE)
+                .and_then(|()| file.sync_all())
+                .map_err(GraphicsDeviceError::XserverConf)?;
+        } else if path::Path::new(get_xorg_conf_path()).exists() {
+            fs::remove_file(get_xorg_conf_path()).map_err(GraphicsDeviceError::XserverConf)?;
+        }
 
         {
             log::info!("Creating {}", MODPROBE_PATH);
@@ -610,21 +623,8 @@ impl Graphics {
             }
         }
 
-        // Configure X server
-        if vendor == GraphicsMode::Discrete {
-            let mut file = fs::OpenOptions::new()
-                .create(true)
-                .truncate(true)
-                .write(true)
-                .open(get_xorg_conf_path())
-                .map_err(GraphicsDeviceError::XserverConf)?;
-
-            file.write_all(XORG_CONF_DISCRETE)
-                .and_then(|()| file.sync_all())
-                .map_err(GraphicsDeviceError::XserverConf)?;
-        } else if path::Path::new(get_xorg_conf_path()).exists() {
-            fs::remove_file(get_xorg_conf_path()).map_err(GraphicsDeviceError::XserverConf)?;
-        }
+        log::info!("Setting {} to {}", PRIME_DISCRETE_PATH, mode);
+        Self::set_prime_discrete(mode)?;
 
         let action = if vendor == GraphicsMode::Discrete {
             log::info!("Enabling nvidia-fallback.service");
