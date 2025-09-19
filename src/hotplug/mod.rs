@@ -394,6 +394,12 @@ impl HotPlugDetect {
                     ],
                 }),
             }),
+            "oryp13" => {
+                let gpios = vec![
+                    0x04, // HDMI
+                ];
+                Ok(Self { integrated: Integrated::Amd(Amd::new(gpios)?) })
+            }
             "serw13" => Ok(Self {
                 integrated: Integrated::Intel(Intel {
                     sideband: Sideband::new(0xE000_0000)?,
