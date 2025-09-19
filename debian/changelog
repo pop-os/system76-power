@@ -1,3 +1,11 @@
+system76-power (1.2.8) jammy; urgency=medium
+
+  * Add support for dracut
+  * Add support for X path used on Fedora
+  * Add oryp13
+
+ -- Tim Crawford <tcrawford@system76.com>  Thu, 18 Sep 2025 09:40:47 -0600
+
 system76-power (1.2.7) jammy; urgency=medium
 
   * Add gaze20
