@@ -119,6 +119,7 @@ const EXTERNAL_DISPLAY_REQUIRES_NVIDIA: &[&str] = &[
     "oryp10",
     "oryp11",
     "oryp12",
+    "oryp13",
     "serw13",
     "serw14",
 ];
