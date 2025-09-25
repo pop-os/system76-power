@@ -28,30 +28,6 @@
       <arg name="profiles" type="aa{sv}" direction="out"/>
     </method>
     
-    <method name="GetDefaultGraphics">
-      <arg name="vendor" type="s" direction="out"/>
-    </method>
-    
-    <method name="GetGraphics">
-      <arg name="vendor" type="s" direction="out"/>
-    </method>
-
-    <method name="SetGraphics">
-      <arg name="vendor" type="s" direction="in"/>
-    </method>
-
-    <method name="GetGraphicsPower">
-      <arg name="power" type="b" direction="out"/>
-    </method>
-
-    <method name="SetGraphicsPower">
-      <arg name="power" type="b" direction="in"/>
-    </method>
-    
-    <method name="GetSwitchable">
-      <arg name="switchable" type="b" direction="out"/>
-    </method>
-
     <method name="GetDesktop">
       <arg name="desktop" type="b" direction="out"/>
     </method>
