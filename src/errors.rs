@@ -19,6 +19,8 @@ pub enum ProfileError {
     PState(#[from] PStateError),
     #[error("failed to set scsi host profiles: {0}")]
     ScsiHost(#[from] ScsiHostError),
+    #[error("failed to set ryzen adj config: {0}")]
+    RyzenAdj(#[from] RyzenAdjError),
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -69,4 +71,10 @@ pub enum PciDeviceError {
 pub enum ScsiHostError {
     #[error("failed to set link time power management policy {} on {}: {}", _0, _1, _2)]
     LinkTimePolicy(&'static str, String, io::Error),
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum RyzenAdjError {
+    #[error("failed to set ryzen adj parameters: {}", _0)]
+    CmdError(io::Error),
 }

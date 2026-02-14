@@ -68,14 +68,58 @@ pub fn set(profile: Profile, max_percent: u8) {
                 }
             }
         }
+
+        // Set CPU boost for AMD/generic cpufreq (complements Intel PState no_turbo)
+        set_boost(profile);
+    }
+}
+
+/// Controls CPU boost/turbo for AMD and generic cpufreq drivers.
+/// This complements Intel PState's no_turbo parameter handled in daemon/profiles.rs
+/// and provides boost control for AMD Ryzen CPUs via the generic cpufreq boost interface.
+fn set_boost(profile: Profile) {
+    let boost_value = match profile {
+        Profile::Battery => b"0", // Disable boost on battery to save power
+        Profile::Balanced | Profile::Performance => b"1", // Enable boost
+    };
+
+    // Try global boost path first (standard location)
+    let global_boost_path = "/sys/devices/system/cpu/cpufreq/boost";
+    if std::path::Path::new(global_boost_path).exists() {
+        match fs::write(global_boost_path, boost_value) {
+            Ok(()) => {
+                log::info!(
+                    "CPU boost set to {} for {:?} profile",
+                    std::str::from_utf8(boost_value).unwrap_or("?"),
+                    profile
+                );
+                return;
+            }
+            Err(e) => log::warn!("Failed to set CPU boost at {}: {}", global_boost_path, e),
+        }
+    }
+
+    // Fallback: try per-CPU boost path (some systems use this)
+    let per_cpu_boost_path = "/sys/devices/system/cpu/cpu0/cpufreq/boost";
+    if std::path::Path::new(per_cpu_boost_path).exists() {
+        match fs::write(per_cpu_boost_path, boost_value) {
+            Ok(()) => log::info!(
+                "CPU boost set to {} for {:?} profile (via per-CPU path)",
+                std::str::from_utf8(boost_value).unwrap_or("?"),
+                profile
+            ),
+            Err(e) => log::warn!("Failed to set CPU boost at {}: {}", per_cpu_boost_path, e),
+        }
+    } else {
+        log::debug!("CPU boost control not available (neither global nor per-CPU path found)");
     }
 }
 
 pub struct Cpu {
     /// Stores the path of the file being accessed.
-    path:        String,
+    path: String,
     /// Know where to truncate the path.
-    path_len:    usize,
+    path_len: usize,
     /// Scratch space for read files
     read_buffer: Vec<u8>,
 }
@@ -106,7 +150,9 @@ impl Cpu {
     }
 
     #[must_use]
-    pub fn scaling_driver(&mut self) -> Option<&str> { self.get_value("scaling_driver") }
+    pub fn scaling_driver(&mut self) -> Option<&str> {
+        self.get_value("scaling_driver")
+    }
 
     pub fn set_epp(&mut self, preference: &str) {
         self.set_value("energy_performance_preference", preference);
@@ -120,7 +166,9 @@ impl Cpu {
         self.set_value("scaling_min_freq", frequency);
     }
 
-    pub fn set_governor(&mut self, governor: &str) { self.set_value("scaling_governor", governor); }
+    pub fn set_governor(&mut self, governor: &str) {
+        self.set_value("scaling_governor", governor);
+    }
 
     fn set_value<V: std::fmt::Display>(&mut self, file: &str, value: V) {
         self.path.truncate(self.path_len);

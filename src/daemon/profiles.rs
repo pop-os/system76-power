@@ -3,11 +3,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 use super::pci_runtime_pm_support;
+use crate::errors::RyzenAdjError;
 use crate::{
     errors::{BacklightError, ModelError, PciDeviceError, ProfileError, ScsiHostError},
-    kernel_parameters::{DeviceList, Dirty, KernelParameter, LaptopMode},
+    kernel_parameters::{DeviceList, Dirty, KernelParameter, LaptopMode, PcieAspm},
     radeon::RadeonDevice,
-    Profile,
+    sys_devices, Profile,
 };
 use intel_pstate::{PState, PStateError, PStateValues};
 use std::{
@@ -86,9 +87,19 @@ pub fn balanced(errors: &mut Vec<ProfileError>, set_brightness: bool) {
         )
     );
 
+    // Default PCIe ASPM for balanced mode
+    PcieAspm.set(b"default");
+
+    // Enable I2C runtime PM for moderate power saving
+    for device in sys_devices::i2c::devices() {
+        device.set_runtime_pm(RuntimePowerManagement::On);
+    }
+
     if let Some(model_profiles) = ModelProfiles::new() {
         catch!(errors, model_profiles.balanced.set());
     }
+
+    catch!(errors, set_ryzen_limits(25_000, 35_000, 20_000, 85));
 }
 
 /// Sets parameters for the performance profile
@@ -98,7 +109,8 @@ pub fn performance(errors: &mut Vec<ProfileError>, _set_brightness: bool) {
         crate::acpi_platform::performance();
     }
 
-    Dirty::default().set_max_lost_work(15);
+    // Faster dirty writeback for performance mode
+    Dirty::default().set_max_lost_work(10);
     LaptopMode.set(b"0");
     RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("high", "performance", "auto"));
     catch!(errors, scsi_host_link_time_pm_policy(&["med_power_with_dipm", "max_performance"]));
@@ -118,9 +130,19 @@ pub fn performance(errors: &mut Vec<ProfileError>, _set_brightness: bool) {
         catch!(errors, pci_device_runtime_pm(RuntimePowerManagement::Off));
     }
 
+    // Default PCIe ASPM for performance (safe, minimal power management)
+    PcieAspm.set(b"default");
+
+    // Disable I2C runtime PM for lowest latency
+    for device in sys_devices::i2c::devices() {
+        device.set_runtime_pm(RuntimePowerManagement::Off);
+    }
+
     if let Some(model_profiles) = ModelProfiles::new() {
         catch!(errors, model_profiles.performance.set());
     }
+
+    catch!(errors, set_ryzen_max_performance());
 }
 
 /// Sets parameters for the battery profile
@@ -130,15 +152,18 @@ pub fn battery(errors: &mut Vec<ProfileError>, set_brightness: bool) {
         crate::acpi_platform::battery();
     }
 
-    Dirty::default().set_max_lost_work(15);
+    // Increase dirty writeback interval for better battery life
+    Dirty::default().set_max_lost_work(30);
     LaptopMode.set(b"2");
     RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("low", "battery", "low"));
     catch!(errors, scsi_host_link_time_pm_policy(&["min_power", "min_power"]));
-    crate::cpufreq::set(Profile::Battery, 50);
+
+    // Set CPU frequency cap to 60% (~2.7GHz for Ryzen, allows good performance without boost)
+    crate::cpufreq::set(Profile::Battery, 60);
 
     catch!(
         errors,
-        pstate_values(PStateValues::default().min_perf_pct(0).max_perf_pct(50).no_turbo(true))
+        pstate_values(PStateValues::default().min_perf_pct(0).max_perf_pct(25).no_turbo(true))
     );
 
     if set_brightness {
@@ -150,8 +175,75 @@ pub fn battery(errors: &mut Vec<ProfileError>, set_brightness: bool) {
         catch!(errors, pci_device_runtime_pm(RuntimePowerManagement::On));
     }
 
+    // Enable aggressive PCIe ASPM for battery savings
+    PcieAspm.set(b"powersupersave");
+
+    // Enable I2C device runtime power management (touchpad, sensors)
+    for device in sys_devices::i2c::devices() {
+        device.set_runtime_pm(RuntimePowerManagement::On);
+    }
+
     if let Some(model_profiles) = ModelProfiles::new() {
         catch!(errors, model_profiles.battery.set());
+    }
+
+    catch!(errors, set_ryzen_limits(12_000, 18_000, 10_000, 60));
+}
+
+fn set_ryzen_limits(
+    stapm_limit: u32,
+    fast_limit: u32,
+    slow_limit: u32,
+    tctl_temp: u32,
+) -> Result<(), RyzenAdjError> {
+    let stapm_limit_str = stapm_limit.to_string();
+    let fast_limit_str = fast_limit.to_string();
+    let slow_limit_str = slow_limit.to_string();
+    let tctl_temp_str = tctl_temp.to_string();
+
+    let output = Command::new("ryzenadj")
+        .arg("--stapm-limit=".to_owned() + &stapm_limit_str)
+        .arg("--fast-limit=".to_owned() + &fast_limit_str)
+        .arg("--slow-limit=".to_owned() + &slow_limit_str)
+        .arg("--tctl-temp=".to_owned() + &tctl_temp_str)
+        .output()
+        .map_err(RyzenAdjError::CmdError)?;
+
+    if output.status.success() {
+        log::info!(
+            "Successfully set Ryzen limits: STAPM={}mW, Fast={}mW, Slow={}mW, Tctl={}°C",
+            stapm_limit,
+            fast_limit,
+            slow_limit,
+            tctl_temp
+        );
+        Ok(())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        log::warn!("Error setting Ryzen limits: {}", stderr);
+        Err(RyzenAdjError::CmdError(io::Error::new(
+            io::ErrorKind::Other,
+            "ryzenadj command failed",
+        )))
+    }
+}
+
+fn set_ryzen_max_performance() -> Result<(), RyzenAdjError> {
+    let output = Command::new("ryzenadj")
+        .arg("--max-performance".to_owned())
+        .output()
+        .map_err(RyzenAdjError::CmdError)?;
+
+    if output.status.success() {
+        log::info!("Successfully set Ryzen to max performance.");
+        Ok(())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        eprintln!("Error setting Ryzen to max performance: {}", stderr);
+        Err(RyzenAdjError::CmdError(io::Error::new(
+            io::ErrorKind::Other,
+            "ryzenadj command failed",
+        )))
     }
 }
 
@@ -230,8 +322,8 @@ fn set_backlight<B: Brightness>(
 }
 
 pub struct ModelProfile {
-    pl1:        Option<u8>,
-    pl2:        Option<u8>,
+    pl1: Option<u8>,
+    pl2: Option<u8>,
     tcc_offset: Option<u8>,
 }
 
@@ -293,9 +385,9 @@ impl ModelProfile {
 }
 
 pub struct ModelProfiles {
-    pub balanced:    ModelProfile,
+    pub balanced: ModelProfile,
     pub performance: ModelProfile,
-    pub battery:     ModelProfile,
+    pub battery: ModelProfile,
 }
 
 impl ModelProfiles {
@@ -304,36 +396,36 @@ impl ModelProfiles {
             fs::read_to_string("/sys/class/dmi/id/product_version").unwrap_or_default();
         match model_line.trim() {
             "galp5" => Some(Self {
-                balanced:    ModelProfile {
-                    pl1:        Some(28),
-                    pl2:        None,     // galp5 doesn't like setting pl2
+                balanced: ModelProfile {
+                    pl1: Some(28),
+                    pl2: None,            // galp5 doesn't like setting pl2
                     tcc_offset: Some(12), // 88 C
                 },
                 performance: ModelProfile {
-                    pl1:        Some(40),
-                    pl2:        None,    // galp5 doesn't like setting pl2
+                    pl1: Some(40),
+                    pl2: None,           // galp5 doesn't like setting pl2
                     tcc_offset: Some(7), // 93 C
                 },
-                battery:     ModelProfile {
-                    pl1:        Some(12),
-                    pl2:        None,     // galp5 doesn't like setting pl2
+                battery: ModelProfile {
+                    pl1: Some(12),
+                    pl2: None,            // galp5 doesn't like setting pl2
                     tcc_offset: Some(32), // 68 C
                 },
             }),
             "lemp9" => Some(Self {
-                balanced:    ModelProfile {
-                    pl1:        Some(20),
-                    pl2:        Some(40), // Upped from 30
+                balanced: ModelProfile {
+                    pl1: Some(20),
+                    pl2: Some(40),        // Upped from 30
                     tcc_offset: Some(12), // 88 C
                 },
                 performance: ModelProfile {
-                    pl1:        Some(30),
-                    pl2:        Some(50),
+                    pl1: Some(30),
+                    pl2: Some(50),
                     tcc_offset: Some(2), // 98 C
                 },
-                battery:     ModelProfile {
-                    pl1:        Some(10),
-                    pl2:        Some(30),
+                battery: ModelProfile {
+                    pl1: Some(10),
+                    pl2: Some(30),
                     tcc_offset: Some(32), // 68 C
                 },
             }),

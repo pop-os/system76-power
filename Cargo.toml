@@ -2,8 +2,8 @@
 name = "system76-power"
 version = "1.2.8"
 authors = ["Jeremy Soller <jackpot51@gmail.com>"]
-edition = "2021"
-rust-version = "1.75.0"
+edition = "2024"
+rust-version = "1.85.0"
 
 [workspace]
 members = [ "zbus" ]

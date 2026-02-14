@@ -15,7 +15,7 @@ impl Module {
 }
 
 fn parse(line: &str) -> io::Result<Module> {
-    let name = line
+    let name: String = line
         .split(' ')
         .next()
         .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "module name not found"))?
