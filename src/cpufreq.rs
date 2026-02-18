@@ -20,7 +20,6 @@ pub fn set(profile: Profile, max_percent: u8) {
 
     if let Some(driver) = core.scaling_driver() {
         log::info!("  Detected CPU scaling driver: {}", driver);
-        let is_amd_pstate = driver.starts_with("amd-pstate");
 
         // The profile for the `energy_performance_preference`.
         let mut epp = None;

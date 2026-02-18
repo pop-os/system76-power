@@ -68,28 +68,155 @@ static PCI_RUNTIME_PM: AtomicBool = AtomicBool::new(false);
 // TODO: Whitelist system76 hardware that's known to work with this setting.
 pub(crate) fn pci_runtime_pm_support() -> bool { PCI_RUNTIME_PM.load(Ordering::SeqCst) }
 
+/// Load auto-switching configuration from /etc/system76-power.conf
+///
+/// Returns true if auto-switching should be enabled (default: true)
+fn load_auto_switch_config() -> bool {
+    let config_path = "/etc/system76-power.conf";
+    
+    match fs::read_to_string(config_path) {
+        Ok(content) => {
+            // Simple parsing: look for "enabled = true" or "enabled = false"
+            let enabled = content.lines()
+                .find(|line| line.trim().starts_with("enabled"))
+                .and_then(|line| {
+                    line.split('=')
+                        .nth(1)
+                        .map(|v| v.trim() == "true")
+                })
+                .unwrap_or(true); // Default to enabled if not found
+            
+            log::info!("Auto-switching configuration loaded: {}", if enabled { "enabled" } else { "disabled" });
+            enabled
+        }
+        Err(_) => {
+            log::info!("No configuration file found at {}, using default: auto-switching enabled", config_path);
+            true // Default: enabled
+        }
+    }
+}
+
+/// Configuration for refresh rate auto-switching
+#[derive(Debug, Clone)]
+struct RefreshRateConfig {
+    enabled: bool,
+    battery: u32,
+    balanced: u32,
+    performance: u32,
+}
+
+impl Default for RefreshRateConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            battery: 60,
+            balanced: 60,
+            performance: 165,
+        }
+    }
+}
+
+/// Load refresh rate configuration from /etc/system76-power.conf
+///
+/// Returns RefreshRateConfig with settings from config file or defaults
+fn load_refresh_rate_config() -> RefreshRateConfig {
+    let config_path = "/etc/system76-power.conf";
+    
+    match fs::read_to_string(config_path) {
+        Ok(content) => {
+            let mut config = RefreshRateConfig::default();
+            let mut in_refresh_section = false;
+            
+            for line in content.lines() {
+                let trimmed = line.trim();
+                
+                // Check for [refresh_rate] section
+                if trimmed == "[refresh_rate]" {
+                    in_refresh_section = true;
+                    continue;
+                }
+                
+                // Exit section if we hit another section header
+                if trimmed.starts_with('[') && trimmed != "[refresh_rate]" {
+                    in_refresh_section = false;
+                    continue;
+                }
+                
+                // Parse settings only within [refresh_rate] section
+                if in_refresh_section && trimmed.contains('=') {
+                    let parts: Vec<&str> = trimmed.splitn(2, '=').collect();
+                    if parts.len() == 2 {
+                        let key = parts[0].trim();
+                        let value = parts[1].trim();
+                        
+                        match key {
+                            "enabled" => {
+                                config.enabled = value == "true";
+                            }
+                            "battery" => {
+                                if let Ok(hz) = value.parse::<u32>() {
+                                    config.battery = hz;
+                                }
+                            }
+                            "balanced" => {
+                                if let Ok(hz) = value.parse::<u32>() {
+                                    config.balanced = hz;
+                                }
+                            }
+                            "performance" => {
+                                if let Ok(hz) = value.parse::<u32>() {
+                                    config.performance = hz;
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+            
+            log::info!(
+                "Refresh rate configuration loaded: enabled={}, battery={}Hz, balanced={}Hz, performance={}Hz",
+                config.enabled, config.battery, config.balanced, config.performance
+            );
+            config
+        }
+        Err(_) => {
+            log::info!("No configuration file found at {}, using refresh rate defaults: 60/60/165 Hz", config_path);
+            RefreshRateConfig::default()
+        }
+    }
+}
+
 struct PowerDaemon {
-    initial_set:    bool,
-    graphics:       Graphics,
-    power_profile:  String,
-    profile_errors: Vec<ProfileError>,
-    held_profiles:  Vec<(u32, &'static str, String, String)>,
-    profile_ids:    u32,
-    connections:    Option<(zbus::Connection, zbus::Connection, zbus::Connection)>,
+    initial_set:                 bool,
+    graphics:                    Graphics,
+    power_profile:               String,
+    profile_errors:              Vec<ProfileError>,
+    held_profiles:               Vec<(u32, &'static str, String, String)>,
+    profile_ids:                 u32,
+    connections:                 Option<(zbus::Connection, zbus::Connection, zbus::Connection)>,
+    auto_switch_enabled:         bool,
+    auto_switch_manual_override: bool,
+    refresh_rate_config:         RefreshRateConfig,
 }
 
 impl PowerDaemon {
     fn new() -> anyhow::Result<Self> {
         let graphics = Graphics::new()?;
+        let auto_switch_enabled = load_auto_switch_config();
+        let refresh_rate_config = load_refresh_rate_config();
 
         Ok(Self {
-            initial_set: false,
+            initial_set:                 false,
             graphics,
-            power_profile: String::new(),
-            profile_errors: Vec::new(),
-            held_profiles: Vec::new(),
-            profile_ids: 0,
-            connections: None,
+            power_profile:               String::new(),
+            profile_errors:              Vec::new(),
+            held_profiles:               Vec::new(),
+            profile_ids:                 0,
+            connections:                 None,
+            auto_switch_enabled,
+            auto_switch_manual_override: false,
+            refresh_rate_config,
         })
     }
 
@@ -109,6 +236,26 @@ impl PowerDaemon {
         func(&mut self.profile_errors, self.initial_set);
 
         self.power_profile = name.into();
+
+        // Apply refresh rate if enabled
+        if self.refresh_rate_config.enabled {
+            let hz = match name {
+                "Battery" => self.refresh_rate_config.battery,
+                "Balanced" => self.refresh_rate_config.balanced,
+                "Performance" => self.refresh_rate_config.performance,
+                _ => {
+                    log::warn!("Unknown profile '{}', skipping refresh rate change", name);
+                    0 // Will be skipped
+                }
+            };
+
+            if hz > 0 {
+                log::info!("Setting display refresh rate to {}Hz for {} profile", hz, name);
+                if let Err(e) = crate::display::set_refresh_rate(hz) {
+                    log::warn!("Failed to set display refresh rate to {}Hz: {}", hz, e);
+                }
+            }
+        }
 
         if self.profile_errors.is_empty() {
             Ok(())
@@ -170,6 +317,18 @@ impl System76Power {
         &mut self,
         #[zbus(signal_context)] context: zbus::SignalContext<'_>,
     ) -> zbus::fdo::Result<()> {
+        // Detect manual profile change - set override flag (but not during initial startup)
+        {
+            let mut daemon = self.0.lock().await;
+            if daemon.auto_switch_enabled 
+                && daemon.initial_set 
+                && daemon.power_profile != "Battery" 
+            {
+                log::info!("Manual profile change to Battery detected, setting override flag");
+                daemon.auto_switch_manual_override = true;
+            }
+        }
+        
         let result = self
             .0
             .lock()
@@ -189,6 +348,18 @@ impl System76Power {
         &mut self,
         #[zbus(signal_context)] context: zbus::SignalContext<'_>,
     ) -> zbus::fdo::Result<()> {
+        // Detect manual profile change - set override flag (but not during initial startup)
+        {
+            let mut daemon = self.0.lock().await;
+            if daemon.auto_switch_enabled 
+                && daemon.initial_set 
+                && daemon.power_profile != "Balanced" 
+            {
+                log::info!("Manual profile change to Balanced detected, setting override flag");
+                daemon.auto_switch_manual_override = true;
+            }
+        }
+        
         let result = self
             .0
             .lock()
@@ -208,6 +379,18 @@ impl System76Power {
         &mut self,
         #[zbus(signal_context)] context: zbus::SignalContext<'_>,
     ) -> zbus::fdo::Result<()> {
+        // Detect manual profile change - set override flag (but not during initial startup)
+        {
+            let mut daemon = self.0.lock().await;
+            if daemon.auto_switch_enabled 
+                && daemon.initial_set 
+                && daemon.power_profile != "Performance" 
+            {
+                log::info!("Manual profile change to Performance detected, setting override flag");
+                daemon.auto_switch_manual_override = true;
+            }
+        }
+        
         let result = self
             .0
             .lock()
@@ -597,6 +780,71 @@ pub async fn daemon() -> anyhow::Result<()> {
     }
 
     system76_daemon.0.lock().await.initial_set = true;
+
+    // Create channel for AC power monitoring
+    let (power_tx, mut power_rx) = tokio::sync::mpsc::unbounded_channel();
+    
+    // Spawn async AC power monitoring task - uses Netlink uevents for instant hardware-driven detection
+    tokio::spawn(async move {
+        if let Err(e) = crate::power_supply::monitor_channel(power_tx).await {
+            log::warn!("AC power monitoring failed: {}. Auto-switching will be disabled.", e);
+        }
+    });
+
+    // Handle power source changes in the async runtime
+    let daemon_clone = system76_daemon.0.clone();
+    let system76_clone = system76_daemon.clone();
+    let context_clone = context.clone();
+    
+    tokio::spawn(async move {
+        log::info!("Power source change handler started, waiting for events...");
+        while let Some(source) = power_rx.recv().await {
+            log::info!("Received power source event: {:?}", source);
+            let mut daemon = daemon_clone.lock().await;
+            
+            // Check if auto-switching is enabled
+            if !daemon.auto_switch_enabled {
+                log::debug!("Auto-switching disabled, ignoring power source change to {:?}", source);
+                continue;
+            }
+            
+            log::info!("Auto-switching is enabled, processing power source change to {:?}", source);
+            
+            // Check if user has manually overridden
+            if daemon.auto_switch_manual_override {
+                log::info!("Manual override active, clearing it due to AC power change to {:?}", source);
+                daemon.auto_switch_manual_override = false;
+            }
+            
+            // Determine target profile based on power source
+            let (target_profile, profile_func) = match source {
+                crate::power_supply::PowerSource::AC => {
+                    log::info!("AC adapter connected, auto-switching to Balanced profile");
+                    ("Balanced", balanced as fn(&mut Vec<ProfileError>, bool))
+                }
+                crate::power_supply::PowerSource::Battery => {
+                    log::info!("On battery power, auto-switching to Battery profile");
+                    ("Battery", battery as fn(&mut Vec<ProfileError>, bool))
+                }
+            };
+            
+            // Apply the profile
+            match daemon.apply_profile(&context_clone, profile_func, target_profile).await {
+                Ok(()) => {
+                    log::info!("Auto-switch to {} profile successful", target_profile);
+                    // Drop the lock before emitting signals
+                    drop(daemon);
+                    // Emit D-Bus signals to notify clients of the profile change
+                    system76_clone.emit_active_profile_changed().await;
+                }
+                Err(e) => {
+                    log::error!("Auto-switch to {} profile failed: {}", target_profile, e);
+                }
+            }
+        }
+        
+        log::warn!("Power monitoring channel closed, auto-switching stopped");
+    });
 
     // Spawn hid backlight daemon
     let _hid_backlight = thread::spawn(hid_backlight::daemon);

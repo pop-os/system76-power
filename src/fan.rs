@@ -50,7 +50,7 @@ impl FanDaemon {
         };
 
         if let Err(err) = daemon.discover() {
-            log::error!("fan daemon: {}", err);
+            // log::error!("fan daemon: {}", err);
         }
 
         daemon
