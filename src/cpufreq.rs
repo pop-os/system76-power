@@ -56,10 +56,12 @@ pub fn set(profile: Profile, max_percent: u8) {
             for cpu in 0..=cpus {
                 core.load(cpu);
 
-                if !is_amd_pstate {
-                    core.set_frequency_minimum(min);
-                    core.set_frequency_maximum(max);
-                }
+                // Set frequency limits for all drivers, including amd-pstate variants.
+                // Even though amd-pstate-epp primarily uses EPP (Energy Performance Preference)
+                // hints, the scaling_max_freq parameter must still be set to enforce the
+                // maximum frequency cap. Without this, the CPU can get stuck at low frequencies.
+                core.set_frequency_minimum(min);
+                core.set_frequency_maximum(max);
 
                 core.set_governor(governor);
 
