@@ -35,21 +35,29 @@ macro_rules! catch {
 
 /// Sets parameters for the balanced profile.
 pub fn balanced(errors: &mut Vec<ProfileError>, set_brightness: bool) {
+    log::info!("=== Applying BALANCED profile ===");
+
     // Use the ACPI Platform Profile if the hardware is supported by the kernel.
     if crate::acpi_platform::supported() {
+        log::info!("Setting ACPI platform profile to balanced");
         crate::acpi_platform::balanced();
     }
 
     // The dirty kernel parameter controls how often the OS will sync data to disks. The less
     // frequently this occurs, the more power can be saved, yet the higher the risk of sudden
     // power loss causing loss of data. 15s is a reasonable number.
+    log::debug!("Setting dirty writeback to 15 seconds");
     Dirty::default().set_max_lost_work(15);
 
     // Enables the laptop mode feature in the kernel, which allows mechanical drives to spin down
     // when inactive.
+    log::debug!("Setting laptop mode to 2");
     LaptopMode.set(b"2");
 
     // Sets radeon power profiles for AMD graphics.
+    log::info!("Configuring AMD GPU devices for balanced profile");
+    let gpu_count = RadeonDevice::get_devices().count();
+    log::info!("Found {} AMD GPU device(s)", gpu_count);
     RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("auto", "performance", "auto"));
 
     // Enables SCSI / SATA link time power management.
@@ -73,6 +81,7 @@ pub fn balanced(errors: &mut Vec<ProfileError>, set_brightness: bool) {
     }
 
     // Set to balanced profile.
+    log::info!("Configuring CPU for balanced profile (100% frequency cap)");
     crate::cpufreq::set(Profile::Balanced, 100);
 
     // Control Intel PState values, if they exist.
@@ -100,21 +109,35 @@ pub fn balanced(errors: &mut Vec<ProfileError>, set_brightness: bool) {
     }
 
     catch!(errors, set_ryzen_limits(25_000, 35_000, 20_000, 85));
+
+    log::info!("=== BALANCED profile applied successfully ===");
 }
 
 /// Sets parameters for the performance profile
 pub fn performance(errors: &mut Vec<ProfileError>, _set_brightness: bool) {
+    log::info!("=== Applying PERFORMANCE profile ===");
+
     // Use the ACPI Platform Profile if the hardware is supported by the kernel.
     if crate::acpi_platform::supported() {
+        log::info!("Setting ACPI platform profile to performance");
         crate::acpi_platform::performance();
     }
 
     // Faster dirty writeback for performance mode
+    log::debug!("Setting dirty writeback to 10 seconds");
     Dirty::default().set_max_lost_work(10);
     LaptopMode.set(b"0");
+
+    log::info!("Configuring AMD GPU devices for performance profile");
+    let gpu_count = RadeonDevice::get_devices().count();
+    log::info!("Found {} AMD GPU device(s)", gpu_count);
     RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("high", "performance", "auto"));
+
     catch!(errors, scsi_host_link_time_pm_policy(&["med_power_with_dipm", "max_performance"]));
+
+    log::info!("Configuring CPU for performance profile (100% frequency cap)");
     crate::cpufreq::set(Profile::Performance, 100);
+
     catch!(
         errors,
         pstate_values(
@@ -143,22 +166,34 @@ pub fn performance(errors: &mut Vec<ProfileError>, _set_brightness: bool) {
     }
 
     catch!(errors, set_ryzen_max_performance());
+
+    log::info!("=== PERFORMANCE profile applied successfully ===");
 }
 
 /// Sets parameters for the battery profile
 pub fn battery(errors: &mut Vec<ProfileError>, set_brightness: bool) {
+    log::info!("=== Applying BATTERY profile ===");
+
     // Use the ACPI Platform Profile if the hardware is supported by the kernel.
     if crate::acpi_platform::supported() {
+        log::info!("Setting ACPI platform profile to battery");
         crate::acpi_platform::battery();
     }
 
     // Increase dirty writeback interval for better battery life
+    log::debug!("Setting dirty writeback to 30 seconds");
     Dirty::default().set_max_lost_work(30);
     LaptopMode.set(b"2");
+
+    log::info!("Configuring AMD GPU devices for battery profile");
+    let gpu_count = RadeonDevice::get_devices().count();
+    log::info!("Found {} AMD GPU device(s)", gpu_count);
     RadeonDevice::get_devices().for_each(|dev| dev.set_profiles("low", "battery", "low"));
+
     catch!(errors, scsi_host_link_time_pm_policy(&["min_power", "min_power"]));
 
     // Set CPU frequency cap to 60% (~2.7GHz for Ryzen, allows good performance without boost)
+    log::info!("Configuring CPU for battery profile (60% frequency cap)");
     crate::cpufreq::set(Profile::Battery, 60);
 
     catch!(
@@ -188,6 +223,8 @@ pub fn battery(errors: &mut Vec<ProfileError>, set_brightness: bool) {
     }
 
     catch!(errors, set_ryzen_limits(12_000, 18_000, 10_000, 60));
+
+    log::info!("=== BATTERY profile applied successfully ===");
 }
 
 fn set_ryzen_limits(

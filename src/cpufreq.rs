@@ -15,7 +15,11 @@ pub fn set(profile: Profile, max_percent: u8) {
     let min_freq = core.frequency_minimum();
     let max_freq = core.frequency_maximum();
 
+    log::info!("Setting CPU frequency for profile: {:?}", profile);
+    log::info!("  CPU frequency range: min={:?} kHz, max={:?} kHz", min_freq, max_freq);
+
     if let Some(driver) = core.scaling_driver() {
+        log::info!("  Detected CPU scaling driver: {}", driver);
         let is_amd_pstate = driver.starts_with("amd-pstate");
 
         // The profile for the `energy_performance_preference`.
@@ -49,9 +53,21 @@ pub fn set(profile: Profile, max_percent: u8) {
             }
         };
 
+        log::info!("  Selected governor: {}", governor);
+        if let Some(pref) = epp {
+            log::info!("  EPP preference: {}", pref);
+        }
+
         if let Some((cpus, (min, max))) = num_cpus().zip(min_freq.zip(max_freq)) {
             let max = max * max_percent.min(100) as usize / 100;
-            eprintln!("setting {} with max {}", governor, max);
+            log::info!(
+                "  Applying frequency limits: min={} kHz, max={} kHz ({}% of {} kHz)",
+                min,
+                max,
+                max_percent,
+                max_freq.unwrap_or(0)
+            );
+            log::info!("  Total CPUs to configure: {}", cpus + 1);
 
             for cpu in 0..=cpus {
                 core.load(cpu);
@@ -69,10 +85,16 @@ pub fn set(profile: Profile, max_percent: u8) {
                     core.set_epp(preference);
                 }
             }
+
+            log::info!("  CPU frequency configuration completed for {} cores", cpus + 1);
+        } else {
+            log::warn!("  Failed to get CPU count or frequency range - skipping CPU configuration");
         }
 
         // Set CPU boost for AMD/generic cpufreq (complements Intel PState no_turbo)
         set_boost(profile);
+    } else {
+        log::error!("  Failed to detect CPU scaling driver - cannot configure CPU frequency");
     }
 }
 
@@ -157,18 +179,30 @@ impl Cpu {
     }
 
     pub fn set_epp(&mut self, preference: &str) {
+        log::debug!("  Setting EPP to '{}' on {}", preference, &self.path[..self.path_len]);
         self.set_value("energy_performance_preference", preference);
     }
 
     pub fn set_frequency_maximum(&mut self, frequency: usize) {
+        log::debug!(
+            "  Setting max frequency to {} kHz on {}",
+            frequency,
+            &self.path[..self.path_len]
+        );
         self.set_value("scaling_max_freq", frequency);
     }
 
     pub fn set_frequency_minimum(&mut self, frequency: usize) {
+        log::debug!(
+            "  Setting min frequency to {} kHz on {}",
+            frequency,
+            &self.path[..self.path_len]
+        );
         self.set_value("scaling_min_freq", frequency);
     }
 
     pub fn set_governor(&mut self, governor: &str) {
+        log::debug!("  Setting governor to '{}' on {}", governor, &self.path[..self.path_len]);
         self.set_value("scaling_governor", governor);
     }
 
