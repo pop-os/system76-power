@@ -187,6 +187,128 @@ fn load_refresh_rate_config() -> RefreshRateConfig {
     }
 }
 
+/// Load display mode configuration from /etc/system76-power.conf
+///
+/// Returns DisplayModeConfig with settings from config file or defaults
+fn load_display_mode_config() -> crate::display::DisplayModeConfig {
+    use crate::display::{DisplayModeConfig, ModeSpec};
+    
+    let config_path = "/etc/system76-power.conf";
+    
+    match fs::read_to_string(config_path) {
+        Ok(content) => {
+            let mut config = DisplayModeConfig::default();
+            let mut in_display_modes_section = false;
+            
+            // Temporary storage for mode components
+            let mut ac_resolution: Option<String> = None;
+            let mut ac_refresh_rate: Option<u32> = None;
+            let mut ac_mode_string: Option<String> = None;
+            let mut battery_resolution: Option<String> = None;
+            let mut battery_refresh_rate: Option<u32> = None;
+            let mut battery_mode_string: Option<String> = None;
+            
+            for line in content.lines() {
+                let trimmed = line.trim();
+                
+                // Check for [display_modes] section
+                if trimmed == "[display_modes]" {
+                    in_display_modes_section = true;
+                    continue;
+                }
+                
+                // Exit section if we hit another section header
+                if trimmed.starts_with('[') && trimmed != "[display_modes]" {
+                    in_display_modes_section = false;
+                    continue;
+                }
+                
+                // Parse settings only within [display_modes] section
+                if in_display_modes_section && trimmed.contains('=') {
+                    let parts: Vec<&str> = trimmed.splitn(2, '=').collect();
+                    if parts.len() == 2 {
+                        let key = parts[0].trim();
+                        let value = parts[1].trim().trim_matches('"');
+                        
+                        match key {
+                            "enabled" => {
+                                config.enabled = value == "true";
+                            }
+                            // AC mode settings
+                            "ac_mode" => {
+                                ac_mode_string = Some(value.to_string());
+                            }
+                            "ac_resolution" => {
+                                ac_resolution = Some(value.to_string());
+                            }
+                            "ac_refresh_rate" => {
+                                if let Ok(hz) = value.parse::<u32>() {
+                                    ac_refresh_rate = Some(hz);
+                                }
+                            }
+                            // Battery mode settings
+                            "battery_mode" => {
+                                battery_mode_string = Some(value.to_string());
+                            }
+                            "battery_resolution" => {
+                                battery_resolution = Some(value.to_string());
+                            }
+                            "battery_refresh_rate" => {
+                                if let Ok(hz) = value.parse::<u32>() {
+                                    battery_refresh_rate = Some(hz);
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+            
+            // Build AC mode (prefer explicit mode string over resolution+rate)
+            if let Some(mode_str) = ac_mode_string {
+                config.ac_mode = Some(ModeSpec::ModeString(mode_str.clone()));
+                log::debug!("AC mode: explicit mode string '{}'", mode_str);
+            } else if let (Some(res), Some(hz)) = (ac_resolution, ac_refresh_rate) {
+                // Parse resolution (format: "2560x1440")
+                let res_parts: Vec<&str> = res.split('x').collect();
+                if res_parts.len() == 2 {
+                    if let (Ok(width), Ok(height)) = (res_parts[0].parse::<u32>(), res_parts[1].parse::<u32>()) {
+                        config.ac_mode = Some(ModeSpec::ResolutionAndRate(width, height, hz));
+                        log::debug!("AC mode: {}x{}@{}Hz", width, height, hz);
+                    }
+                }
+            }
+            
+            // Build battery mode (prefer explicit mode string over resolution+rate)
+            if let Some(mode_str) = battery_mode_string {
+                config.battery_mode = Some(ModeSpec::ModeString(mode_str.clone()));
+                log::debug!("Battery mode: explicit mode string '{}'", mode_str);
+            } else if let (Some(res), Some(hz)) = (battery_resolution, battery_refresh_rate) {
+                // Parse resolution (format: "1920x1080")
+                let res_parts: Vec<&str> = res.split('x').collect();
+                if res_parts.len() == 2 {
+                    if let (Ok(width), Ok(height)) = (res_parts[0].parse::<u32>(), res_parts[1].parse::<u32>()) {
+                        config.battery_mode = Some(ModeSpec::ResolutionAndRate(width, height, hz));
+                        log::debug!("Battery mode: {}x{}@{}Hz", width, height, hz);
+                    }
+                }
+            }
+            
+            log::info!(
+                "Display mode configuration loaded: enabled={}, ac_mode={:?}, battery_mode={:?}",
+                config.enabled,
+                config.ac_mode.is_some(),
+                config.battery_mode.is_some()
+            );
+            config
+        }
+        Err(_) => {
+            log::info!("No display_modes configuration found, using defaults (disabled)");
+            DisplayModeConfig::default()
+        }
+    }
+}
+
 struct PowerDaemon {
     initial_set:                 bool,
     graphics:                    Graphics,
@@ -198,6 +320,7 @@ struct PowerDaemon {
     auto_switch_enabled:         bool,
     auto_switch_manual_override: bool,
     refresh_rate_config:         RefreshRateConfig,
+    display_mode_config:         crate::display::DisplayModeConfig,
 }
 
 impl PowerDaemon {
@@ -205,6 +328,7 @@ impl PowerDaemon {
         let graphics = Graphics::new()?;
         let auto_switch_enabled = load_auto_switch_config();
         let refresh_rate_config = load_refresh_rate_config();
+        let display_mode_config = load_display_mode_config();
 
         Ok(Self {
             initial_set:                 false,
@@ -217,6 +341,7 @@ impl PowerDaemon {
             auto_switch_enabled,
             auto_switch_manual_override: false,
             refresh_rate_config,
+            display_mode_config,
         })
     }
 
@@ -816,29 +941,64 @@ pub async fn daemon() -> anyhow::Result<()> {
                 daemon.auto_switch_manual_override = false;
             }
             
-            // Determine target profile based on power source
-            let (target_profile, profile_func) = match source {
-                crate::power_supply::PowerSource::AC => {
-                    log::info!("AC adapter connected, auto-switching to Balanced profile");
-                    ("Balanced", balanced as fn(&mut Vec<ProfileError>, bool))
+            // Check if display mode switching is enabled
+            if daemon.display_mode_config.enabled {
+                log::info!("Display mode switching is enabled for AC power changes");
+                
+                // Determine which mode to apply based on power source
+                let mode_spec_opt = match source {
+                    crate::power_supply::PowerSource::AC => {
+                        log::info!("AC adapter connected, checking for AC display mode");
+                        &daemon.display_mode_config.ac_mode
+                    }
+                    crate::power_supply::PowerSource::Battery => {
+                        log::info!("On battery power, checking for battery display mode");
+                        &daemon.display_mode_config.battery_mode
+                    }
+                };
+                
+                // Apply the display mode if configured (changes both resolution and refresh rate)
+                if let Some(mode_spec) = mode_spec_opt {
+                    if let Err(e) = crate::display::set_display_mode(mode_spec) {
+                        log::error!("Failed to set display mode for {:?}: {}", source, e);
+                    } else {
+                        log::info!("Display mode successfully changed for {:?}", source);
+                    }
+                } else {
+                    log::warn!("Display mode switching enabled but no mode configured for {:?}", source);
                 }
-                crate::power_supply::PowerSource::Battery => {
-                    log::info!("On battery power, auto-switching to Battery profile");
-                    ("Battery", battery as fn(&mut Vec<ProfileError>, bool))
-                }
-            };
-            
-            // Apply the profile
-            match daemon.apply_profile(&context_clone, profile_func, target_profile).await {
-                Ok(()) => {
-                    log::info!("Auto-switch to {} profile successful", target_profile);
-                    // Drop the lock before emitting signals
-                    drop(daemon);
-                    // Emit D-Bus signals to notify clients of the profile change
-                    system76_clone.emit_active_profile_changed().await;
-                }
-                Err(e) => {
-                    log::error!("Auto-switch to {} profile failed: {}", target_profile, e);
+                
+                // Note: When display mode switching is enabled, we don't auto-switch profiles
+                // The display mode change handles both resolution and refresh rate
+                drop(daemon);
+            } else {
+                // Display mode switching disabled - fall back to profile-based auto-switching
+                log::info!("Display mode switching disabled, using profile-based auto-switching");
+                
+                // Determine target profile based on power source
+                let (target_profile, profile_func) = match source {
+                    crate::power_supply::PowerSource::AC => {
+                        log::info!("AC adapter connected, auto-switching to Balanced profile");
+                        ("Balanced", balanced as fn(&mut Vec<ProfileError>, bool))
+                    }
+                    crate::power_supply::PowerSource::Battery => {
+                        log::info!("On battery power, auto-switching to Battery profile");
+                        ("Battery", battery as fn(&mut Vec<ProfileError>, bool))
+                    }
+                };
+                
+                // Apply the profile
+                match daemon.apply_profile(&context_clone, profile_func, target_profile).await {
+                    Ok(()) => {
+                        log::info!("Auto-switch to {} profile successful", target_profile);
+                        // Drop the lock before emitting signals
+                        drop(daemon);
+                        // Emit D-Bus signals to notify clients of the profile change
+                        system76_clone.emit_active_profile_changed().await;
+                    }
+                    Err(e) => {
+                        log::error!("Auto-switch to {} profile failed: {}", target_profile, e);
+                    }
                 }
             }
         }

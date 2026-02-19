@@ -71,6 +71,34 @@ impl Default for RefreshRateConfig {
     }
 }
 
+/// Display mode specification - can be explicit mode string or resolution + refresh rate
+#[derive(Debug, Clone)]
+pub enum ModeSpec {
+    /// Explicit mode string (e.g., "2560x1440@165.001+vrr")
+    ModeString(String),
+    /// Resolution and refresh rate (width, height, hz)
+    ResolutionAndRate(u32, u32, u32),
+}
+
+/// Display mode configuration for AC auto-switching
+/// This allows changing both resolution and refresh rate when plugging/unplugging AC
+#[derive(Debug, Clone)]
+pub struct DisplayModeConfig {
+    pub enabled: bool,
+    pub ac_mode: Option<ModeSpec>,
+    pub battery_mode: Option<ModeSpec>,
+}
+
+impl Default for DisplayModeConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false, // Disabled by default, opt-in feature
+            ac_mode: None,
+            battery_mode: None,
+        }
+    }
+}
+
 /// Display server types
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DisplayServer {
@@ -962,18 +990,14 @@ fn set_refresh_rate_gnome_wayland(ctx: &SessionContext, rate: u32) -> Result<(),
     Ok(())
 }
 
-/// Set refresh rate on X11 using xrandr
+/// Get built-in display name for X11
 ///
-/// Queries available modes and selects the best match for the requested refresh rate.
-fn set_refresh_rate_xrandr(ctx: &SessionContext, rate: u32) -> Result<(), io::Error> {
-    log::info!("Setting display refresh rate to {}Hz via xrandr (X11)", rate);
-
-    // Find built-in display (usually eDP-1 or eDP)
+/// Queries xrandr to find the built-in laptop display (eDP-* or LVDS-*)
+fn get_builtin_display_name_xrandr(ctx: &SessionContext) -> Result<String, io::Error> {
     let mut query_cmd = Command::new("sudo");
     query_cmd.arg("-u").arg(&ctx.user);
     query_cmd.arg("env");
 
-    // Set environment variables from user session
     for (key, value) in &ctx.env_vars {
         query_cmd.arg(format!("{}={}", key, value));
     }
@@ -981,21 +1005,31 @@ fn set_refresh_rate_xrandr(ctx: &SessionContext, rate: u32) -> Result<(), io::Er
     query_cmd.arg("xrandr").arg("--query");
 
     let output = query_cmd.output()?;
-
     let stdout = String::from_utf8_lossy(&output.stdout);
-    let mut builtin_output = "eDP-1".to_string();
 
     // Find the built-in display name
     for line in stdout.lines() {
         if line.contains("connected") && (line.starts_with("eDP") || line.starts_with("LVDS")) {
             if let Some(name) = line.split_whitespace().next() {
-                builtin_output = name.to_string();
-                log::debug!("Found built-in display: {}", builtin_output);
-                break;
+                log::debug!("Found built-in display: {}", name);
+                return Ok(name.to_string());
             }
         }
     }
 
+    // Fallback to common name
+    log::warn!("Could not detect built-in display name, using default: eDP-1");
+    Ok("eDP-1".to_string())
+}
+
+/// Set refresh rate on X11 using xrandr
+///
+/// Queries available modes and selects the best match for the requested refresh rate.
+fn set_refresh_rate_xrandr(ctx: &SessionContext, rate: u32) -> Result<(), io::Error> {
+    log::info!("Setting display refresh rate to {}Hz via xrandr (X11)", rate);
+
+    // Find built-in display
+    let builtin_output = get_builtin_display_name_xrandr(ctx)?;
     log::info!("Target display: {}", builtin_output);
 
     // Query available modes for this display
@@ -1131,6 +1165,263 @@ pub fn set_refresh_rate(rate: u32) -> Result<(), io::Error> {
     }
 
     result
+}
+
+/// Set display mode (resolution and refresh rate) based on ModeSpec
+///
+/// This function changes both resolution and refresh rate based on the provided mode specification.
+/// It can work with either explicit mode strings or resolution + refresh rate combinations.
+///
+/// # Arguments
+///
+/// * `mode_spec` - The mode specification (either explicit mode string or resolution+rate)
+///
+/// # Errors
+///
+/// Select the best matching display mode from available modes based on specification
+///
+/// This helper function encapsulates the common mode selection logic used by both
+/// GNOME Wayland and X11 backends.
+///
+/// # Arguments
+/// * `available_modes` - Slice of available DisplayMode options from the display
+/// * `mode_spec` - The desired mode specification (explicit string or resolution+rate)
+/// * `display_name` - Name of the display (for error messages)
+/// * `prefer_vrr` - Whether to prefer VRR modes when using ResolutionAndRate
+///
+/// # Returns
+/// The best matching DisplayMode (cloned), or an error if no suitable mode found
+fn select_best_mode(
+    available_modes: &[DisplayMode],
+    mode_spec: &ModeSpec,
+    display_name: &str,
+    prefer_vrr: bool,
+) -> Result<DisplayMode, io::Error> {
+    match mode_spec {
+        ModeSpec::ModeString(mode_str) => {
+            // Try exact mode string match first
+            available_modes
+                .iter()
+                .find(|m| m.mode_string == *mode_str)
+                .or_else(|| {
+                    log::warn!("Exact mode string '{}' not found, trying fuzzy match", mode_str);
+                    // Fuzzy match: compare without VRR suffix
+                    let mode_str_no_vrr = mode_str.replace("+vrr", "");
+                    available_modes
+                        .iter()
+                        .find(|m| m.mode_string.replace("+vrr", "") == mode_str_no_vrr)
+                })
+                .cloned()
+                .ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::NotFound,
+                        format!("Mode '{}' not found on display {}", mode_str, display_name),
+                    )
+                })
+        }
+        ModeSpec::ResolutionAndRate(width, height, hz) => {
+            // Filter modes by resolution
+            let filtered: Vec<_> = available_modes
+                .iter()
+                .filter(|m| m.resolution.0 == *width && m.resolution.1 == *height)
+                .cloned()
+                .collect();
+
+            if filtered.is_empty() {
+                return Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!(
+                        "No modes found for resolution {}x{} on display {}",
+                        width, height, display_name
+                    ),
+                ));
+            }
+
+            // Find best match by refresh rate (with optional VRR preference)
+            find_best_mode(&filtered, *hz, prefer_vrr).cloned().ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!(
+                        "No suitable mode found for {}x{}@{}Hz on display {}",
+                        width, height, hz, display_name
+                    ),
+                )
+            })
+        }
+    }
+}
+
+/// Returns an error if:
+/// - Display server cannot be detected
+/// - Display user cannot be found
+/// - No suitable mode is found for the requested specification
+/// - The underlying command (gnome-randr/xrandr) fails
+pub fn set_display_mode(mode_spec: &ModeSpec) -> Result<(), io::Error> {
+    log::info!("=== Display Mode Change Request ===");
+
+    match mode_spec {
+        ModeSpec::ModeString(mode_str) => {
+            log::info!("Target mode: {} (explicit mode string)", mode_str);
+        }
+        ModeSpec::ResolutionAndRate(width, height, hz) => {
+            log::info!("Target mode: {}x{}@{}Hz", width, height, hz);
+        }
+    }
+
+    // Fetch session context once
+    let ctx = get_session_context()?;
+
+    // Detect display server
+    let display_server = detect_server_from_env_vars(&ctx.env_vars)
+        .unwrap_or_else(|| detect_from_env().unwrap_or(DisplayServer::Unknown));
+
+    log::info!("Detected display server: {:?}", display_server);
+
+    let result = match display_server {
+        DisplayServer::GnomeWayland => {
+            log::info!("Using GNOME Wayland backend (gnome-randr)");
+            set_display_mode_gnome_wayland(&ctx, mode_spec)
+        }
+        DisplayServer::X11 => {
+            log::info!("Using X11 backend (xrandr)");
+            set_display_mode_xrandr(&ctx, mode_spec)
+        }
+        DisplayServer::Wayland => {
+            log::error!(
+                "Generic Wayland compositor detected - display mode control not implemented"
+            );
+            Err(io::Error::new(
+                io::ErrorKind::Unsupported,
+                "Wayland display mode control only supported for GNOME",
+            ))
+        }
+        DisplayServer::Unknown => {
+            log::error!("Could not detect display server");
+            Err(io::Error::new(io::ErrorKind::NotFound, "Could not detect display server"))
+        }
+    };
+
+    match &result {
+        Ok(_) => log::info!("=== Display Mode Change: SUCCESS ==="),
+        Err(e) => log::error!("=== Display Mode Change: FAILED - {} ===", e),
+    }
+
+    result
+}
+
+/// Set display mode on GNOME Wayland using gnome-randr
+fn set_display_mode_gnome_wayland(
+    ctx: &SessionContext,
+    mode_spec: &ModeSpec,
+) -> Result<(), io::Error> {
+    let output_name = get_builtin_display_name_gnome(ctx)?;
+    log::info!("Target display: {}", output_name);
+
+    // Query available modes for this display
+    let available_modes = query_gnome_modes(ctx, &output_name)?;
+
+    // Select best matching mode (prefer VRR for smoother experience)
+    let best_mode = select_best_mode(&available_modes, mode_spec, &output_name, true)?;
+
+    log::info!(
+        "Applying mode: {} ({}x{} @ {:.2}Hz, VRR: {})",
+        best_mode.mode_string,
+        best_mode.resolution.0,
+        best_mode.resolution.1,
+        best_mode.refresh_rate,
+        best_mode.has_vrr
+    );
+
+    // Execute gnome-randr command
+    let mut cmd = Command::new("sudo");
+    cmd.arg("-u").arg(&ctx.user);
+    cmd.arg("env");
+
+    for (key, value) in &ctx.env_vars {
+        cmd.arg(format!("{}={}", key, value));
+    }
+
+    cmd.arg("gnome-randr")
+        .arg("modify")
+        .arg(&output_name)
+        .arg("--mode")
+        .arg(&best_mode.mode_string);
+
+    let output = cmd.output()?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        log::error!("gnome-randr modify failed: {}", stderr);
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            format!("gnome-randr modify failed: {}", stderr),
+        ));
+    }
+
+    log::info!(
+        "Successfully set display mode to {}x{}@{:.2}Hz",
+        best_mode.resolution.0,
+        best_mode.resolution.1,
+        best_mode.refresh_rate
+    );
+    Ok(())
+}
+
+/// Set display mode on X11 using xrandr
+fn set_display_mode_xrandr(ctx: &SessionContext, mode_spec: &ModeSpec) -> Result<(), io::Error> {
+    // Find built-in display
+    let builtin_output = get_builtin_display_name_xrandr(ctx)?;
+    log::info!("Target display: {}", builtin_output);
+
+    // Query available modes
+    let available_modes = query_xrandr_modes(ctx, &builtin_output)?;
+
+    // Select best matching mode (prefer VRR for smoother experience)
+    let best_mode = select_best_mode(&available_modes, mode_spec, &builtin_output, true)?;
+
+    log::info!(
+        "Applying mode: {}x{} @ {:.2}Hz",
+        best_mode.resolution.0,
+        best_mode.resolution.1,
+        best_mode.refresh_rate
+    );
+
+    // Set the mode using xrandr
+    let mut set_cmd = Command::new("sudo");
+    set_cmd.arg("-u").arg(&ctx.user);
+    set_cmd.arg("env");
+
+    for (key, value) in &ctx.env_vars {
+        set_cmd.arg(format!("{}={}", key, value));
+    }
+
+    set_cmd
+        .arg("xrandr")
+        .arg("--output")
+        .arg(&builtin_output)
+        .arg("--mode")
+        .arg(format!("{}x{}", best_mode.resolution.0, best_mode.resolution.1))
+        .arg("--rate")
+        .arg(format!("{:.2}", best_mode.refresh_rate));
+
+    let output = set_cmd.output()?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        log::error!("xrandr command failed: {}", stderr);
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            format!("xrandr command failed: {}", stderr),
+        ));
+    }
+
+    log::info!(
+        "Successfully set X11 display mode to {}x{}@{:.2}Hz",
+        best_mode.resolution.0,
+        best_mode.resolution.1,
+        best_mode.refresh_rate
+    );
+    Ok(())
 }
 
 #[cfg(test)]
