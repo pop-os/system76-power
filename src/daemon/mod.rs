@@ -321,6 +321,10 @@ struct PowerDaemon {
     auto_switch_manual_override: bool,
     refresh_rate_config:         RefreshRateConfig,
     display_mode_config:         crate::display::DisplayModeConfig,
+    /// True once a high-refresh display mode/rate was applied on AC power.
+    /// Cleared only when the charger is unplugged (PowerSource::Battery event).
+    /// While set, profile switches will not override the display refresh rate.
+    ac_display_locked:           bool,
 }
 
 impl PowerDaemon {
@@ -342,6 +346,7 @@ impl PowerDaemon {
             auto_switch_manual_override: false,
             refresh_rate_config,
             display_mode_config,
+            ac_display_locked:           false,
         })
     }
 
@@ -375,9 +380,16 @@ impl PowerDaemon {
             };
 
             if hz > 0 {
-                log::info!("Setting display refresh rate to {}Hz for {} profile", hz, name);
-                if let Err(e) = crate::display::set_refresh_rate(hz) {
-                    log::warn!("Failed to set display refresh rate to {}Hz: {}", hz, e);
+                if self.ac_display_locked {
+                    log::info!(
+                        "AC display lock active — skipping refresh rate change to {}Hz for {} profile",
+                        hz, name
+                    );
+                } else {
+                    log::info!("Setting display refresh rate to {}Hz for {} profile", hz, name);
+                    if let Err(e) = crate::display::set_refresh_rate(hz) {
+                        log::warn!("Failed to set display refresh rate to {}Hz: {}", hz, e);
+                    }
                 }
             }
         }
@@ -945,27 +957,34 @@ pub async fn daemon() -> anyhow::Result<()> {
             if daemon.display_mode_config.enabled {
                 log::info!("Display mode switching is enabled for AC power changes");
                 
-                // Determine which mode to apply based on power source
-                let mode_spec_opt = match source {
+                match source {
                     crate::power_supply::PowerSource::AC => {
                         log::info!("AC adapter connected, checking for AC display mode");
-                        &daemon.display_mode_config.ac_mode
+                        if let Some(mode_spec) = &daemon.display_mode_config.ac_mode.clone() {
+                            if let Err(e) = crate::display::set_display_mode(mode_spec) {
+                                log::error!("Failed to set AC display mode: {}", e);
+                            } else {
+                                daemon.ac_display_locked = true;
+                                log::info!("AC display lock set — refresh rate will not change until charger is unplugged");
+                            }
+                        } else {
+                            log::warn!("Display mode switching enabled but no AC mode configured");
+                        }
                     }
                     crate::power_supply::PowerSource::Battery => {
-                        log::info!("On battery power, checking for battery display mode");
-                        &daemon.display_mode_config.battery_mode
+                        log::info!("On battery power, clearing AC display lock");
+                        daemon.ac_display_locked = false;
+                        log::info!("AC display lock cleared — charger unplugged");
+                        if let Some(mode_spec) = &daemon.display_mode_config.battery_mode.clone() {
+                            if let Err(e) = crate::display::set_display_mode(mode_spec) {
+                                log::error!("Failed to set battery display mode: {}", e);
+                            } else {
+                                log::info!("Battery display mode successfully applied");
+                            }
+                        } else {
+                            log::warn!("Display mode switching enabled but no battery mode configured");
+                        }
                     }
-                };
-                
-                // Apply the display mode if configured (changes both resolution and refresh rate)
-                if let Some(mode_spec) = mode_spec_opt {
-                    if let Err(e) = crate::display::set_display_mode(mode_spec) {
-                        log::error!("Failed to set display mode for {:?}: {}", source, e);
-                    } else {
-                        log::info!("Display mode successfully changed for {:?}", source);
-                    }
-                } else {
-                    log::warn!("Display mode switching enabled but no mode configured for {:?}", source);
                 }
                 
                 // Note: When display mode switching is enabled, we don't auto-switch profiles
@@ -983,6 +1002,8 @@ pub async fn daemon() -> anyhow::Result<()> {
                     }
                     crate::power_supply::PowerSource::Battery => {
                         log::info!("On battery power, auto-switching to Battery profile");
+                        daemon.ac_display_locked = false;
+                        log::info!("AC display lock cleared — charger unplugged");
                         ("Battery", battery as fn(&mut Vec<ProfileError>, bool))
                     }
                 };
@@ -990,6 +1011,11 @@ pub async fn daemon() -> anyhow::Result<()> {
                 // Apply the profile
                 match daemon.apply_profile(&context_clone, profile_func, target_profile).await {
                     Ok(()) => {
+                        // Set the lock after a successful AC profile apply
+                        if target_profile == "Balanced" {
+                            daemon.ac_display_locked = true;
+                            log::info!("AC display lock set — refresh rate will not change until charger is unplugged");
+                        }
                         log::info!("Auto-switch to {} profile successful", target_profile);
                         // Drop the lock before emitting signals
                         drop(daemon);
