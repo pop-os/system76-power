@@ -78,3 +78,24 @@ pub enum RyzenAdjError {
     #[error("failed to set ryzen adj parameters: {}", _0)]
     CmdError(io::Error),
 }
+
+#[derive(Debug, thiserror::Error)]
+pub enum DisplayError {
+    #[error("No active graphical session found")]
+    SessionNotFound,
+
+    #[error("Command '{command}' failed: {stderr}")]
+    CommandFailed { command: String, stderr: String },
+
+    #[error("Failed to parse output of '{command}'")]
+    ParseError { command: String },
+
+    #[error("No mode found for display '{display}' matching {spec}")]
+    ModeNotFound { display: String, spec: String },
+
+    #[error("Display server not supported: {0}")]
+    UnsupportedBackend(String),
+
+    #[error(transparent)]
+    Io(#[from] io::Error),
+}

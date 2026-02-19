@@ -11,6 +11,8 @@
 use std::io;
 use std::process::Command;
 
+use crate::errors::DisplayError;
+
 /// Compositor processes to search for, in priority order
 const COMPOSITOR_PROCESSES: &[&str] = &[
     "gnome-shell",  // GNOME Wayland/X11
@@ -545,7 +547,7 @@ fn get_user_session_env(user: &str) -> Result<Vec<(String, String)>, io::Error> 
 
 /// Get session context (user + environment) - call this once and pass it around
 /// This avoids redundant session detection and environment extraction
-pub fn get_session_context() -> Result<SessionContext, io::Error> {
+pub fn get_session_context() -> Result<SessionContext, DisplayError> {
     log::info!("=== Fetching Session Context (once) ===");
 
     let user = get_display_user()?;
@@ -554,6 +556,311 @@ pub fn get_session_context() -> Result<SessionContext, io::Error> {
     log::info!("Session context ready: user={}, env_vars={}", user, env_vars.len());
 
     Ok(SessionContext { user, env_vars })
+}
+
+/// Run an external program as the session user, injecting the session environment
+///
+/// Builds: `sudo -u <user> env KEY=VALUE... <program> [args...]`
+/// This is the single canonical way to invoke display tools (gnome-randr, xrandr)
+/// from a privileged daemon context.
+fn run_command_as_user(
+    ctx: &SessionContext,
+    program: &str,
+    args: &[&str],
+) -> Result<std::process::Output, io::Error> {
+    let mut cmd = Command::new("sudo");
+    cmd.arg("-u").arg(&ctx.user).arg("env");
+    for (key, value) in &ctx.env_vars {
+        cmd.arg(format!("{}={}", key, value));
+    }
+    cmd.arg(program).args(args);
+    cmd.output()
+}
+
+// ── Display backend abstraction ───────────────────────────────────────────────
+
+/// Abstraction over GNOME Wayland and X11 display backends.
+///
+/// Each implementation queries the display and applies modes using the
+/// appropriate tool (gnome-randr for GNOME Wayland, xrandr for X11).
+trait DisplayManager {
+    /// Query the built-in display name and all available modes in one call.
+    fn get_display_info(&self) -> Result<(String, Vec<DisplayMode>), DisplayError>;
+
+    /// Apply a specific mode to the named display.
+    fn apply_mode(&self, display_name: &str, mode: &DisplayMode) -> Result<(), DisplayError>;
+}
+
+/// GNOME Wayland backend — uses `gnome-randr`
+struct GnomeManager<'a> {
+    ctx: &'a SessionContext,
+}
+
+impl DisplayManager for GnomeManager<'_> {
+    fn get_display_info(&self) -> Result<(String, Vec<DisplayMode>), DisplayError> {
+        log::debug!("Querying gnome-randr for display info (name + modes)");
+
+        let output = run_command_as_user(self.ctx, "gnome-randr", &["query"])?;
+
+        if !output.status.success() {
+            return Err(DisplayError::CommandFailed {
+                command: "gnome-randr query".to_string(),
+                stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+            });
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        // First pass: find the built-in display name (eDP-*)
+        let mut display_name = None;
+        for line in stdout.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("eDP") && !trimmed.contains("disconnected") {
+                if let Some(name) = trimmed.split_whitespace().next() {
+                    log::debug!("Found built-in display: {}", name);
+                    display_name = Some(name.to_string());
+                    break;
+                }
+            }
+        }
+        let display_name = display_name.unwrap_or_else(|| {
+            log::warn!("Could not detect built-in display name, using default: eDP-1");
+            "eDP-1".to_string()
+        });
+
+        // Second pass: collect modes for the detected display
+        let mut modes = Vec::new();
+        let mut in_display_section = false;
+
+        log::debug!("Parsing gnome-randr output for display '{}'", display_name);
+
+        for line in stdout.lines() {
+            let trimmed = line.trim_start();
+
+            if !line.starts_with(' ') && !line.starts_with('\t') {
+                if line.starts_with(display_name.as_str()) {
+                    log::debug!("Found display section: {}", line);
+                    in_display_section = true;
+                    continue;
+                } else if in_display_section {
+                    log::debug!("Exiting display section (found different display)");
+                    break;
+                }
+            }
+
+            if in_display_section && trimmed.len() < line.len() && trimmed.contains('@') {
+                if let Some(mode) = parse_gnome_mode_line(line) {
+                    modes.push(mode);
+                }
+            }
+        }
+
+        log::info!("Found {} available modes for display '{}'", modes.len(), display_name);
+
+        if modes.is_empty() {
+            log::warn!("No modes found! gnome-randr output:\n{}", stdout);
+            return Err(DisplayError::ModeNotFound {
+                display: display_name,
+                spec: "any".to_string(),
+            });
+        }
+
+        Ok((display_name, modes))
+    }
+
+    fn apply_mode(&self, display_name: &str, mode: &DisplayMode) -> Result<(), DisplayError> {
+        log::debug!(
+            "Executing: sudo -u {} env [vars...] gnome-randr modify {} --mode {}",
+            self.ctx.user,
+            display_name,
+            mode.mode_string
+        );
+        let output = run_command_as_user(
+            self.ctx,
+            "gnome-randr",
+            &["modify", display_name, "--mode", &mode.mode_string],
+        )?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            log::error!("gnome-randr modify failed: {}", stderr);
+            return Err(DisplayError::CommandFailed {
+                command: "gnome-randr modify".to_string(),
+                stderr: stderr.into_owned(),
+            });
+        }
+        Ok(())
+    }
+}
+
+/// X11 backend — uses `xrandr`
+struct X11Manager<'a> {
+    ctx: &'a SessionContext,
+}
+
+impl DisplayManager for X11Manager<'_> {
+    fn get_display_info(&self) -> Result<(String, Vec<DisplayMode>), DisplayError> {
+        log::debug!("Querying xrandr for display info (name + modes)");
+
+        let output = run_command_as_user(self.ctx, "xrandr", &["--query"])?;
+
+        if !output.status.success() {
+            return Err(DisplayError::CommandFailed {
+                command: "xrandr --query".to_string(),
+                stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+            });
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+
+        // First pass: find the built-in display name (eDP-* or LVDS-*)
+        let mut display_name = None;
+        for line in stdout.lines() {
+            if line.contains("connected") && (line.starts_with("eDP") || line.starts_with("LVDS")) {
+                if let Some(name) = line.split_whitespace().next() {
+                    log::debug!("Found built-in display: {}", name);
+                    display_name = Some(name.to_string());
+                    break;
+                }
+            }
+        }
+        let display_name = display_name.unwrap_or_else(|| {
+            log::warn!("Could not detect built-in display name, using default: eDP-1");
+            "eDP-1".to_string()
+        });
+
+        // Second pass: collect modes for the detected display
+        let mut modes = Vec::new();
+        let mut in_display_section = false;
+        #[allow(unused_assignments)]
+        let mut current_resolution = String::new();
+
+        log::debug!("Parsing xrandr output for display '{}'", display_name);
+
+        for line in stdout.lines() {
+            if line.starts_with(display_name.as_str()) && line.contains("connected") {
+                log::debug!("Found display section: {}", line);
+                in_display_section = true;
+                continue;
+            }
+
+            if in_display_section && !line.starts_with(' ') && !line.starts_with('\t') {
+                log::debug!("Exiting display section");
+                break;
+            }
+
+            if in_display_section {
+                let trimmed = line.trim_start();
+
+                if trimmed.len() < line.len() && trimmed.contains('x') {
+                    if let Some(first_token) = trimmed.split_whitespace().next() {
+                        if first_token.contains('x') {
+                            current_resolution = first_token.to_string();
+
+                            if let Some(mode) = parse_xrandr_mode_line(line, &current_resolution) {
+                                modes.push(mode);
+                            }
+
+                            let parts: Vec<&str> = trimmed.split_whitespace().collect();
+                            for part in parts.iter().skip(1) {
+                                let rate_str = part.trim_end_matches('+').trim_end_matches('*');
+                                if let Ok(rate) = rate_str.parse::<f32>() {
+                                    if rate > 10.0 {
+                                        let (width_str, height_str) =
+                                            current_resolution.split_once('x').unwrap();
+                                        if let (Ok(width), Ok(height)) =
+                                            (width_str.parse::<u32>(), height_str.parse::<u32>())
+                                        {
+                                            let mode_string =
+                                                format!("{}@{:.2}", current_resolution, rate);
+                                            modes.push(DisplayMode {
+                                                mode_string,
+                                                resolution: (width, height),
+                                                refresh_rate: rate,
+                                                has_vrr: false,
+                                            });
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        log::info!("Found {} available modes for display '{}'", modes.len(), display_name);
+
+        if modes.is_empty() {
+            log::warn!("No modes found! xrandr output:\n{}", stdout);
+            return Err(DisplayError::ModeNotFound {
+                display: display_name,
+                spec: "any".to_string(),
+            });
+        }
+
+        Ok((display_name, modes))
+    }
+
+    fn apply_mode(&self, display_name: &str, mode: &DisplayMode) -> Result<(), DisplayError> {
+        log::debug!(
+            "Executing: sudo -u {} env [vars...] xrandr --output {} --mode {}x{} --rate {:.2}",
+            self.ctx.user,
+            display_name,
+            mode.resolution.0,
+            mode.resolution.1,
+            mode.refresh_rate
+        );
+        let output = run_command_as_user(
+            self.ctx,
+            "xrandr",
+            &[
+                "--output",
+                display_name,
+                "--mode",
+                &format!("{}x{}", mode.resolution.0, mode.resolution.1),
+                "--rate",
+                &format!("{:.2}", mode.refresh_rate),
+            ],
+        )?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            log::error!("xrandr command failed: {}", stderr);
+            return Err(DisplayError::CommandFailed {
+                command: "xrandr".to_string(),
+                stderr: stderr.into_owned(),
+            });
+        }
+        Ok(())
+    }
+}
+
+/// Construct the correct `DisplayManager` for the active session.
+///
+/// Returns an error for unsupported display servers (generic Wayland, Unknown).
+fn create_manager(ctx: &SessionContext) -> Result<Box<dyn DisplayManager + '_>, DisplayError> {
+    let display_server = detect_server_from_env_vars(&ctx.env_vars)
+        .unwrap_or_else(|| detect_from_env().unwrap_or(DisplayServer::Unknown));
+
+    log::info!("Detected display server: {:?}", display_server);
+
+    match display_server {
+        DisplayServer::GnomeWayland => {
+            log::info!("Using GNOME Wayland backend (gnome-randr)");
+            Ok(Box::new(GnomeManager { ctx }))
+        }
+        DisplayServer::X11 => {
+            log::info!("Using X11 backend (xrandr)");
+            Ok(Box::new(X11Manager { ctx }))
+        }
+        DisplayServer::Wayland => {
+            log::error!("Generic Wayland compositor detected - display control not implemented");
+            Err(DisplayError::UnsupportedBackend("Wayland".to_string()))
+        }
+        DisplayServer::Unknown => {
+            log::error!("Could not detect display server");
+            Err(DisplayError::SessionNotFound)
+        }
+    }
 }
 
 /// Parse a mode line from gnome-randr output
@@ -698,410 +1005,10 @@ fn find_best_mode(
     best
 }
 
-/// Query available display modes for a specific display using gnome-randr
-fn query_gnome_modes(ctx: &SessionContext, display: &str) -> Result<Vec<DisplayMode>, io::Error> {
-    log::info!("Querying available modes for display '{}' via gnome-randr", display);
-
-    // Query gnome-randr as the user with their session environment
-    let mut cmd = Command::new("sudo");
-    cmd.arg("-u").arg(&ctx.user);
-    cmd.arg("env");
-
-    // Set environment variables from user session
-    for (key, value) in &ctx.env_vars {
-        cmd.arg(format!("{}={}", key, value));
-    }
-
-    cmd.arg("gnome-randr").arg("query");
-
-    let output = cmd.output()?;
-
-    if !output.status.success() {
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!("gnome-randr query failed: {}", String::from_utf8_lossy(&output.stderr)),
-        ));
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let mut modes = Vec::new();
-    let mut in_display_section = false;
-
-    log::debug!("Parsing gnome-randr output for display '{}'", display);
-
-    // Parse the output to find modes for the specified display
-    for line in stdout.lines() {
-        let trimmed = line.trim_start();
-
-        // Check if we're entering the display section
-        // Display lines start without whitespace
-        if !line.starts_with(' ') && !line.starts_with('\t') {
-            if line.starts_with(display) {
-                log::debug!("Found display section: {}", line);
-                in_display_section = true;
-                continue;
-            } else if in_display_section {
-                // We've moved to a different display section
-                log::debug!("Exiting display section (found different display)");
-                break;
-            }
-        }
-
-        // Parse mode lines (they start with whitespace)
-        if in_display_section && trimmed.len() < line.len() {
-            // Skip lines that don't look like modes (e.g., "associated physical monitors:")
-            if trimmed.contains('@') {
-                if let Some(mode) = parse_gnome_mode_line(line) {
-                    modes.push(mode);
-                }
-            }
-        }
-    }
-
-    log::info!("Found {} available modes for display '{}'", modes.len(), display);
-
-    if modes.is_empty() {
-        log::warn!("No modes found! gnome-randr output:\n{}", stdout);
-        return Err(io::Error::new(
-            io::ErrorKind::NotFound,
-            format!("No display modes found for {}", display),
-        ));
-    }
-
-    Ok(modes)
-}
-
-/// Query available display modes for a specific display using xrandr
-fn query_xrandr_modes(ctx: &SessionContext, display: &str) -> Result<Vec<DisplayMode>, io::Error> {
-    log::info!("Querying available modes for display '{}' via xrandr", display);
-
-    // Query xrandr as the user with their session environment
-    let mut cmd = Command::new("sudo");
-    cmd.arg("-u").arg(&ctx.user);
-    cmd.arg("env");
-
-    // Set environment variables from user session
-    for (key, value) in &ctx.env_vars {
-        cmd.arg(format!("{}={}", key, value));
-    }
-
-    cmd.arg("xrandr").arg("--query");
-
-    let output = cmd.output()?;
-
-    if !output.status.success() {
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!("xrandr query failed: {}", String::from_utf8_lossy(&output.stderr)),
-        ));
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let mut modes = Vec::new();
-    let mut in_display_section = false;
-    let mut current_resolution = String::new();
-
-    log::debug!("Parsing xrandr output for display '{}'", display);
-
-    // Parse xrandr output
-    for line in stdout.lines() {
-        // Check if we're entering the display section
-        if line.starts_with(display) && line.contains("connected") {
-            log::debug!("Found display section: {}", line);
-            in_display_section = true;
-            continue;
-        }
-
-        // Check if we've moved to another display
-        if in_display_section && !line.starts_with(' ') && !line.starts_with('\t') {
-            log::debug!("Exiting display section");
-            break;
-        }
-
-        // Parse mode lines (start with whitespace)
-        if in_display_section {
-            let trimmed = line.trim_start();
-
-            // Check if this is a resolution line (e.g., "   2560x1440     165.00 +  60.00")
-            if trimmed.len() < line.len() && trimmed.contains('x') {
-                // Extract resolution (first token)
-                if let Some(first_token) = trimmed.split_whitespace().next() {
-                    // Check if it looks like a resolution (contains 'x' and can be parsed)
-                    if first_token.contains('x') {
-                        current_resolution = first_token.to_string();
-
-                        // Parse all refresh rates on this line
-                        if let Some(mode) = parse_xrandr_mode_line(line, &current_resolution) {
-                            modes.push(mode);
-                        }
-
-                        // Also check for additional rates on the same line
-                        let parts: Vec<&str> = trimmed.split_whitespace().collect();
-                        for part in parts.iter().skip(1) {
-                            let rate_str = part.trim_end_matches('+').trim_end_matches('*');
-                            if let Ok(rate) = rate_str.parse::<f32>() {
-                                if rate > 10.0 {
-                                    // Sanity check
-                                    let (width_str, height_str) =
-                                        current_resolution.split_once('x').unwrap();
-                                    if let (Ok(width), Ok(height)) =
-                                        (width_str.parse::<u32>(), height_str.parse::<u32>())
-                                    {
-                                        let mode_string =
-                                            format!("{}@{:.2}", current_resolution, rate);
-                                        modes.push(DisplayMode {
-                                            mode_string,
-                                            resolution: (width, height),
-                                            refresh_rate: rate,
-                                            has_vrr: false,
-                                        });
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    log::info!("Found {} available modes for display '{}'", modes.len(), display);
-
-    if modes.is_empty() {
-        log::warn!("No modes found! xrandr output:\n{}", stdout);
-        return Err(io::Error::new(
-            io::ErrorKind::NotFound,
-            format!("No display modes found for {}", display),
-        ));
-    }
-
-    Ok(modes)
-}
-
-/// Get the built-in display name for GNOME (usually eDP-1)
-fn get_builtin_display_name_gnome(ctx: &SessionContext) -> Result<String, io::Error> {
-    log::debug!("Querying gnome-randr for built-in display name");
-
-    // Query gnome-randr as the user with their session environment
-    let mut cmd = Command::new("sudo");
-    cmd.arg("-u").arg(&ctx.user);
-    cmd.arg("env");
-
-    // Set environment variables from user session
-    for (key, value) in &ctx.env_vars {
-        cmd.arg(format!("{}={}", key, value));
-    }
-
-    cmd.arg("gnome-randr").arg("query");
-
-    let output = cmd.output()?;
-
-    if !output.status.success() {
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!("gnome-randr query failed: {}", String::from_utf8_lossy(&output.stderr)),
-        ));
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    // Parse output to find built-in display (eDP-*)
-    for line in stdout.lines() {
-        let line = line.trim();
-        // Look for lines like "eDP-1 connected ..." or just "eDP-1"
-        if line.starts_with("eDP") && !line.contains("disconnected") {
-            if let Some(name) = line.split_whitespace().next() {
-                log::debug!("Found built-in display: {}", name);
-                return Ok(name.to_string());
-            }
-        }
-    }
-
-    // Fallback to common name
-    log::warn!("Could not detect built-in display name, using default: eDP-1");
-    Ok("eDP-1".to_string())
-}
-
-/// Set refresh rate on GNOME Wayland using gnome-randr
-///
-/// Queries available modes and selects the best match for the requested refresh rate.
-fn set_refresh_rate_gnome_wayland(ctx: &SessionContext, rate: u32) -> Result<(), io::Error> {
-    let output_name = get_builtin_display_name_gnome(ctx)?;
-    log::info!("Target display: {}", output_name);
-
-    log::info!("Setting display refresh rate to {}Hz on {} via gnome-randr", rate, output_name);
-
-    // Query available modes for this display
-    let available_modes = query_gnome_modes(ctx, &output_name)?;
-
-    // Find best matching mode (prefer VRR if available)
-    let best_mode = find_best_mode(&available_modes, rate, true).ok_or_else(|| {
-        io::Error::new(
-            io::ErrorKind::NotFound,
-            format!("No suitable mode found for {}Hz on {}", rate, output_name),
-        )
-    })?;
-
-    log::info!(
-        "Applying mode: {} ({}x{} @ {:.2}Hz, VRR: {})",
-        best_mode.mode_string,
-        best_mode.resolution.0,
-        best_mode.resolution.1,
-        best_mode.refresh_rate,
-        best_mode.has_vrr
-    );
-
-    // Execute gnome-randr command as the user with their session environment
-    // We need to pass env vars via the 'env' command since sudo clears them by default
-    let mut cmd = Command::new("sudo");
-    cmd.arg("-u").arg(&ctx.user);
-    cmd.arg("env");
-
-    // Set environment variables from user session
-    for (key, value) in &ctx.env_vars {
-        cmd.arg(format!("{}={}", key, value));
-    }
-
-    cmd.arg("gnome-randr")
-        .arg("modify")
-        .arg(&output_name)
-        .arg("--mode")
-        .arg(&best_mode.mode_string);
-
-    log::debug!(
-        "Executing: sudo -u {} env [vars...] gnome-randr modify {} --mode {}",
-        ctx.user,
-        output_name,
-        best_mode.mode_string
-    );
-
-    let output = cmd.output()?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        log::error!("gnome-randr modify failed: {}", stderr);
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!("gnome-randr modify failed: {}", stderr),
-        ));
-    }
-
-    log::info!("Successfully set display refresh rate to {:.2}Hz", best_mode.refresh_rate);
-    Ok(())
-}
-
-/// Get built-in display name for X11
-///
-/// Queries xrandr to find the built-in laptop display (eDP-* or LVDS-*)
-fn get_builtin_display_name_xrandr(ctx: &SessionContext) -> Result<String, io::Error> {
-    let mut query_cmd = Command::new("sudo");
-    query_cmd.arg("-u").arg(&ctx.user);
-    query_cmd.arg("env");
-
-    for (key, value) in &ctx.env_vars {
-        query_cmd.arg(format!("{}={}", key, value));
-    }
-
-    query_cmd.arg("xrandr").arg("--query");
-
-    let output = query_cmd.output()?;
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    // Find the built-in display name
-    for line in stdout.lines() {
-        if line.contains("connected") && (line.starts_with("eDP") || line.starts_with("LVDS")) {
-            if let Some(name) = line.split_whitespace().next() {
-                log::debug!("Found built-in display: {}", name);
-                return Ok(name.to_string());
-            }
-        }
-    }
-
-    // Fallback to common name
-    log::warn!("Could not detect built-in display name, using default: eDP-1");
-    Ok("eDP-1".to_string())
-}
-
-/// Set refresh rate on X11 using xrandr
-///
-/// Queries available modes and selects the best match for the requested refresh rate.
-fn set_refresh_rate_xrandr(ctx: &SessionContext, rate: u32) -> Result<(), io::Error> {
-    log::info!("Setting display refresh rate to {}Hz via xrandr (X11)", rate);
-
-    // Find built-in display
-    let builtin_output = get_builtin_display_name_xrandr(ctx)?;
-    log::info!("Target display: {}", builtin_output);
-
-    // Query available modes for this display
-    let available_modes = query_xrandr_modes(ctx, &builtin_output)?;
-
-    // Find best matching mode (X11 doesn't have VRR in mode strings, so prefer_vrr doesn't matter)
-    let best_mode = find_best_mode(&available_modes, rate, false).ok_or_else(|| {
-        io::Error::new(
-            io::ErrorKind::NotFound,
-            format!("No suitable mode found for {}Hz on {}", rate, builtin_output),
-        )
-    })?;
-
-    log::info!(
-        "Applying mode: {}x{} @ {:.2}Hz",
-        best_mode.resolution.0,
-        best_mode.resolution.1,
-        best_mode.refresh_rate
-    );
-
-    // Set the mode using xrandr
-    let mut set_cmd = Command::new("sudo");
-    set_cmd.arg("-u").arg(&ctx.user);
-    set_cmd.arg("env");
-
-    // Set environment variables from user session
-    for (key, value) in &ctx.env_vars {
-        set_cmd.arg(format!("{}={}", key, value));
-    }
-
-    // Use --mode instead of --rate for more precise control
-    // Format: resolution@rate (e.g., "2560x1440" with rate "165.00")
-    set_cmd
-        .arg("xrandr")
-        .arg("--output")
-        .arg(&builtin_output)
-        .arg("--mode")
-        .arg(format!("{}x{}", best_mode.resolution.0, best_mode.resolution.1))
-        .arg("--rate")
-        .arg(format!("{:.2}", best_mode.refresh_rate));
-
-    log::debug!(
-        "Executing: sudo -u {} env [vars...] xrandr --output {} --mode {}x{} --rate {:.2}",
-        ctx.user,
-        builtin_output,
-        best_mode.resolution.0,
-        best_mode.resolution.1,
-        best_mode.refresh_rate
-    );
-
-    let output = set_cmd.output()?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        log::error!("xrandr command failed: {}", stderr);
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!("xrandr command failed: {}", stderr),
-        ));
-    }
-
-    log::info!("Successfully set X11 display refresh rate to {:.2}Hz", best_mode.refresh_rate);
-    Ok(())
-}
-
 /// Set display refresh rate based on detected display server
 ///
 /// Automatically detects GNOME Wayland, X11, or other Wayland compositors
 /// and uses the appropriate method to set the refresh rate.
-///
-/// This function now dynamically queries available display modes and selects
-/// the best match, making it work on any display/resolution combination.
 ///
 /// # Arguments
 ///
@@ -1114,50 +1021,33 @@ fn set_refresh_rate_xrandr(ctx: &SessionContext, rate: u32) -> Result<(), io::Er
 /// - Display user cannot be found
 /// - No suitable mode is found for the requested refresh rate
 /// - The underlying command (gnome-randr/xrandr) fails
-pub fn set_refresh_rate(rate: u32) -> Result<(), io::Error> {
+pub fn set_refresh_rate(rate: u32) -> Result<(), DisplayError> {
     log::info!("=== Display Refresh Rate Change Request ===");
     log::info!("Target refresh rate: {}Hz", rate);
 
-    // Fetch session context ONCE - this replaces multiple redundant calls
     let ctx = get_session_context()?;
+    let manager = create_manager(&ctx)?;
+    let (display_name, available_modes) = manager.get_display_info()?;
 
-    // Detect display server using the session context we just fetched
-    let display_server = detect_server_from_env_vars(&ctx.env_vars).unwrap_or_else(|| {
-        // Fallback to detecting from current environment if session env doesn't help
-        detect_from_env().unwrap_or(DisplayServer::Unknown)
-    });
+    log::info!("Target display: {}", display_name);
 
-    log::info!("Detected display server: {:?}", display_server);
+    let best_mode = find_best_mode(&available_modes, rate, true).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::NotFound,
+            format!("No suitable mode found for {}Hz on {}", rate, display_name),
+        )
+    })?;
 
-    let result = match display_server {
-        DisplayServer::GnomeWayland => {
-            log::info!("Using GNOME Wayland backend (gnome-randr)");
-            set_refresh_rate_gnome_wayland(&ctx, rate)
-        }
-        DisplayServer::X11 => {
-            log::info!("Using X11 backend (xrandr)");
-            set_refresh_rate_xrandr(&ctx, rate)
-        }
-        DisplayServer::Wayland => {
-            log::error!(
-                "Generic Wayland compositor detected - refresh rate control not implemented"
-            );
-            log::info!("Supported: GNOME Wayland. For Sway/Hyprland, use wlr-randr manually.");
-            Err(io::Error::new(
-                io::ErrorKind::Unsupported,
-                "Wayland refresh rate control only supported for GNOME. Try wlr-randr manually.",
-            ))
-        }
-        DisplayServer::Unknown => {
-            log::error!(
-                "Could not detect display server - no DISPLAY or WAYLAND_DISPLAY environment variables found"
-            );
-            Err(io::Error::new(
-                io::ErrorKind::NotFound,
-                "Could not detect display server (no DISPLAY or WAYLAND_DISPLAY)",
-            ))
-        }
-    };
+    log::info!(
+        "Applying mode: {} ({}x{} @ {:.2}Hz, VRR: {})",
+        best_mode.mode_string,
+        best_mode.resolution.0,
+        best_mode.resolution.1,
+        best_mode.refresh_rate,
+        best_mode.has_vrr
+    );
+
+    let result = manager.apply_mode(&display_name, best_mode);
 
     match &result {
         Ok(_) => log::info!("=== Display Refresh Rate Change: SUCCESS ==="),
@@ -1256,7 +1146,7 @@ fn select_best_mode(
 /// - Display user cannot be found
 /// - No suitable mode is found for the requested specification
 /// - The underlying command (gnome-randr/xrandr) fails
-pub fn set_display_mode(mode_spec: &ModeSpec) -> Result<(), io::Error> {
+pub fn set_display_mode(mode_spec: &ModeSpec) -> Result<(), DisplayError> {
     log::info!("=== Display Mode Change Request ===");
 
     match mode_spec {
@@ -1268,60 +1158,13 @@ pub fn set_display_mode(mode_spec: &ModeSpec) -> Result<(), io::Error> {
         }
     }
 
-    // Fetch session context once
     let ctx = get_session_context()?;
+    let manager = create_manager(&ctx)?;
+    let (display_name, available_modes) = manager.get_display_info()?;
 
-    // Detect display server
-    let display_server = detect_server_from_env_vars(&ctx.env_vars)
-        .unwrap_or_else(|| detect_from_env().unwrap_or(DisplayServer::Unknown));
+    log::info!("Target display: {}", display_name);
 
-    log::info!("Detected display server: {:?}", display_server);
-
-    let result = match display_server {
-        DisplayServer::GnomeWayland => {
-            log::info!("Using GNOME Wayland backend (gnome-randr)");
-            set_display_mode_gnome_wayland(&ctx, mode_spec)
-        }
-        DisplayServer::X11 => {
-            log::info!("Using X11 backend (xrandr)");
-            set_display_mode_xrandr(&ctx, mode_spec)
-        }
-        DisplayServer::Wayland => {
-            log::error!(
-                "Generic Wayland compositor detected - display mode control not implemented"
-            );
-            Err(io::Error::new(
-                io::ErrorKind::Unsupported,
-                "Wayland display mode control only supported for GNOME",
-            ))
-        }
-        DisplayServer::Unknown => {
-            log::error!("Could not detect display server");
-            Err(io::Error::new(io::ErrorKind::NotFound, "Could not detect display server"))
-        }
-    };
-
-    match &result {
-        Ok(_) => log::info!("=== Display Mode Change: SUCCESS ==="),
-        Err(e) => log::error!("=== Display Mode Change: FAILED - {} ===", e),
-    }
-
-    result
-}
-
-/// Set display mode on GNOME Wayland using gnome-randr
-fn set_display_mode_gnome_wayland(
-    ctx: &SessionContext,
-    mode_spec: &ModeSpec,
-) -> Result<(), io::Error> {
-    let output_name = get_builtin_display_name_gnome(ctx)?;
-    log::info!("Target display: {}", output_name);
-
-    // Query available modes for this display
-    let available_modes = query_gnome_modes(ctx, &output_name)?;
-
-    // Select best matching mode (prefer VRR for smoother experience)
-    let best_mode = select_best_mode(&available_modes, mode_spec, &output_name, true)?;
+    let best_mode = select_best_mode(&available_modes, mode_spec, &display_name, true)?;
 
     log::info!(
         "Applying mode: {} ({}x{} @ {:.2}Hz, VRR: {})",
@@ -1332,96 +1175,14 @@ fn set_display_mode_gnome_wayland(
         best_mode.has_vrr
     );
 
-    // Execute gnome-randr command
-    let mut cmd = Command::new("sudo");
-    cmd.arg("-u").arg(&ctx.user);
-    cmd.arg("env");
+    let result = manager.apply_mode(&display_name, &best_mode);
 
-    for (key, value) in &ctx.env_vars {
-        cmd.arg(format!("{}={}", key, value));
+    match &result {
+        Ok(_) => log::info!("=== Display Mode Change: SUCCESS ==="),
+        Err(e) => log::error!("=== Display Mode Change: FAILED - {} ===", e),
     }
 
-    cmd.arg("gnome-randr")
-        .arg("modify")
-        .arg(&output_name)
-        .arg("--mode")
-        .arg(&best_mode.mode_string);
-
-    let output = cmd.output()?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        log::error!("gnome-randr modify failed: {}", stderr);
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!("gnome-randr modify failed: {}", stderr),
-        ));
-    }
-
-    log::info!(
-        "Successfully set display mode to {}x{}@{:.2}Hz",
-        best_mode.resolution.0,
-        best_mode.resolution.1,
-        best_mode.refresh_rate
-    );
-    Ok(())
-}
-
-/// Set display mode on X11 using xrandr
-fn set_display_mode_xrandr(ctx: &SessionContext, mode_spec: &ModeSpec) -> Result<(), io::Error> {
-    // Find built-in display
-    let builtin_output = get_builtin_display_name_xrandr(ctx)?;
-    log::info!("Target display: {}", builtin_output);
-
-    // Query available modes
-    let available_modes = query_xrandr_modes(ctx, &builtin_output)?;
-
-    // Select best matching mode (prefer VRR for smoother experience)
-    let best_mode = select_best_mode(&available_modes, mode_spec, &builtin_output, true)?;
-
-    log::info!(
-        "Applying mode: {}x{} @ {:.2}Hz",
-        best_mode.resolution.0,
-        best_mode.resolution.1,
-        best_mode.refresh_rate
-    );
-
-    // Set the mode using xrandr
-    let mut set_cmd = Command::new("sudo");
-    set_cmd.arg("-u").arg(&ctx.user);
-    set_cmd.arg("env");
-
-    for (key, value) in &ctx.env_vars {
-        set_cmd.arg(format!("{}={}", key, value));
-    }
-
-    set_cmd
-        .arg("xrandr")
-        .arg("--output")
-        .arg(&builtin_output)
-        .arg("--mode")
-        .arg(format!("{}x{}", best_mode.resolution.0, best_mode.resolution.1))
-        .arg("--rate")
-        .arg(format!("{:.2}", best_mode.refresh_rate));
-
-    let output = set_cmd.output()?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        log::error!("xrandr command failed: {}", stderr);
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            format!("xrandr command failed: {}", stderr),
-        ));
-    }
-
-    log::info!(
-        "Successfully set X11 display mode to {}x{}@{:.2}Hz",
-        best_mode.resolution.0,
-        best_mode.resolution.1,
-        best_mode.refresh_rate
-    );
-    Ok(())
+    result
 }
 
 #[cfg(test)]
