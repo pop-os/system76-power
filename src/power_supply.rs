@@ -135,6 +135,18 @@ pub async fn monitor_channel(
                 io::Error::last_os_error()
             ));
         }
+
+        // Increase the receive buffer to 256 KB to reduce ENOBUFS under burst conditions.
+        // The kernel may silently cap this to net.core.rmem_max; non-fatal if it does.
+        let rcvbuf: libc::c_int = 262_144;
+        libc::setsockopt(
+            fd,
+            libc::SOL_SOCKET,
+            libc::SO_RCVBUF,
+            &rcvbuf as *const _ as *const libc::c_void,
+            std::mem::size_of::<libc::c_int>() as libc::socklen_t,
+        );
+
         fd
     };
 
@@ -238,8 +250,44 @@ pub async fn monitor_channel(
                 }
             }
             Ok(Err(e)) => {
-                log::error!("Error reading from Netlink socket: {}", e);
-                return Err(e.into());
+                if e.raw_os_error() == Some(libc::ENOBUFS) {
+                    // ENOBUFS on a Netlink socket means the kernel dropped one or more
+                    // uevents because our receive buffer overflowed.  The socket is still
+                    // alive — this is a transient, recoverable condition.
+                    // Re-read sysfs directly so we don't miss a state transition that was
+                    // in the dropped packets, then continue the loop.
+                    log::warn!(
+                        "Netlink receive buffer overflow (ENOBUFS) — \
+                         some uevents were lost; re-reading sysfs to catch up"
+                    );
+                    match read_ac_status(ac_path) {
+                        Ok(current_state) if Some(current_state) != last_known_state => {
+                            log::info!(
+                                "Missed transition detected via sysfs: {:?} -> {:?}",
+                                last_known_state.unwrap_or(PowerSource::Battery),
+                                current_state
+                            );
+                            last_known_state = Some(current_state);
+                            if tx.send(current_state).is_err() {
+                                log::warn!(
+                                    "Power monitoring channel closed, stopping monitoring"
+                                );
+                                break;
+                            }
+                        }
+                        Ok(_) => {
+                            log::debug!("ENOBUFS recovery: sysfs state unchanged, no event to send");
+                        }
+                        Err(e) => {
+                            log::warn!("ENOBUFS recovery: failed to read AC status from sysfs: {}", e);
+                        }
+                    }
+                } else {
+                    // Truly fatal socket error (e.g. EBADF, EIO) — bail out so the
+                    // caller's retry loop can reopen the socket.
+                    log::error!("Fatal error reading from Netlink socket: {}", e);
+                    return Err(e.into());
+                }
             }
             Err(_would_block) => {
                 // Would block, continue waiting
