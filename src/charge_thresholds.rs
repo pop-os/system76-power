@@ -15,7 +15,7 @@ fn is_supported() -> bool {
     // For now, only support thresholds on System76 hardware
     Path::new("/sys/bus/acpi/devices/17761776:00").is_dir() ||
     // and Huawei
-    Path::new("/sys/devices/platform/huawei-wmi/charge_control_thresholds").exists()
+    Path::new("/sys/devices/platform/huawei-wmi/charge_control_thresholds").exists() ||
     // and ThinkPad
     Path::new("/sys/devices/platform/thinkpad_acpi").exists()
 }
