@@ -16,6 +16,8 @@ fn is_supported() -> bool {
     Path::new("/sys/bus/acpi/devices/17761776:00").is_dir() ||
     // and Huawei
     Path::new("/sys/devices/platform/huawei-wmi/charge_control_thresholds").exists()
+    // and ThinkPad
+    Path::new("/sys/devices/platform/thinkpad_acpi").exists()
 }
 
 fn supports_thresholds() -> bool {
