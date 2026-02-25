@@ -37,6 +37,8 @@ render on the dGPU even when requested. Vulkan applications must be launched
 with `__NV_PRIME_RENDER_OFFLOAD=1` to render on the dGPU. GLX applications must
 be launched with `__NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia`
 to render on the dGPU.
+You can also launch apps with the wrapper script `prime-run`, which sets these
+variables for you.
 
 Display offload sinks ("reverse PRIME") require 450.57 NVIDIA drivers or later.
 This feature allows using external displays while in this mode.
