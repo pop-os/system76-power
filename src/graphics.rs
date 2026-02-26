@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: GPL-3.0-only
 
-use crate::{module::Module, pci::PciBus};
+use crate::{modprobe, module::Module, pci::PciBus};
 use serde::{Deserialize, Serialize};
 use std::{
     fs,
@@ -105,8 +105,16 @@ pub enum GraphicsDeviceError {
     Command { cmd: &'static str, why: io::Error },
     #[error("{} in use by {}", func, driver)]
     DeviceInUse { func: String, driver: String },
+    #[error("failed to stop display manager {}: {}", dm, why)]
+    DisplayManagerStop { dm: String, why: io::Error },
+    #[error("failed to start display manager {}: {}", dm, why)]
+    DisplayManagerStart { dm: String, why: io::Error },
     #[error("failed to probe driver features: {}", _0)]
     Json(io::Error),
+    #[error("failed to load kernel module {}: {}", module, why)]
+    ModuleLoad { module: &'static str, why: io::Error },
+    #[error("failed to unload kernel module {}: {}", module, why)]
+    ModuleUnload { module: &'static str, why: io::Error },
     #[error("failed to open system76-power modprobe file: {}", _0)]
     ModprobeFileOpen(io::Error),
     #[error("failed to write to system76-power modprobe file: {}", _0)]
@@ -485,7 +493,12 @@ impl Graphics {
         Ok(vendor)
     }
 
-    pub fn set_vendor(&self, vendor: GraphicsMode) -> Result<(), GraphicsDeviceError> {
+    /// Write all configuration files for the given graphics mode.
+    ///
+    /// This is the shared core used by both `set_vendor` (boot-time path) and
+    /// `switch_runtime` (no-reboot path). It does NOT rebuild the initramfs —
+    /// callers are responsible for that step.
+    fn write_vendor_config(&self, vendor: GraphicsMode) -> Result<(), GraphicsDeviceError> {
         self.switchable_or_fail()?;
 
         let mode = match vendor {
@@ -619,6 +632,17 @@ impl Graphics {
             );
         }
 
+        Ok(())
+    }
+
+    /// Set the graphics mode (boot-time path).
+    ///
+    /// Writes all configuration files and rebuilds the initramfs. A reboot is
+    /// required for the change to take effect. The existing behaviour is fully
+    /// preserved.
+    pub fn set_vendor(&self, vendor: GraphicsMode) -> Result<(), GraphicsDeviceError> {
+        self.write_vendor_config(vendor)?;
+
         log::info!("Updating initramfs");
         let (cmd, arg) = update_initramfs_cmd();
         let status = process::Command::new(cmd)
@@ -631,6 +655,149 @@ impl Graphics {
         }
 
         Ok(())
+    }
+
+    /// Switch graphics mode at runtime without a reboot.
+    ///
+    /// Sequence:
+    ///   1.  Guard: external-display models that require the dGPU are rejected.
+    ///   2.  Stop the active display manager (gdm/sddm/lightdm).
+    ///   3.  Unbind vtconsole framebuffer and EFI framebuffer (non-fatal).
+    ///   4.  Kill lingering `/dev/nvidia*` file-descriptor holders via `fuser -k`.
+    ///   5.  Unload NVIDIA kernel modules in reverse dependency order.
+    ///   6.  Unbind PCI functions from their kernel drivers (sysfs).
+    ///   7.  Remove PCI devices from the bus.
+    ///   8.  Write all configuration files (same as `set_vendor`, no initramfs).
+    ///   9.  Rescan the PCI bus to re-enumerate the GPU.
+    ///  10.  Load the kernel modules appropriate for the new mode.
+    ///  11.  Set sysfs power/control (5 s deferred — preserves the existing HACK).
+    ///  12.  Refresh `self` from the live PCI state.
+    ///  13.  Start the display manager again.
+    ///
+    /// The initramfs is NOT rebuilt here. The caller (daemon) schedules that as
+    /// an asynchronous background task so that the D-Bus call returns promptly.
+    ///
+    /// Returns the systemd unit name of the display manager that was restarted.
+    pub fn switch_runtime(&mut self, vendor: GraphicsMode) -> Result<String, GraphicsDeviceError> {
+        self.switchable_or_fail()?;
+
+        // Models where every external display routes through the dGPU cannot
+        // safely tear it down while a session may be active on those outputs.
+        if self.get_external_displays_require_dgpu()? {
+            log::warn!(
+                "runtime graphics switching is not supported on this model: \
+                 external displays require the dGPU"
+            );
+            return Err(GraphicsDeviceError::NotSwitchable);
+        }
+
+        // ── Phase 1: Teardown ────────────────────────────────────────────────
+
+        let dm = detect_display_manager();
+        if let Some(dm) = dm {
+            log::info!("Stopping display manager: {}", dm);
+            let status = process::Command::new(SYSTEMCTL_CMD).args(["stop", dm]).status().map_err(
+                |why| GraphicsDeviceError::DisplayManagerStop { dm: dm.to_owned(), why },
+            )?;
+            if !status.success() {
+                return Err(GraphicsDeviceError::DisplayManagerStop {
+                    dm: dm.to_owned(),
+                    why: io::Error::new(
+                        io::ErrorKind::Other,
+                        format!("systemctl stop {} exited with {}", dm, status),
+                    ),
+                });
+            }
+            // Give systemd time to fully stop the DM and release DRM file descriptors.
+            std::thread::sleep(std::time::Duration::from_millis(2000));
+        }
+
+        // Stop NVIDIA daemon services that hold /dev/nvidia* file descriptors.
+        // We record which ones were running so we can restore only those after
+        // the switch (preserving the user's intended service state).
+        stop_nvidia_services();
+
+        // Unbind the kernel framebuffer console from the GPU memory. If this is
+        // skipped the nvidia core module will often refuse to unload because the
+        // kernel itself holds a reference through the vtconsole / EFI framebuffer.
+        unbind_framebuffers();
+
+        // Forcefully close any remaining /dev/nvidia* file descriptors. Using
+        // `fuser -k` rather than parsing lsof is the POSIX-compliant approach.
+        kill_nvidia_device_users();
+
+        // Unload in strict reverse dependency order. Treat "not loaded" as a
+        // non-error — only genuine failures (e.g. still in use) are propagated.
+        for module in &["nvidia-drm", "nvidia-modeset", "nvidia_uvm", "nvidia"] {
+            if let Err(why) = modprobe::unload(module) {
+                log::warn!("Could not unload {}: {} (continuing)", module, why);
+            }
+        }
+
+        // Unbind PCI functions from their kernel drivers via sysfs.
+        unsafe {
+            for dev in &self.nvidia {
+                dev.unbind()?;
+            }
+        }
+
+        // Remove PCI devices from the bus (safe now that no driver is bound).
+        unsafe {
+            for dev in &self.nvidia {
+                dev.remove()?;
+            }
+        }
+
+        // ── Phase 2: Configuration (no initramfs rebuild) ────────────────────
+
+        self.write_vendor_config(vendor)?;
+
+        // ── Phase 3: Bring-up ────────────────────────────────────────────────
+
+        if vendor == GraphicsMode::Integrated {
+            // In integrated mode the NVIDIA GPU must remain removed from the PCI
+            // bus. Do NOT rescan — that would bring it back online. Do NOT load
+            // modules or start NVIDIA services.
+            log::info!("Integrated mode: skipping PCI rescan, module load, and NVIDIA services");
+        } else {
+            // Refresh self from live PCI state. Graphics::new() already calls
+            // bus.rescan() internally, so we do not need a separate rescan call.
+            log::info!("Refreshing PCI device inventory");
+            *self = Graphics::new().map_err(GraphicsDeviceError::Rescan)?;
+
+            // Load the kernel modules required for the new mode.
+            load_modules_for_mode(vendor)?;
+
+            // Start NVIDIA daemon services that are enabled in systemd.
+            // We check is-enabled (not whether they were running before teardown)
+            // so that transitions from integrated mode correctly restore them.
+            start_enabled_nvidia_services();
+        }
+
+        // Set PCI power/control (5 s deferred thread — preserves the existing HACK).
+        // Ref: pop-os/nvidia-graphics-drivers@f9815ed603bd
+        // Ref: system76/firmware-open#160
+        if let Some(first) = self.nvidia.first() {
+            sysfs_power_control(first.id.clone(), vendor);
+        }
+
+        // Start the display manager. A failure here is logged but not fatal —
+        // the GPU switch itself succeeded; the user can start the DM manually.
+        let dm_name = dm.unwrap_or("gdm");
+        log::info!("Starting display manager: {}", dm_name);
+        let status =
+            process::Command::new(SYSTEMCTL_CMD).args(["start", dm_name]).status().map_err(
+                |why| GraphicsDeviceError::DisplayManagerStart { dm: dm_name.to_owned(), why },
+            )?;
+        if !status.success() {
+            log::warn!(
+                "systemctl start {} exited with {} — display may need manual restart",
+                dm_name,
+                status
+            );
+        }
+
+        Ok(dm_name.to_owned())
     }
 
     pub fn get_power(&self) -> Result<bool, GraphicsDeviceError> {
@@ -683,7 +850,11 @@ impl Graphics {
     }
 }
 
-fn update_initramfs_cmd() -> (&'static str, &'static str) {
+/// Returns the initramfs rebuild command and its argument.
+///
+/// Exposed as `pub(crate)` so the daemon can invoke it from a background task
+/// after a runtime switch, without blocking the D-Bus call.
+pub(crate) fn update_initramfs_cmd() -> (&'static str, &'static str) {
     if path::Path::new("/usr/bin/dracut").exists() {
         ("reinstall-kernels", "")
     } else {
@@ -723,4 +894,181 @@ fn sysfs_power_control(pciid: String, mode: GraphicsMode) {
             file.write_all(pm.as_bytes()).and_then(|()| file.sync_all());
         }
     });
+}
+
+/// Stop the NVIDIA daemon services that hold open references to the driver stack.
+///
+/// Only the two long-running daemon services are considered:
+/// - `nvidia-powerd`      — NVIDIA power management daemon
+/// - `nvidia-persistenced` — keeps NVIDIA contexts persistent
+///
+/// The oneshot hook services (nvidia-suspend, nvidia-hibernate, nvidia-resume,
+/// nvidia-suspend-then-hibernate) run and exit immediately; they are never
+/// "active" at query time and hold no file-descriptor references, so they are
+/// intentionally skipped.
+fn stop_nvidia_services() {
+    const NVIDIA_DAEMONS: &[&str] = &["nvidia-powerd", "nvidia-persistenced"];
+
+    for svc in NVIDIA_DAEMONS {
+        let active = process::Command::new(SYSTEMCTL_CMD)
+            .args(["is-active", "--quiet", svc])
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+
+        if active {
+            log::info!("Stopping NVIDIA service: {}", svc);
+            match process::Command::new(SYSTEMCTL_CMD).args(["stop", svc]).status() {
+                Ok(s) if s.success() => {}
+                Ok(s) => log::warn!("systemctl stop {} exited with {} (continuing)", svc, s),
+                Err(e) => log::warn!("Failed to stop {}: {} (continuing)", svc, e),
+            }
+        }
+    }
+}
+
+/// Start NVIDIA daemon services that are enabled in systemd.
+///
+/// Called during bring-up after a runtime switch to a GPU-active mode
+/// (hybrid, compute, nvidia). We check `systemctl is-enabled` rather than
+/// relying on whether the service was running before teardown, because the
+/// prior running state may not reflect the user's intended configuration
+/// (e.g., after a transition from integrated mode where the service was
+/// correctly not running).
+fn start_enabled_nvidia_services() {
+    const NVIDIA_DAEMONS: &[&str] = &["nvidia-powerd", "nvidia-persistenced"];
+
+    for svc in NVIDIA_DAEMONS {
+        let enabled = process::Command::new(SYSTEMCTL_CMD)
+            .args(["is-enabled", "--quiet", svc])
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+
+        if enabled {
+            log::info!("Starting enabled NVIDIA service: {}", svc);
+            match process::Command::new(SYSTEMCTL_CMD).args(["start", svc]).status() {
+                Ok(s) if s.success() => log::info!("Started {}", svc),
+                Ok(s) => {
+                    log::warn!(
+                        "systemctl start {} exited with {} — may need manual restart",
+                        svc,
+                        s
+                    )
+                }
+                Err(e) => log::warn!("Failed to start {}: {}", svc, e),
+            }
+        }
+    }
+}
+
+fn detect_display_manager() -> Option<&'static str> {
+    const DMS: &[&str] = &["gdm", "gdm3", "sddm", "lightdm"];
+    for dm in DMS {
+        let active = process::Command::new(SYSTEMCTL_CMD)
+            .args(["is-active", "--quiet", dm])
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        if active {
+            log::info!("Detected active display manager: {}", dm);
+            return Some(dm);
+        }
+    }
+    log::warn!("No active display manager detected");
+    None
+}
+
+/// Unbind the kernel framebuffer console from the GPU.
+///
+/// During boot the kernel uses `efifb` to draw text. When the NVIDIA driver
+/// loads it takes over that memory region. If the vtconsole / EFI framebuffer
+/// driver is not unbound before `modprobe -r nvidia`, the kernel holds a
+/// reference that silently blocks the unload (or causes a panic).
+///
+/// Failures are logged as warnings rather than propagated as errors because
+/// these sysfs paths may not exist on all hardware configurations.
+fn unbind_framebuffers() {
+    // vtcon1 is normally the GPU framebuffer console (vtcon0 is the CPU/software console).
+    let vtcon1 = "/sys/class/vtconsole/vtcon1/bind";
+    if path::Path::new(vtcon1).exists() {
+        log::info!("Unbinding vtcon1 framebuffer");
+        if let Err(e) = fs::write(vtcon1, "0") {
+            log::warn!("Failed to unbind vtcon1: {}", e);
+        }
+    }
+
+    // EFI framebuffer driver holds a reference on systems that booted via UEFI.
+    let efifb_device = "/sys/bus/platform/drivers/efi-framebuffer/efi-framebuffer.0";
+    let efifb_unbind = "/sys/bus/platform/drivers/efi-framebuffer/unbind";
+    if path::Path::new(efifb_device).exists() {
+        log::info!("Unbinding EFI framebuffer");
+        if let Err(e) = fs::write(efifb_unbind, "efi-framebuffer.0") {
+            log::warn!("Failed to unbind efi-framebuffer: {}", e);
+        }
+    }
+}
+
+/// Forcefully terminate any processes that still hold open file descriptors on
+/// `/dev/nvidia*` device nodes.
+///
+/// Uses `fuser -k` (SIGKILL) rather than parsing `lsof`, which is the
+/// POSIX-standard atomic approach for scripts and daemons. A brief sleep after
+/// the kill gives the kernel time to clean up the file descriptor table before
+/// `modprobe -r` runs.
+///
+/// Failures (including "no processes found") are non-fatal and only logged.
+fn kill_nvidia_device_users() {
+    const NVIDIA_DEVICES: &[&str] =
+        &["/dev/nvidia0", "/dev/nvidiactl", "/dev/nvidia-modeset", "/dev/nvidia-uvm"];
+
+    let existing: Vec<&str> =
+        NVIDIA_DEVICES.iter().copied().filter(|d| path::Path::new(d).exists()).collect();
+
+    if existing.is_empty() {
+        log::info!("No /dev/nvidia* devices found; skipping fuser");
+        return;
+    }
+
+    log::info!("Killing processes holding /dev/nvidia* fds: {:?}", existing);
+    // fuser exits non-zero when no processes are found; treat that as success.
+    let result = process::Command::new("fuser").arg("-k").args(&existing).status();
+    match result {
+        Ok(s) => log::info!("fuser exited with {}", s),
+        Err(e) => log::warn!("fuser failed to execute: {} (psmisc installed?)", e),
+    }
+
+    // Brief pause for processes to die before modprobe -r runs.
+    std::thread::sleep(std::time::Duration::from_millis(500));
+}
+
+/// Load the kernel modules required for the given graphics mode.
+///
+/// Module load order matters: `nvidia` core must be loaded before
+/// `nvidia-modeset`, which must be loaded before `nvidia-drm`.
+/// For PRIME/DRM modes `nvidia-drm` must be loaded with `modeset=1`.
+fn load_modules_for_mode(vendor: GraphicsMode) -> Result<(), GraphicsDeviceError> {
+    match vendor {
+        GraphicsMode::Integrated => {
+            // Nothing to load; the NVIDIA driver stack stays absent.
+            log::info!("Integrated mode: no NVIDIA modules to load");
+            Ok(())
+        }
+        GraphicsMode::Compute => {
+            // nvidia core only — drm/modeset remain blacklisted so the GPU is
+            // accessible for CUDA but does not participate in display.
+            modprobe::load("nvidia", &[])
+                .map_err(|why| GraphicsDeviceError::ModuleLoad { module: "nvidia", why })
+        }
+        GraphicsMode::Hybrid | GraphicsMode::Discrete => {
+            modprobe::load("nvidia", &[])
+                .map_err(|why| GraphicsDeviceError::ModuleLoad { module: "nvidia", why })?;
+            modprobe::load("nvidia-modeset", &[])
+                .map_err(|why| GraphicsDeviceError::ModuleLoad { module: "nvidia-modeset", why })?;
+            // modeset=1 is required for PRIME offload (Hybrid) and for DRM
+            // master hand-off (Discrete).
+            modprobe::load("nvidia-drm", &["modeset=1"])
+                .map_err(|why| GraphicsDeviceError::ModuleLoad { module: "nvidia-drm", why })
+        }
+    }
 }

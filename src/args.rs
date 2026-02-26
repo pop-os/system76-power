@@ -9,7 +9,8 @@ use clap::{builder::PossibleValuesParser, Parser};
     about = "Query or set the graphics mode",
     long_about = "Query or set the graphics mode.\n\n - If an argument is not provided, the \
                   graphics profile will be queried\n - Otherwise, that profile will be set, if it \
-                  is a valid profile\n\nA reboot is required after switching modes."
+                  is a valid profile\n\nA reboot is required after switching modes (use the \
+                  'runtime' subcommand to switch without rebooting)."
 )]
 pub enum GraphicsArgs {
     #[clap(about = "Like integrated, but the dGPU is available for compute")]
@@ -29,6 +30,25 @@ pub enum GraphicsArgs {
             value_parser = PossibleValuesParser::new(["auto", "off", "on"])
         )]
         state: Option<String>,
+    },
+    #[clap(
+        about = "Switch graphics mode immediately without a reboot",
+        long_about = "Switch the graphics mode at runtime without rebooting.\n\n \
+                      The display manager (gdm/sddm/lightdm) will be stopped, the NVIDIA \
+                      driver stack will be torn down and rebuilt for the new mode, and the \
+                      display manager will be restarted.\n\n \
+                      The initramfs is rebuilt in the background so the next boot also uses \
+                      the correct modules.\n\n \
+                      Not supported on models where external displays route through the dGPU \
+                      (e.g. oryp*, addw*, serw*) — use the standard subcommand and reboot \
+                      on those systems."
+    )]
+    Runtime {
+        #[clap(
+            help = "Graphics mode to switch to",
+            value_parser = PossibleValuesParser::new(["integrated", "compute", "hybrid", "nvidia"]),
+        )]
+        mode: String,
     },
 }
 
@@ -54,7 +74,7 @@ pub enum Args {
             global = true,
             group = "verbosity"
         )]
-        quiet:   bool,
+        quiet: bool,
         #[clap(
             short = 'v',
             long = "verbose",
@@ -94,7 +114,7 @@ pub enum Args {
             value_parser = PossibleValuesParser::new(["full_charge", "balanced", "max_lifespan"]),
             group = "profile-or-thresholds",
         )]
-        profile:       Option<String>,
+        profile: Option<String>,
         #[clap(long = "list-profiles", help = "List profiles", group = "profile-or-thresholds")]
         list_profiles: bool,
         #[clap(
@@ -104,6 +124,6 @@ pub enum Args {
             value_names = &["start", "end"],
             group = "profile-or-thresholds",
         )]
-        thresholds:    Vec<u8>,
+        thresholds: Vec<u8>,
     },
 }

@@ -25,7 +25,7 @@ use crate::{
     charge_thresholds::{get_charge_profiles, get_charge_thresholds, set_charge_thresholds},
     errors::ProfileError,
     fan::FanDaemon,
-    graphics::{Graphics, GraphicsMode},
+    graphics::{update_initramfs_cmd, Graphics, GraphicsMode},
     hid_backlight,
     hotplug::{mux, Detect, HotPlugDetect},
     kernel_parameters::{KernelParameter, NmiWatchdog},
@@ -589,6 +589,67 @@ impl System76Power {
             .map_err(zbus_error_from_display)
     }
 
+    /// Switch the graphics mode at runtime without a reboot.
+    ///
+    /// This method stops the active display manager, tears down the NVIDIA
+    /// driver stack, reconfigures the system, brings the stack back up for the
+    /// new mode, and restarts the display manager — all without requiring a
+    /// reboot.
+    ///
+    /// After the live switch succeeds a `GraphicsModeChanged` signal is emitted.
+    /// The initramfs rebuild (needed for the *next* boot) runs in the background;
+    /// a `GraphicsInitramfsDone` signal is emitted when it completes.
+    ///
+    /// Note: models where external displays are wired exclusively through the
+    /// dGPU (e.g. oryp*, addw*, serw*) will return an error — use `SetGraphics`
+    /// on those systems and reboot instead.
+    async fn set_graphics_runtime(
+        &mut self,
+        #[zbus(signal_context)] ctx: zbus::SignalContext<'_>,
+        vendor: &str,
+    ) -> zbus::fdo::Result<()> {
+        let mode = GraphicsMode::from(vendor);
+        let vendor_owned = vendor.to_owned();
+
+        // Perform the runtime switch (blocks until DM is back up).
+        self.0
+            .lock()
+            .await
+            .graphics
+            .switch_runtime(mode)
+            .map_err(zbus_error_from_display)?;
+
+        // Signal: the new mode is live.
+        System76Power::graphics_mode_changed(&ctx, vendor).await
+            .unwrap_or_else(|e| log::warn!("Failed to emit GraphicsModeChanged: {}", e));
+
+        // Rebuild the initramfs in a background thread so that the next boot
+        // also uses the correct modules. The D-Bus call returns immediately.
+        let ctx_owned = ctx.to_owned();
+        tokio::task::spawn_blocking(move || {
+            log::info!("Background initramfs rebuild starting");
+            let (cmd, arg) = update_initramfs_cmd();
+            let success = std::process::Command::new(cmd)
+                .arg(arg)
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false);
+            log::info!(
+                "Background initramfs rebuild {}",
+                if success { "succeeded" } else { "failed" }
+            );
+            // Emit the completion signal back on the async runtime.
+            let vendor_clone = vendor_owned.clone();
+            tokio::runtime::Handle::current().block_on(async move {
+                System76Power::graphics_initramfs_done(&ctx_owned, &vendor_clone, success)
+                    .await
+                    .unwrap_or_else(|e| log::warn!("Failed to emit GraphicsInitramfsDone: {}", e));
+            });
+        });
+
+        Ok(())
+    }
+
     #[dbus_interface(out_args("desktop"))]
     async fn get_desktop(&mut self) -> zbus::fdo::Result<bool> {
         Ok(self.0.lock().await.graphics.is_desktop())
@@ -666,6 +727,24 @@ impl System76Power {
     async fn power_profile_switch(
         context: &zbus::SignalContext<'_>,
         profile: &str,
+    ) -> zbus::Result<()>;
+
+    /// Emitted immediately after a runtime graphics mode switch completes.
+    /// The `mode` argument is the new graphics mode string (e.g. `"hybrid"`).
+    #[dbus_interface(signal)]
+    async fn graphics_mode_changed(
+        context: &zbus::SignalContext<'_>,
+        mode: &str,
+    ) -> zbus::Result<()>;
+
+    /// Emitted when the background initramfs rebuild triggered by
+    /// `SetGraphicsRuntime` finishes. `success` is `true` if the rebuild
+    /// command exited with status 0.
+    #[dbus_interface(signal)]
+    async fn graphics_initramfs_done(
+        context: &zbus::SignalContext<'_>,
+        mode: &str,
+        success: bool,
     ) -> zbus::Result<()>;
 }
 

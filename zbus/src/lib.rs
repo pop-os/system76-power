@@ -5,11 +5,11 @@ use zvariant::Type;
 
 #[derive(Deserialize, Serialize, Type, Debug)]
 pub struct ChargeProfile {
-    pub id:          String,
-    pub title:       String,
+    pub id: String,
+    pub title: String,
     pub description: String,
-    pub start:       u8,
-    pub end:         u8,
+    pub start: u8,
+    pub end: u8,
 }
 
 #[zbus::dbus_proxy(
@@ -42,6 +42,9 @@ trait PowerDaemon {
     /// SetGraphics method
     fn set_graphics(&self, vendor: &str) -> zbus::Result<()>;
 
+    /// SetGraphicsRuntime method — switches mode without a reboot
+    fn set_graphics_runtime(&self, vendor: &str) -> zbus::Result<()>;
+
     /// GetSwitchable method
     fn get_switchable(&self) -> zbus::Result<bool>;
 
@@ -73,4 +76,12 @@ trait PowerDaemon {
     /// PowerProfileSwitch signal
     #[dbus_proxy(signal)]
     fn power_profile_switch(&self, profile: &str) -> zbus::Result<()>;
+
+    /// GraphicsModeChanged signal — emitted when a runtime graphics switch completes
+    #[dbus_proxy(signal)]
+    fn graphics_mode_changed(&self, mode: &str) -> zbus::Result<()>;
+
+    /// GraphicsInitramfsDone signal — emitted when the background initramfs rebuild finishes
+    #[dbus_proxy(signal)]
+    fn graphics_initramfs_done(&self, mode: &str, success: bool) -> zbus::Result<()>;
 }

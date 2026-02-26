@@ -98,6 +98,18 @@ this device is either a desktop or doesn't have both an iGPU and dGPU.
                 Some(GraphicsArgs::Nvidia) => {
                     client.set_graphics("nvidia").await.map_err(zbus_error)
                 }
+                Some(GraphicsArgs::Runtime { mode }) => {
+                    println!(
+                        "Switching to {} graphics at runtime (display manager will restart)...",
+                        mode
+                    );
+                    client.set_graphics_runtime(mode).await.map_err(zbus_error)?;
+                    println!("Done. Graphics mode is now {}.", mode);
+                    println!(
+                        "The initramfs is being rebuilt in the background for the next boot."
+                    );
+                    Ok(())
+                }
                 Some(GraphicsArgs::Switchable) => client
                     .get_switchable()
                     .await
