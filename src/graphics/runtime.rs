@@ -27,7 +27,7 @@ use super::systemd;
 /// service, or `None` if none are found.
 pub(crate) fn detect_display_manager() -> Option<&'static str> {
     const DMS: &[&str] = &["gdm", "gdm3", "sddm", "lightdm"];
-    for dm in DMS {
+    for &dm in DMS {
         if systemd::is_active(dm) {
             log::info!("Detected active display manager: {}", dm);
             return Some(dm);

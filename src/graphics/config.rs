@@ -265,7 +265,7 @@ pub(crate) fn write_vendor_config(vendor: GraphicsMode) -> Result<(), GraphicsDe
     };
 
     for service in &["nvidia-powerd.service"] {
-        let status = systemd::systemctl(&[action, service])
+        let status = systemd::systemctl(&[service, action])
             .map_err(|why| GraphicsDeviceError::Command { cmd: systemd::SYSTEMCTL_CMD, why })?;
 
         if status.success() {
