@@ -5,11 +5,11 @@
 use super::pci_runtime_pm_support;
 use crate::errors::RyzenAdjError;
 use crate::{
+    Profile,
     errors::{BacklightError, ModelError, PciDeviceError, ProfileError, ScsiHostError},
     kernel_parameters::{DeviceList, Dirty, KernelParameter, LaptopMode, PcieAspm},
     radeon::RadeonDevice,
     sys_devices,
-    Profile,
 };
 use intel_pstate::{PState, PStateError, PStateValues};
 use std::{
@@ -193,9 +193,9 @@ pub fn battery(errors: &mut Vec<ProfileError>, set_brightness: bool) {
 
     catch!(errors, scsi_host_link_time_pm_policy(&["min_power", "min_power"]));
 
-    // Set CPU frequency cap to 50% (~2.5GHz for Ryzen, allows good performance without boost)
-    log::info!("Configuring CPU for battery profile (50% frequency cap)");
-    crate::cpufreq::set(Profile::Battery, 50);
+    // Set CPU frequency cap to 60% (~2.5GHz for Ryzen, allows good performance without boost)
+    log::info!("Configuring CPU for battery profile (60% frequency cap)");
+    crate::cpufreq::set(Profile::Battery, 60);
 
     catch!(
         errors,

@@ -294,8 +294,6 @@ pub async fn monitor_channel(
                 continue;
             }
         }
-
-        guard.clear_ready();
     }
 
     Ok(())
