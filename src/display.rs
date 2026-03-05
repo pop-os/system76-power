@@ -105,6 +105,7 @@ impl Default for DisplayModeConfig {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DisplayServer {
     GnomeWayland,
+    KdeWayland,
     Wayland,
     X11,
     Unknown,
@@ -138,6 +139,14 @@ fn detect_from_env() -> Option<DisplayServer> {
     {
         log::debug!("Detected GNOME Wayland from process environment");
         return Some(DisplayServer::GnomeWayland);
+    }
+
+    // Check for KDE Wayland specifically
+    if session_type.as_deref() == Some("wayland")
+        && current_desktop.as_ref().map(|d| d.contains("KDE")).unwrap_or(false)
+    {
+        log::debug!("Detected KDE Wayland from process environment");
+        return Some(DisplayServer::KdeWayland);
     }
 
     // Check for other Wayland compositors
@@ -214,6 +223,14 @@ fn detect_server_from_env_vars(env_vars: &[(String, String)]) -> Option<DisplayS
     {
         log::debug!("Detected GNOME Wayland");
         return Some(DisplayServer::GnomeWayland);
+    }
+
+    // Check for KDE Wayland specifically
+    if session_type.as_deref() == Some("wayland")
+        && current_desktop.as_ref().map(|d| d.contains("KDE")).unwrap_or(false)
+    {
+        log::debug!("Detected KDE Wayland");
+        return Some(DisplayServer::KdeWayland);
     }
 
     // Check for other Wayland compositors
@@ -611,24 +628,13 @@ impl DisplayManager for GnomeManager<'_> {
 
         let stdout = String::from_utf8_lossy(&output.stdout);
 
-        // First pass: find the built-in display name (eDP-*)
-        let mut display_name = None;
-        for line in stdout.lines() {
+        // Find the built-in display name (eDP-*)
+        let display_name = find_builtin_display_name(stdout.lines(), |line| {
             let trimmed = line.trim();
-            if trimmed.starts_with("eDP") && !trimmed.contains("disconnected") {
-                if let Some(name) = trimmed.split_whitespace().next() {
-                    log::debug!("Found built-in display: {}", name);
-                    display_name = Some(name.to_string());
-                    break;
-                }
-            }
-        }
-        let display_name = display_name.unwrap_or_else(|| {
-            log::warn!("Could not detect built-in display name, using default: eDP-1");
-            "eDP-1".to_string()
+            trimmed.starts_with("eDP") && !trimmed.contains("disconnected")
         });
 
-        // Second pass: collect modes for the detected display
+        // Collect modes for the detected display
         let mut modes = Vec::new();
         let mut in_display_section = false;
 
@@ -657,13 +663,7 @@ impl DisplayManager for GnomeManager<'_> {
 
         log::info!("Found {} available modes for display '{}'", modes.len(), display_name);
 
-        if modes.is_empty() {
-            log::warn!("No modes found! gnome-randr output:\n{}", stdout);
-            return Err(DisplayError::ModeNotFound {
-                display: display_name,
-                spec: "any".to_string(),
-            });
-        }
+        ensure_modes_found(&modes, &display_name, "gnome-randr", &stdout)?;
 
         Ok((display_name, modes))
     }
@@ -712,23 +712,12 @@ impl DisplayManager for X11Manager<'_> {
 
         let stdout = String::from_utf8_lossy(&output.stdout);
 
-        // First pass: find the built-in display name (eDP-* or LVDS-*)
-        let mut display_name = None;
-        for line in stdout.lines() {
-            if line.contains("connected") && (line.starts_with("eDP") || line.starts_with("LVDS")) {
-                if let Some(name) = line.split_whitespace().next() {
-                    log::debug!("Found built-in display: {}", name);
-                    display_name = Some(name.to_string());
-                    break;
-                }
-            }
-        }
-        let display_name = display_name.unwrap_or_else(|| {
-            log::warn!("Could not detect built-in display name, using default: eDP-1");
-            "eDP-1".to_string()
+        // Find the built-in display name (eDP-* or LVDS-*)
+        let display_name = find_builtin_display_name(stdout.lines(), |line| {
+            line.contains("connected") && (line.starts_with("eDP") || line.starts_with("LVDS"))
         });
 
-        // Second pass: collect modes for the detected display
+        // Collect modes for the detected display
         let mut modes = Vec::new();
         let mut in_display_section = false;
         #[allow(unused_assignments)]
@@ -790,13 +779,7 @@ impl DisplayManager for X11Manager<'_> {
 
         log::info!("Found {} available modes for display '{}'", modes.len(), display_name);
 
-        if modes.is_empty() {
-            log::warn!("No modes found! xrandr output:\n{}", stdout);
-            return Err(DisplayError::ModeNotFound {
-                display: display_name,
-                spec: "any".to_string(),
-            });
-        }
+        ensure_modes_found(&modes, &display_name, "xrandr", &stdout)?;
 
         Ok((display_name, modes))
     }
@@ -834,6 +817,131 @@ impl DisplayManager for X11Manager<'_> {
     }
 }
 
+/// KDE Wayland backend — uses `kscreen-doctor`
+struct KdeManager<'a> {
+    ctx: &'a SessionContext,
+}
+
+impl DisplayManager for KdeManager<'_> {
+    fn get_display_info(&self) -> Result<(String, Vec<DisplayMode>), DisplayError> {
+        log::debug!("Querying kscreen-doctor for display info (name + modes)");
+
+        let output = run_command_as_user(self.ctx, "kscreen-doctor", &["--outputs"])?;
+
+        if !output.status.success() {
+            return Err(DisplayError::CommandFailed {
+                command: "kscreen-doctor --outputs".to_string(),
+                stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+            });
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        log::debug!("kscreen-doctor output:\n{}", stdout);
+
+        // Parse the multi-line output format:
+        // Output: 1 eDP-1 <uuid>
+        //         enabled
+        //         connected
+        //         ...
+        //         Modes:  1:2560x1440@60.00*!  2:2560x1440@165.00  ...
+        //         ...
+        // Output: 2 HDMI-1 <uuid>
+        //         ...
+
+        let mut display_name: Option<String> = None;
+        let mut modes = Vec::new();
+        let mut in_target_display = false;
+
+        for line in stdout.lines() {
+            let trimmed = line.trim();
+
+            // Check if this line contains "Output:" (more flexible matching)
+            if trimmed.contains("Output:") && trimmed.contains("eDP") {
+                // If we were already in the target display section, we're done
+                if in_target_display {
+                    log::debug!("Found next output, stopping search");
+                    break;
+                }
+
+                // Extract the display name - find eDP-* pattern
+                for part in trimmed.split_whitespace() {
+                    if part.starts_with("eDP") || part.starts_with("LVDS") {
+                        log::debug!("Found built-in display: {}", part);
+                        display_name = Some(part.to_string());
+                        in_target_display = true;
+                        break;
+                    }
+                }
+            } else if in_target_display {
+                // We're inside the target display's section (indented lines)
+
+                // Look for the Modes: line (flexible matching)
+                if trimmed.contains("Modes:") {
+                    // Extract everything after "Modes:"
+                    if let Some(modes_idx) = trimmed.find("Modes:") {
+                        let modes_str = &trimmed[modes_idx + 6..];
+                        let modes_str = modes_str.trim();
+                        log::debug!("Found modes line: {}", modes_str);
+                        modes = parse_kscreen_modes(modes_str);
+                    }
+                }
+            }
+        }
+
+        let display_name = display_name.unwrap_or_else(|| {
+            log::warn!("Could not detect built-in display name, using default: eDP-1");
+            "eDP-1".to_string()
+        });
+
+        log::info!("Found {} available modes for display '{}'", modes.len(), display_name);
+
+        ensure_modes_found(&modes, &display_name, "kscreen-doctor", &stdout)?;
+
+        Ok((display_name, modes))
+    }
+
+    fn apply_mode(&self, display_name: &str, mode: &DisplayMode) -> Result<(), DisplayError> {
+        // Build mode argument: output.<name>.mode.<W>x<H>@<Hz>
+        let mode_arg = format!(
+            "output.{}.mode.{}x{}@{}",
+            display_name,
+            mode.resolution.0,
+            mode.resolution.1,
+            mode.refresh_rate.round() as u32
+        );
+
+        // Also set VRR policy to automatic for high refresh rate modes
+        let vrr_arg = format!("output.{}.vrrpolicy.automatic", display_name);
+
+        log::debug!(
+            "Executing: sudo -u {} env [vars...] kscreen-doctor {} {}",
+            self.ctx.user,
+            mode_arg,
+            vrr_arg
+        );
+
+        let output = run_command_as_user(self.ctx, "kscreen-doctor", &[&mode_arg, &vrr_arg])?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            log::error!("kscreen-doctor command failed: {}", stderr);
+            return Err(DisplayError::CommandFailed {
+                command: "kscreen-doctor".to_string(),
+                stderr: stderr.into_owned(),
+            });
+        }
+
+        log::info!(
+            "Successfully applied mode {}x{}@{}Hz with VRR policy automatic",
+            mode.resolution.0,
+            mode.resolution.1,
+            mode.refresh_rate.round() as u32
+        );
+
+        Ok(())
+    }
+}
+
 /// Construct the correct `DisplayManager` for the active session.
 ///
 /// Returns an error for unsupported display servers (generic Wayland, Unknown).
@@ -848,6 +956,10 @@ fn create_manager(ctx: &SessionContext) -> Result<Box<dyn DisplayManager + '_>, 
             log::info!("Using GNOME Wayland backend (gnome-randr)");
             Ok(Box::new(GnomeManager { ctx }))
         }
+        DisplayServer::KdeWayland => {
+            log::info!("Using KDE Wayland backend (kscreen-doctor)");
+            Ok(Box::new(KdeManager { ctx }))
+        }
         DisplayServer::X11 => {
             log::info!("Using X11 backend (xrandr)");
             Ok(Box::new(X11Manager { ctx }))
@@ -861,6 +973,53 @@ fn create_manager(ctx: &SessionContext) -> Result<Box<dyn DisplayManager + '_>, 
             Err(DisplayError::SessionNotFound)
         }
     }
+}
+
+/// Find the built-in display name from command output lines
+///
+/// Searches for display names matching common laptop display patterns (eDP-*, LVDS-*).
+/// Returns a default of "eDP-1" if no match is found.
+///
+/// # Arguments
+/// * `lines` - Iterator over output lines from display query command
+/// * `line_filter` - Optional filter function to apply to each line (e.g., check "connected")
+fn find_builtin_display_name<'a, F>(lines: impl Iterator<Item = &'a str>, line_filter: F) -> String
+where
+    F: Fn(&str) -> bool,
+{
+    for line in lines {
+        if !line_filter(line) {
+            continue;
+        }
+        for part in line.split_whitespace() {
+            if part.starts_with("eDP") || part.starts_with("LVDS") {
+                log::debug!("Found built-in display: {}", part);
+                return part.to_string();
+            }
+        }
+    }
+    log::warn!("Could not detect built-in display name, using default: eDP-1");
+    "eDP-1".to_string()
+}
+
+/// Ensure modes were found, returning an appropriate error if empty
+///
+/// This helper encapsulates the common "no modes found" error handling pattern
+/// used by all display managers.
+fn ensure_modes_found(
+    modes: &[DisplayMode],
+    display_name: &str,
+    tool_name: &str,
+    raw_output: &str,
+) -> Result<(), DisplayError> {
+    if modes.is_empty() {
+        log::warn!("No modes found! {} output:\n{}", tool_name, raw_output);
+        return Err(DisplayError::ModeNotFound {
+            display: display_name.to_string(),
+            spec: "any".to_string(),
+        });
+    }
+    Ok(())
 }
 
 /// Parse a mode line from gnome-randr output
@@ -944,6 +1103,53 @@ fn parse_xrandr_mode_line(line: &str, resolution: &str) -> Option<DisplayMode> {
     }
 
     None
+}
+
+/// Parse kscreen-doctor mode strings from the Modes: section
+/// Example input: "1:2560x1440@60.00*!  2:2560x1440@165.00  3:1920x1200@60.00"
+/// Each mode is formatted as "id:WxH@Hz" with optional *! suffixes
+/// * = current mode, ! = preferred mode
+fn parse_kscreen_modes(modes_str: &str) -> Vec<DisplayMode> {
+    let mut modes = Vec::new();
+
+    for mode_token in modes_str.split_whitespace() {
+        // Mode format: "id:WxH@Hz*!" or similar
+        // Strip the mode ID if present (e.g., "1:2560x1440@60.00*!" -> "2560x1440@60.00*!")
+        let mode_part =
+            if let Some((_id, rest)) = mode_token.split_once(':') { rest } else { mode_token };
+
+        // Parse "WxH@Hz" (strip * and ! suffixes from rate)
+        if let Some((res_part, rate_str)) = mode_part.split_once('@') {
+            // Remove * and ! markers from rate string
+            let rate_clean =
+                rate_str.trim_end_matches('*').trim_end_matches('!').trim_end_matches('*');
+
+            if let Some((width_str, height_str)) = res_part.split_once('x') {
+                if let (Ok(width), Ok(height), Ok(rate)) =
+                    (width_str.parse::<u32>(), height_str.parse::<u32>(), rate_clean.parse::<f32>())
+                {
+                    let mode_string = format!("{}x{}@{}", width, height, rate as u32);
+
+                    log::debug!(
+                        "Parsed KDE mode: {} → {}x{} @ {:.2}Hz",
+                        mode_token,
+                        width,
+                        height,
+                        rate
+                    );
+
+                    modes.push(DisplayMode {
+                        mode_string,
+                        resolution: (width, height),
+                        refresh_rate: rate,
+                        has_vrr: false, // kscreen-doctor doesn't report VRR in mode listing
+                    });
+                }
+            }
+        }
+    }
+
+    modes
 }
 
 /// Find the best matching mode for a target refresh rate
@@ -1090,24 +1296,58 @@ fn select_best_mode(
     match mode_spec {
         ModeSpec::ModeString(mode_str) => {
             // Try exact mode string match first
-            available_modes
+            if let Some(mode) = available_modes.iter().find(|m| m.mode_string == *mode_str) {
+                return Ok(mode.clone());
+            }
+
+            log::warn!("Exact mode string '{}' not found, trying fuzzy match", mode_str);
+
+            // Fuzzy match: strip VRR suffix and compare
+            let mode_str_no_vrr = mode_str.replace("+vrr", "");
+            if let Some(mode) = available_modes
                 .iter()
-                .find(|m| m.mode_string == *mode_str)
-                .or_else(|| {
-                    log::warn!("Exact mode string '{}' not found, trying fuzzy match", mode_str);
-                    // Fuzzy match: compare without VRR suffix
-                    let mode_str_no_vrr = mode_str.replace("+vrr", "");
-                    available_modes
-                        .iter()
-                        .find(|m| m.mode_string.replace("+vrr", "") == mode_str_no_vrr)
-                })
-                .cloned()
-                .ok_or_else(|| {
-                    io::Error::new(
-                        io::ErrorKind::NotFound,
-                        format!("Mode '{}' not found on display {}", mode_str, display_name),
-                    )
-                })
+                .find(|m| m.mode_string.replace("+vrr", "") == mode_str_no_vrr)
+            {
+                return Ok(mode.clone());
+            }
+
+            // More aggressive fuzzy match: parse resolution and rate, find closest match
+            // This handles cases like "2560x1440@60.002" matching "2560x1440@60"
+            log::warn!("VRR-stripped match failed, trying resolution+rate parsing");
+
+            if let Some((res_part, rate_part)) = mode_str_no_vrr.split_once('@') {
+                if let Some((width_str, height_str)) = res_part.split_once('x') {
+                    if let (Ok(width), Ok(height), Ok(target_rate)) = (
+                        width_str.parse::<u32>(),
+                        height_str.parse::<u32>(),
+                        rate_part.parse::<f32>(),
+                    ) {
+                        // Filter by resolution and find closest refresh rate
+                        let filtered: Vec<_> = available_modes
+                            .iter()
+                            .filter(|m| m.resolution.0 == width && m.resolution.1 == height)
+                            .collect();
+
+                        if let Some(best) = filtered.iter().min_by_key(|m| {
+                            let diff = (m.refresh_rate - target_rate).abs();
+                            (diff * 1000.0) as u32
+                        }) {
+                            log::info!(
+                                "Fuzzy matched '{}' to '{}' (diff: {:.3}Hz)",
+                                mode_str,
+                                best.mode_string,
+                                (best.refresh_rate - target_rate).abs()
+                            );
+                            return Ok((*best).clone());
+                        }
+                    }
+                }
+            }
+
+            Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("Mode '{}' not found on display {}", mode_str, display_name),
+            ))
         }
         ModeSpec::ResolutionAndRate(width, height, hz) => {
             // Filter modes by resolution
