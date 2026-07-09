@@ -68,6 +68,7 @@ const EXTERNAL_DISPLAY_REQUIRES_NVIDIA: &[&str] = &[
     "addw3",
     "addw4",
     "addw5",
+    "addp6",
     "bonw15",
     "bonw15-b",
     "bonw16",
@@ -91,6 +92,7 @@ const EXTERNAL_DISPLAY_REQUIRES_NVIDIA: &[&str] = &[
     "oryp11",
     "oryp12",
     "oryp13",
+    "oryp14",
     "serw13",
     "serw14",
 ];
