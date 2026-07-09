@@ -633,7 +633,12 @@ impl Graphics {
             log::info!("Enabling graphics power");
             self.bus.rescan().map_err(GraphicsDeviceError::Rescan)?;
 
-            sysfs_power_control(self.nvidia[0].id.clone(), self.get_vendor()?);
+            let bv = fs::read_to_string("/sys/class/dmi/id/bios_vendor")
+                .map_err(GraphicsDeviceError::SysFs)?;
+
+            if bv.trim() == "coreboot" {
+                sysfs_power_control(self.nvidia[0].id.clone(), self.get_vendor()?);
+            }
         } else {
             log::info!("Disabling graphics power");
 
@@ -694,8 +699,9 @@ fn get_xorg_conf_path() -> &'static str {
 // system in an invalid state that will eventually lock up. So defer setting power management
 // using a thread.
 //
-// Ref: pop-os/nvidia-graphics-drivers@f9815ed603bd
-// Ref: system76/firmware-open#160
+// Drop after firmware with DGPU_PWRGD fix is released.
+//
+// Ref: system76/coreboot#274
 fn sysfs_power_control(pciid: String, mode: GraphicsMode) {
     std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_millis(5000));
