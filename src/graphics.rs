@@ -370,11 +370,20 @@ impl Graphics {
             .map_err(|e| {
                 GraphicsDeviceError::Json(io::Error::new(io::ErrorKind::InvalidData, e.to_string()))
             })?
-            .filter_map(Result::ok)
-            .map(|f| f.path())
-            .filter(|f| f.to_str().unwrap_or_default().contains("nvidia-driver-"))
-            .map(|f| f.join("supported-gpus.json"))
-            .filter(|f| f.exists())
+            .filter_map(|result| {
+                let f = result.ok()?.path();
+                let package_name = f.to_str().unwrap_or_default();
+                if package_name.contains("nvidia-kernel-common")
+                    || package_name.contains("nvidia-driver-")
+                {
+                    let path = f.join("supported-gpus.json");
+                    if path.exists() {
+                        return Some(path);
+                    }
+                }
+
+                None
+            })
             .collect();
 
         // There should be only 1 driver version installed.
