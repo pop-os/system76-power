@@ -22,11 +22,11 @@ pub enum FanDaemonError {
 }
 
 pub struct FanDaemon {
-    curve:             FanCurve,
-    amdgpus:           Vec<HwMon>,
-    platforms:         Vec<HwMon>,
-    cpus:              Vec<HwMon>,
-    nvidia_exists:     bool,
+    curve: FanCurve,
+    amdgpus: Vec<HwMon>,
+    platforms: Vec<HwMon>,
+    cpus: Vec<HwMon>,
+    nvidia_exists: bool,
     displayed_warning: Cell<bool>,
 }
 
@@ -37,8 +37,12 @@ impl FanDaemon {
             curve: match model.trim() {
                 "thelio-major-r1" => FanCurve::threadripper2(),
                 "thelio-astra-a1" | "thelio-astra-a1.1" | "thelio-major-r2"
-                | "thelio-major-r2.1" | "thelio-major-b1" | "thelio-major-b2"
-                | "thelio-major-b3" | "thelio-mega-r1" | "thelio-mega-r1.1" => FanCurve::hedt(),
+                | "thelio-major-r2.1" | "thelio-major-r3" | "thelio-major-r4"
+                | "thelio-major-r5" | "thelio-major-b1" | "thelio-major-b2" | "thelio-major-b3"
+                | "thelio-major-b4" | "thelio-major-b4.1" | "thelio-mega-r1"
+                | "thelio-mega-r1.1" | "thelio-mega-r2" | "thelio-mega-r3" | "thelio-mega-r4" => {
+                    FanCurve::hedt()
+                }
                 "thelio-massive-b1" => FanCurve::xeon(),
                 _ => FanCurve::standard(),
             },
@@ -166,7 +170,9 @@ impl FanDaemon {
 }
 
 impl Drop for FanDaemon {
-    fn drop(&mut self) { self.set_duty(None); }
+    fn drop(&mut self) {
+        self.set_duty(None);
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -178,7 +184,9 @@ pub struct FanPoint {
 }
 
 impl FanPoint {
-    pub const fn new(temp: i16, duty: u16) -> Self { Self { temp, duty } }
+    pub const fn new(temp: i16, duty: u16) -> Self {
+        Self { temp, duty }
+    }
 
     /// Find the duty between two points and a given temperature, if the temperature
     /// lies within this range.
