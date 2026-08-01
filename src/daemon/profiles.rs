@@ -312,7 +312,7 @@ impl ModelProfiles {
                 performance: ModelProfile {
                     pl1:        Some(40),
                     pl2:        None,    // galp5 doesn't like setting pl2
-                    tcc_offset: Some(7), // 93 C
+                    tcc_offset: Some(2), // 98 C
                 },
                 battery:     ModelProfile {
                     pl1:        Some(12),
