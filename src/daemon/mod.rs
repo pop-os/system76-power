@@ -164,6 +164,52 @@ impl System76Power {
     }
 }
 
+/// Authorize the D-Bus caller of `header` for a polkit action, by its unique bus name
+async fn check_authorization(
+    header: &zbus::MessageHeader<'_>,
+    action_id: &str,
+) -> zbus::fdo::Result<()> {
+    let sender = header
+        .sender()
+        .map_err(zbus_error_from_display)?
+        .ok_or_else(|| zbus_error_from_display("D-Bus message had no sender"))?;
+
+    let connection = zbus::Connection::system().await?;
+    let polkit = zbus_polkit::policykit1::AuthorityProxy::new(&connection)
+        .await
+        .context("could not connect to polkit authority daemon")
+        .map_err(zbus_error_from_display)?;
+
+    let mut subject_details = HashMap::new();
+    subject_details.insert(
+        "name".to_string(),
+        zbus::zvariant::OwnedValue::from(zbus::zvariant::Value::from(sender.as_str())),
+    );
+    let subject = zbus_polkit::policykit1::Subject {
+        subject_kind: "system-bus-name".to_string(),
+        subject_details,
+    };
+
+    let authorized = polkit
+        .check_authorization(
+            &subject,
+            action_id,
+            &HashMap::new(),
+            zbus_polkit::policykit1::CheckAuthorizationFlags::AllowUserInteraction.into(),
+            "",
+        )
+        .await
+        .context("could not check polkit authorization")
+        .map_err(zbus_error_from_display)?
+        .is_authorized;
+
+    if authorized {
+        Ok(())
+    } else {
+        Err(zbus_error_from_display("Operation not permitted by Polkit"))
+    }
+}
+
 #[zbus::dbus_interface(name = "com.system76.PowerDaemon")]
 impl System76Power {
     async fn battery(
@@ -297,41 +343,13 @@ impl System76Power {
         get_charge_thresholds().map_err(zbus_error_from_display)
     }
 
-    async fn set_charge_thresholds(&mut self, thresholds: (u8, u8)) -> zbus::fdo::Result<()> {
-        let connection = zbus::Connection::system().await?;
-        let polkit = zbus_polkit::policykit1::AuthorityProxy::new(&connection)
-            .await
-            .context("could not connect to polkit authority daemon")
-            .map_err(zbus_error_from_display)?;
-
-        let pid = std::process::id();
-
-        let permitted = if pid == 0 {
-            true
-        } else {
-            let subject = zbus_polkit::policykit1::Subject::new_for_owner(pid, None, None)
-                .context("could not create policykit1 subject")
-                .map_err(zbus_error_from_display)?;
-
-            polkit
-                .check_authorization(
-                    &subject,
-                    THRESHOLD_POLICY,
-                    &std::collections::HashMap::new(),
-                    Default::default(),
-                    "",
-                )
-                .await
-                .context("could not check policykit authorization")
-                .map_err(zbus_error_from_display)?
-                .is_authorized
-        };
-
-        if permitted {
-            set_charge_thresholds(thresholds).map_err(zbus_error_from_display)
-        } else {
-            Err(zbus_error_from_display("Operation not permitted by Polkit"))
-        }
+    async fn set_charge_thresholds(
+        &mut self,
+        thresholds: (u8, u8),
+        #[zbus(header)] header: zbus::MessageHeader<'_>,
+    ) -> zbus::fdo::Result<()> {
+        check_authorization(&header, THRESHOLD_POLICY).await?;
+        set_charge_thresholds(thresholds).map_err(zbus_error_from_display)
     }
 
     #[dbus_interface(out_args("profiles"))]
