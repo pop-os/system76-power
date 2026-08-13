@@ -31,7 +31,7 @@ pub fn get_charge_profiles() -> Vec<ChargeProfile> {
             id:          "full_charge".to_string(),
             title:       "Full Charge".to_string(),
             description: "Battery is charged to its full capacity for the longest possible use on \
-                          battery power. Charging resumes when the battery falls below 96% charge."
+                          battery power. Charging resumes when the battery falls below 90% charge."
                 .to_string(),
             start:       90,
             end:         100,
@@ -41,7 +41,7 @@ pub fn get_charge_profiles() -> Vec<ChargeProfile> {
             title:       "Balanced".to_string(),
             description: "Use this threshold when you unplug frequently but don't need the full \
                           battery capacity. Charging stops when the battery reaches 90% capacity \
-                          and resumes when the battery falls below 85%."
+                          and resumes when the battery falls below 86%."
                 .to_string(),
             start:       86,
             end:         90,
