@@ -13,4 +13,13 @@
       <allow_active>auth_admin</allow_active>
     </defaults>
   </action>
+  <action id="com.system76.powerdaemon.claim-fan-control">
+    <description>Claim fan control</description>
+    <message>Taking control of the fans requires authorization</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+  </action>
 </policyconfig>
