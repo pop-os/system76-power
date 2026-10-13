@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 
 use anyhow::Context;
+use futures_lite::StreamExt;
 use std::{
     collections::HashMap,
     fmt::Display,
@@ -17,7 +18,7 @@ use std::{
 use tokio::{
     signal::unix::{signal, SignalKind},
     sync::Mutex,
-    time::sleep,
+    time::{interval_at, Instant, MissedTickBehavior},
 };
 use zbus::Interface;
 
@@ -39,6 +40,7 @@ use self::profiles::{balanced, battery, performance};
 use system76_power_zbus::ChargeProfile;
 
 const THRESHOLD_POLICY: &str = "com.system76.powerdaemon.set-charge-thresholds";
+const FAN_CONTROL_POLICY: &str = "com.system76.powerdaemon.claim-fan-control";
 const NET_HADESS_POWER_PROFILES_DBUS_NAME: &str = "net.hadess.PowerProfiles";
 const NET_HADESS_POWER_PROFILES_DBUS_PATH: &str = "/net/hadess/PowerProfiles";
 const POWER_PROFILES_DBUS_NAME: &str = "org.freedesktop.UPower.PowerProfiles";
@@ -123,8 +125,52 @@ impl PowerDaemon {
     }
 }
 
+/// The fan curve, paused while an external process holds a claim on fan control.
+struct FanControl {
+    fan_daemon: FanDaemon,
+    claimant:   Option<String>,
+}
+
+impl FanControl {
+    /// Record `sender` as the claimant, unless another process holds the claim.
+    fn claim(&mut self, sender: &str) -> Result<(), &'static str> {
+        if self.claimant.as_deref().is_some_and(|claimant| claimant != sender) {
+            return Err("fan control already claimed");
+        }
+        self.claimant = Some(sender.to_owned());
+        Ok(())
+    }
+
+    /// Release the claim on behalf of `sender`, which must hold it if anyone does.
+    fn release_by(&mut self, sender: &str) -> Result<(), &'static str> {
+        match self.claimant.as_deref() {
+            None => Ok(()),
+            Some(claimant) if claimant != sender => Err("fan control claimed by another process"),
+            Some(_) => {
+                self.release();
+                Ok(())
+            }
+        }
+    }
+
+    /// Release the claim if `name`, which has left the bus, holds it.
+    fn release_if_held_by(&mut self, name: &str) -> bool {
+        if self.claimant.as_deref() != Some(name) {
+            return false;
+        }
+        self.release();
+        true
+    }
+
+    /// Drop any claim and return the fans to automatic control.
+    fn release(&mut self) {
+        self.claimant = None;
+        self.fan_daemon.set_duty(None);
+    }
+}
+
 #[derive(Clone)]
-struct System76Power(Arc<Mutex<PowerDaemon>>);
+struct System76Power(Arc<Mutex<PowerDaemon>>, Arc<Mutex<FanControl>>);
 
 impl System76Power {
     pub async fn emit_active_profile_changed(&self) {
@@ -339,6 +385,57 @@ impl System76Power {
         Ok(get_charge_profiles())
     }
 
+    /// Stop the fan curve so the caller can set the fan duty itself, until it
+    /// calls ReleaseFanControl or its bus connection closes. The caller should
+    /// keep writing the duty: Thelio Io boards take over after a few seconds
+    /// without a write. The claim fails when the daemon drives no fans, as on
+    /// laptops, where the EC controls them.
+    async fn claim_fan_control(
+        &self,
+        #[zbus(header)] header: zbus::MessageHeader<'_>,
+    ) -> zbus::fdo::Result<()> {
+        let connection = zbus::Connection::system().await?;
+        check_fan_control_authorization(&connection, &header).await?;
+        let sender = message_sender(&header)?;
+
+        {
+            let mut fan_control = self.1.lock().await;
+            if !fan_control.fan_daemon.controls_fans() {
+                return Err(zbus_error_from_display(
+                    "system76-power does not control the fans on this system",
+                ));
+            }
+            fan_control.claim(&sender).map_err(zbus_error_from_display)?;
+        }
+
+        // The sender may have disconnected while polkit was checked, before the
+        // NameOwnerChanged watch in the main loop could match it to the claim.
+        let bus_name =
+            zbus::names::BusName::try_from(sender.as_str()).map_err(zbus_error_from_display)?;
+        let has_owner =
+            zbus::fdo::DBusProxy::new(&connection).await?.name_has_owner(bus_name).await?;
+        if !has_owner && self.1.lock().await.release_if_held_by(&sender) {
+            log::info!(
+                "fan control claimant {} disconnected before the claim completed; releasing",
+                sender
+            );
+        }
+
+        Ok(())
+    }
+
+    /// Give fan control back to the fan curve. Only the claimant may release.
+    async fn release_fan_control(
+        &self,
+        #[zbus(header)] header: zbus::MessageHeader<'_>,
+    ) -> zbus::fdo::Result<()> {
+        let connection = zbus::Connection::system().await?;
+        check_fan_control_authorization(&connection, &header).await?;
+        let sender = message_sender(&header)?;
+
+        self.1.lock().await.release_by(&sender).map_err(zbus_error_from_display)
+    }
+
     #[dbus_interface(signal)]
     async fn hot_plug_detect(context: &zbus::SignalContext<'_>, port: u64) -> zbus::Result<()>;
 
@@ -530,7 +627,11 @@ pub async fn daemon() -> anyhow::Result<()> {
     };
 
     let daemon = Arc::new(Mutex::new(daemon));
-    let mut system76_daemon = System76Power(daemon.clone());
+    let fan_control = Arc::new(Mutex::new(FanControl {
+        fan_daemon: FanDaemon::new(nvidia_exists),
+        claimant:   None,
+    }));
+    let mut system76_daemon = System76Power(daemon.clone(), fan_control.clone());
 
     match system76_daemon.auto_graphics_power().await {
         Ok(()) => (),
@@ -575,6 +676,17 @@ pub async fn daemon() -> anyhow::Result<()> {
         .await
         .context("unable to create system service for net.hadess.PowerProfiles")?;
 
+    // Watch for fan control claimants disconnecting. Subscribe before serving
+    // com.system76.PowerDaemon so no claim can be made without being watched.
+    let name_watch_connection =
+        zbus::Connection::system().await.context("failed to connect to system bus")?;
+    let mut name_owner_changed = zbus::fdo::DBusProxy::new(&name_watch_connection)
+        .await
+        .context("failed to create DBus proxy")?
+        .receive_name_owner_changed()
+        .await
+        .context("failed to watch NameOwnerChanged")?;
+
     // Register DBus interface for com.system76.PowerDaemon.
     let connection = zbus::ConnectionBuilder::system()
         .context("failed to create zbus connection builder")?
@@ -600,7 +712,7 @@ pub async fn daemon() -> anyhow::Result<()> {
 
     // Spawn hid backlight daemon
     let _hid_backlight = thread::spawn(hid_backlight::daemon);
-    let mut fan_daemon = FanDaemon::new(nvidia_exists);
+    let loop_fan_control = fan_control.clone();
     let mut hpd_res = unsafe { HotPlugDetect::new(nvidia_device_id) };
     let mux_res = unsafe { mux::DisplayPortMux::new() };
     let mut hpd = || -> [bool; 4] {
@@ -614,10 +726,34 @@ pub async fn daemon() -> anyhow::Result<()> {
     let main_loop = async move {
         let mut last = hpd();
 
-        while CONTINUE.load(Ordering::SeqCst) {
-            sleep(Duration::from_millis(1000)).await;
+        // An interval rather than a fresh sleep per iteration, so that frequent
+        // NameOwnerChanged signals cannot postpone the once-per-second work.
+        let period = Duration::from_millis(1000);
+        let mut interval = interval_at(Instant::now() + period, period);
+        interval.set_missed_tick_behavior(MissedTickBehavior::Delay);
 
-            fan_daemon.step();
+        while CONTINUE.load(Ordering::SeqCst) {
+            tokio::select! {
+                _ = interval.tick() => (),
+                Some(signal) = name_owner_changed.next() => {
+                    if let Ok(args) = signal.args() {
+                        let name = args.name().as_str();
+                        if args.new_owner().is_none()
+                            && loop_fan_control.lock().await.release_if_held_by(name)
+                        {
+                            log::info!("fan control claimant {} disconnected; releasing", name);
+                        }
+                    }
+                    continue;
+                }
+            }
+
+            {
+                let mut fan_control = loop_fan_control.lock().await;
+                if fan_control.claimant.is_none() {
+                    fan_control.fan_daemon.step();
+                }
+            }
 
             // HACK: As of Linux 6.9.3, TBT5 controller must be active for HPD
             // to work on USB-C ports.
@@ -649,6 +785,10 @@ pub async fn daemon() -> anyhow::Result<()> {
     log::info!("Handling dbus requests");
     futures_lite::future::zip(signal_handling_fut, main_loop).await;
 
+    // The D-Bus object server keeps FanControl alive through a reference cycle,
+    // so FanDaemon's Drop never runs. Return the fans to automatic explicitly.
+    fan_control.lock().await.release();
+
     log::info!("daemon exited from loop");
     Ok(())
 }
@@ -664,4 +804,87 @@ fn system76_profile_to_upp_str(system76_profile: &str) -> &'static str {
 
 fn zbus_error_from_display<E: Display>(why: E) -> zbus::fdo::Error {
     zbus::fdo::Error::Failed(format!("{}", why))
+}
+
+/// Unique bus name of the process that sent a D-Bus method call.
+fn message_sender(header: &zbus::MessageHeader<'_>) -> zbus::fdo::Result<String> {
+    header
+        .sender()?
+        .map(|sender| sender.to_string())
+        .ok_or_else(|| zbus_error_from_display("message has no sender"))
+}
+
+/// Check the fan control polkit action against the bus name that sent the call.
+async fn check_fan_control_authorization(
+    connection: &zbus::Connection,
+    header: &zbus::MessageHeader<'_>,
+) -> zbus::fdo::Result<()> {
+    let polkit = zbus_polkit::policykit1::AuthorityProxy::new(connection)
+        .await
+        .context("could not connect to polkit authority daemon")
+        .map_err(zbus_error_from_display)?;
+
+    let subject = zbus_polkit::policykit1::Subject::new_for_message_header(header)
+        .context("could not create policykit1 subject")
+        .map_err(zbus_error_from_display)?;
+
+    let permitted = polkit
+        .check_authorization(
+            &subject,
+            FAN_CONTROL_POLICY,
+            &std::collections::HashMap::new(),
+            Default::default(),
+            "",
+        )
+        .await
+        .context("could not check policykit authorization")
+        .map_err(zbus_error_from_display)?
+        .is_authorized;
+
+    if permitted {
+        Ok(())
+    } else {
+        Err(zbus_error_from_display("Operation not permitted by Polkit"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn fan_control() -> FanControl {
+        FanControl { fan_daemon: FanDaemon::new(false), claimant: None }
+    }
+
+    #[test]
+    fn claim_is_exclusive() {
+        let mut fan_control = fan_control();
+        assert_eq!(fan_control.claim(":1.1"), Ok(()));
+        assert_eq!(fan_control.claim(":1.1"), Ok(()));
+        assert_eq!(fan_control.claim(":1.2"), Err("fan control already claimed"));
+        assert_eq!(fan_control.claimant.as_deref(), Some(":1.1"));
+    }
+
+    #[test]
+    fn only_claimant_may_release() {
+        let mut fan_control = fan_control();
+        assert_eq!(fan_control.release_by(":1.2"), Ok(()));
+        fan_control.claim(":1.1").unwrap();
+        assert_eq!(fan_control.release_by(":1.2"), Err("fan control claimed by another process"));
+        assert_eq!(fan_control.claimant.as_deref(), Some(":1.1"));
+        assert_eq!(fan_control.release_by(":1.1"), Ok(()));
+        assert_eq!(fan_control.claimant, None);
+        assert_eq!(fan_control.claim(":1.2"), Ok(()));
+    }
+
+    #[test]
+    fn departed_claimant_is_released() {
+        let mut fan_control = fan_control();
+        assert!(!fan_control.release_if_held_by(":1.1"));
+        fan_control.claim(":1.1").unwrap();
+        assert!(!fan_control.release_if_held_by(":1.2"));
+        assert_eq!(fan_control.claimant.as_deref(), Some(":1.1"));
+        assert!(fan_control.release_if_held_by(":1.1"));
+        assert_eq!(fan_control.claimant, None);
+    }
 }

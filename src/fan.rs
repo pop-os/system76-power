@@ -56,6 +56,10 @@ impl FanDaemon {
         daemon
     }
 
+    /// Return whether a fan board was found for the curve to drive. Laptops have
+    /// none, because their EC controls the fans.
+    pub fn controls_fans(&self) -> bool { !self.platforms.is_empty() }
+
     /// Discover all utilizable hwmon devices
     fn discover(&mut self) -> Result<(), FanDaemonError> {
         self.amdgpus.clear();

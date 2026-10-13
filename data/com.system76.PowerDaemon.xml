@@ -27,6 +27,24 @@
     <method name="GetChargeProfiles">
       <arg name="profiles" type="aa{sv}" direction="out"/>
     </method>
+
+    <!--
+      ClaimFanControl: stop the daemon's fan curve so the caller can set the
+      fan duty itself. Only one connection may hold the claim. The claim is
+      released by ReleaseFanControl, or automatically when the caller's bus
+      connection closes. While claimed, the caller should keep writing the
+      fan duty (the daemon writes every second): Thelio Io fan controllers
+      take over on their own if nothing is written for several seconds.
+      The claim fails when the daemon drives no fans, as on laptops, where
+      the EC controls them.
+    -->
+    <method name="ClaimFanControl"></method>
+
+    <!--
+      ReleaseFanControl: give fan control back to the daemon's fan curve.
+      Only the connection holding the claim may release it.
+    -->
+    <method name="ReleaseFanControl"></method>
     
     <method name="GetDefaultGraphics">
       <arg name="vendor" type="s" direction="out"/>
