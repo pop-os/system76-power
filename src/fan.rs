@@ -56,6 +56,8 @@ impl FanDaemon {
         daemon
     }
 
+    pub fn controls_fans(&self) -> bool { !self.platforms.is_empty() }
+
     /// Discover all utilizable hwmon devices
     fn discover(&mut self) -> Result<(), FanDaemonError> {
         self.amdgpus.clear();

@@ -66,6 +66,12 @@ trait PowerDaemon {
     /// SetChargeThresholds method
     fn set_charge_thresholds(&self, thresholds: &(u8, u8)) -> zbus::Result<()>;
 
+    /// ClaimFanControl method
+    fn claim_fan_control(&self) -> zbus::Result<()>;
+
+    /// ReleaseFanControl method
+    fn release_fan_control(&self) -> zbus::Result<()>;
+
     /// HotPlugDetect signal
     #[dbus_proxy(signal)]
     fn hot_plug_detect(&self, port: u64) -> zbus::Result<()>;

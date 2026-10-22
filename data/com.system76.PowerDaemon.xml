@@ -27,6 +27,10 @@
     <method name="GetChargeProfiles">
       <arg name="profiles" type="aa{sv}" direction="out"/>
     </method>
+
+    <method name="ClaimFanControl"></method>
+
+    <method name="ReleaseFanControl"></method>
     
     <method name="GetDefaultGraphics">
       <arg name="vendor" type="s" direction="out"/>
